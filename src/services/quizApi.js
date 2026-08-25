@@ -1,6 +1,6 @@
 export const fetchManifest = async () => {
   try {
-    const response = await fetch('/api/decks.cjs');
+    const response = await fetch('/api/decks');
     if (!response.ok) throw new Error('Network response was not ok');
     
     const result = await response.json();
@@ -15,7 +15,7 @@ export const fetchManifest = async () => {
 
 export const fetchDeckQuestions = async (deckPath, signal) => {
   try {
-    const response = await fetch(`/api/questions.cjs?deckPath=${encodeURIComponent(deckPath)}`, { signal });
+    const response = await fetch(`/api/questions?deckPath=${encodeURIComponent(deckPath)}`, { signal });
     if (!response.ok) throw new Error('Network response was not ok');
     
     const result = await response.json();

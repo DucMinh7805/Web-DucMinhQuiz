@@ -1,7 +1,6 @@
-const { connectToDatabase, Deck } = require('./_utils/db.cjs');
+import { connectToDatabase, Deck } from './_utils/db.js';
 
-module.exports = async function handler(req, res) {
-  // CORS
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
@@ -10,11 +9,8 @@ module.exports = async function handler(req, res) {
 
   try {
     await connectToDatabase();
-
-    // Lấy tất cả Deck, sắp xếp theo thời gian đồng bộ mới nhất
     const decks = await Deck.find({}).sort({ lastSyncedAt: -1 }).lean();
-
-    // Chuyển đổi định dạng cho giống với cấu trúc React cũ đang cần (manifest.json cũ)
+    
     const formattedDecks = decks.map(deck => ({
       title: deck.title,
       path: deck.path,
@@ -23,13 +19,9 @@ module.exports = async function handler(req, res) {
       tags: deck.tags || []
     }));
 
-    res.status(200).json({
-      success: true,
-      data: formattedDecks
-    });
-
+    return res.status(200).json({ success: true, data: formattedDecks });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: 'Lỗi khi lấy danh sách đề thi' });
+    return res.status(500).json({ success: false, message: 'L?i khi l?y danh s�ch d? thi' });
   }
-};
+}

@@ -1,7 +1,6 @@
-const { connectToDatabase, Question } = require('./_utils/db.cjs');
+import { connectToDatabase, Question } from './_utils/db.js';
 
-module.exports = async function handler(req, res) {
-  // CORS
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
@@ -10,22 +9,16 @@ module.exports = async function handler(req, res) {
 
   try {
     await connectToDatabase();
-
     const { deckPath } = req.query;
 
     if (!deckPath) {
-      return res.status(400).json({ success: false, message: 'Thiếu tham số deckPath' });
+      return res.status(400).json({ success: false, message: 'Thi?u tham s? deckPath' });
     }
 
     const questions = await Question.find({ deckPath: deckPath }).lean();
-
-    res.status(200).json({
-      success: true,
-      data: questions
-    });
-
+    return res.status(200).json({ success: true, data: questions });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: 'Lỗi khi lấy danh sách câu hỏi' });
+    return res.status(500).json({ success: false, message: 'L?i khi l?y danh s�ch c�u h?i' });
   }
-};
+}
