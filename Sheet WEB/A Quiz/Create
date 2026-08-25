@@ -1,0 +1,111 @@
+function callApiCreateQuiz() {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var currentRow = sheet.getActiveRange().getRow();
+
+    Logger.log("Current Row: " + currentRow);
+    Logger.log("Sheet Name: " + sheet.getName());
+
+    try {
+        var labelText = sheet.getRange(currentRow, 10).getDisplayValue();
+        var labelColor = sheet.getRange(currentRow, 11).getDisplayValue();
+        var typeCheck = sheet.getRange(currentRow, 12).getDisplayValue();
+        var paymentCheck = sheet.getRange(currentRow, 5).getDisplayValue();
+
+        Logger.log("Raw values:");
+        Logger.log("  labelText (J): '" + labelText + "'");
+        Logger.log("  labelColor (K): '" + labelColor + "'");
+        Logger.log("  typeCheck (L): '" + typeCheck + "'");
+        Logger.log("  paymentCheck (E): '" + paymentCheck + "'");
+
+        labelText = (labelText !== null && labelText !== undefined) ? labelText.toString().trim() : '';
+        labelColor = (labelColor !== null && labelColor !== undefined) ? labelColor.toString().trim() : '';
+        typeCheck = (typeCheck !== null && typeCheck !== undefined) ? typeCheck.toString().trim() : '';
+        paymentCheck = (paymentCheck !== null && paymentCheck !== undefined) ? paymentCheck.toString().trim() : '';
+
+        var baseUrl = "https://api.facourse.com/famaster/v1/faquiz/get-form-v2";
+        var sheetId = "1hUVLIjFXNQ5umnLEZ3V3iy7Dufq77wqlVx-7q08wAjQ";
+
+        var params = [];
+        params.push("sheetId=" + encodeURIComponent(sheetId));
+
+        var typeCheckLower = typeCheck.toLowerCase();
+        if (typeCheck !== '' && (typeCheckLower === 'x' || typeCheckLower === 'true' || typeCheckLower === '1' || typeCheckLower === 'yes')) {
+            params.push("type=tuluan");
+        }
+
+        var paymentCheckLower = paymentCheck.toLowerCase();
+        if (paymentCheck !== '' && (paymentCheckLower === 'x' || paymentCheckLower === 'true' || paymentCheckLower === '1' || paymentCheckLower === 'yes')) {
+            params.push("paymentType=FREE");
+        }
+
+        if (labelColor !== '' && labelColor.length > 0) {
+            params.push("labelColor=" + encodeURIComponent(labelColor));
+        }
+
+        if (labelText !== '' && labelText.length > 0) {
+            params.push("labelText=" + encodeURIComponent(labelText));
+        }
+
+        var finalUrl = baseUrl + "?" + params.join("&");
+        Logger.log("Final URL: " + finalUrl);
+
+        var response = UrlFetchApp.fetch(finalUrl, { 'method': 'GET', 'muteHttpExceptions': true });
+        var responseCode = response.getResponseCode();
+        Logger.log("First API Response Code: " + responseCode);
+        Logger.log("First API Response: " + response.getContentText());
+
+        if (responseCode >= 200 && responseCode < 300) {
+
+            // ✅ Gọi API clean-cache sau khi get-form-v2 thành công
+            try {
+                var cleanCacheUrl = "https://api.facourse.com/fai/v1/internal/clean-cache";
+                var cleanCacheOptions = {
+                    'method': 'POST',
+                    'headers': {
+                        'Authorization': 'Basic dGF0YTpvbml0bzE='
+                    },
+                    'muteHttpExceptions': true
+                };
+
+                Logger.log("Calling clean-cache API: " + cleanCacheUrl);
+                var cleanCacheResponse = UrlFetchApp.fetch(cleanCacheUrl, cleanCacheOptions);
+                var cleanCacheResponseCode = cleanCacheResponse.getResponseCode();
+                Logger.log("Clean-cache Response Code: " + cleanCacheResponseCode);
+                Logger.log("Clean-cache Response: " + cleanCacheResponse.getContentText());
+
+                if (cleanCacheResponseCode < 200 || cleanCacheResponseCode >= 300) {
+                    Logger.log("Warning: clean-cache thất bại nhưng vẫn tiếp tục - Code: " + cleanCacheResponseCode);
+                }
+            } catch (cleanCacheError) {
+                Logger.log("Warning: Lỗi clean-cache nhưng vẫn tiếp tục: " + cleanCacheError.message);
+            }
+
+            // Gọi API thứ hai (n8n webhook)
+            try {
+                var secondApiUrl = "https://n8n.ap.ngrok.io/webhook/free-chapter";
+                Logger.log("Calling second API: " + secondApiUrl);
+                var secondResponse = UrlFetchApp.fetch(secondApiUrl, { 'method': 'GET', 'muteHttpExceptions': true });
+                var secondResponseCode = secondResponse.getResponseCode();
+                Logger.log("Second API Response Code: " + secondResponseCode);
+                Logger.log("Second API Response: " + secondResponse.getContentText());
+
+                if (secondResponseCode >= 200 && secondResponseCode < 300) {
+                    SpreadsheetApp.getActiveSpreadsheet().toast("Đã up thành công lên app");
+                } else {
+                    SpreadsheetApp.getActiveSpreadsheet().toast("Lỗi API thứ 2 - Code: " + secondResponseCode);
+                }
+            } catch (secondError) {
+                Logger.log("Second API Error: " + secondError.message);
+                SpreadsheetApp.getActiveSpreadsheet().toast("Lỗi API thứ 2: " + secondError.message);
+            }
+
+        } else {
+            SpreadsheetApp.getActiveSpreadsheet().toast("Lỗi API đầu tiên - Code: " + responseCode);
+        }
+
+    } catch (e) {
+        Logger.log("Error: " + e.message);
+        Logger.log("Error stack: " + e.stack);
+        SpreadsheetApp.getActiveSpreadsheet().toast("Lỗi: " + e.message);
+    }
+}

@@ -1,0 +1,40 @@
+function callWebhook() {
+    var webhookUrl = "https://n8n.ap.ngrok.io/webhook/fa-action-quiz";
+
+    // Thông tin Basic Auth
+    var user = "tata";
+    var pass = "onito1";
+
+    // Mã hóa Base64 cho Header Authorization
+    var charData = user + ":" + pass;
+    var encodedAuth = Utilities.base64Encode(charData);
+
+    var options = {
+        method: "POST", // Đã chuyển sang POST theo yêu cầu
+        contentType: "application/json",
+        headers: {
+            "Authorization": "Basic " + encodedAuth
+        },
+        muteHttpExceptions: true // Giúp lấy nội dung lỗi thay vì văng exception
+    };
+
+    try {
+        var response = UrlFetchApp.fetch(webhookUrl, options);
+        var responseCode = response.getResponseCode();
+        var responseBody = response.getContentText();
+
+        if (responseCode === 200 || responseCode === 201) {
+            SpreadsheetApp.getUi().alert("✅ Update thành công!\nResponse Code: " + responseCode);
+        } else {
+            // Thông báo chi tiết lỗi nếu code khác 200/201
+            SpreadsheetApp.getUi().alert("⚠️ Lỗi " + responseCode + "\nNội dung: " + responseBody);
+        }
+
+        Logger.log("Response Code: " + responseCode);
+        Logger.log("Response Body: " + responseBody);
+
+    } catch (e) {
+        SpreadsheetApp.getUi().alert("❌ Lỗi kết nối: " + e.message);
+        Logger.log("Error: " + e.toString());
+    }
+}

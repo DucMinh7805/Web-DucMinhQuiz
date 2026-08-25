@@ -1,0 +1,55 @@
+function callApiFromSelectedCell() {
+  // Get active spreadsheet and the currently selected cell
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var cell = sheet.getActiveCell(); // Get the active cell
+  var selectedRow = cell.getRow(); // Get row of the selected cell
+
+  // Assume parameters are in columns of the same row
+  var title = sheet.getRange(selectedRow, 1).getValue(); // Column A
+  var code = sheet.getRange(selectedRow, 2).getValue(); // Column B
+  var backgroundColor = sheet.getRange(selectedRow, 3).getValue(); // Column C
+  var image = sheet.getRange(selectedRow, 4).getValue(); // Column D
+  var typeMarker = sheet.getRange(selectedRow, 6).getValue(); // Column F
+
+  // Check if all required values are present
+  if (!title || !code || !backgroundColor || !image) {
+    SpreadsheetApp.getActiveSpreadsheet().toast("Error: Kiểm tra lại thông tin", "Error", 5);
+    return; // Stop execution if any value is missing
+  }
+
+  // Construct the payload
+  var payload = {
+    title: title,
+    code: code,
+    backgroundColor: backgroundColor,
+    image: image
+  };
+
+  // Add type parameter if column F is marked with "x"
+  if (typeMarker && typeMarker.toString().toLowerCase() === "x") {
+    payload.type = "tuluan";
+  }
+  if (typeMarker && typeMarker.toString().toLowerCase() === "hack") {
+    payload.type = "hack";
+  }
+
+  // Set up the options for the HTTP POST request
+  var options = {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload)
+  };
+
+  // Make the POST request
+  var url = "https://api.facourse.com/famaster/v1/faquiz/home/gen-category";
+  try {
+    var response = UrlFetchApp.fetch(url, options);
+
+    // Log the response (optional)
+    Logger.log(response.getContentText());
+    SpreadsheetApp.getActiveSpreadsheet().toast("Tạo môn thành công");
+  } catch (e) {
+    Logger.log("Error: " + e.message);
+    SpreadsheetApp.getActiveSpreadsheet().toast("Error calling the API: " + e.message, "Error", 5);
+  }
+}
