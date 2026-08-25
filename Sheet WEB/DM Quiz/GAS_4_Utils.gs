@@ -36,40 +36,60 @@ function findSheetByAliases(ss, aliases) {
 }
 
 function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
+  const form = FormApp.openByUrl(formUrl);
+  const formId = form.getId();
+  const items = form.getItems();
+  const questions = [];
+
   // 1. Cào danh sách hình ảnh trực tiếp từ Google Form HTML (Bắt 100% ảnh đính kèm trong từng câu hỏi)
   const imageMapByIndex = {};
   let globalFormImage = defaultDeckImageUrl || "";
 
   try {
-    const viewUrl = formUrl.replace(/\/edit.*$/, '/viewform');
-    const response = UrlFetchApp.fetch(viewUrl, { muteHttpExceptions: true });
+    const viewUrl = 'https://docs.google.com/forms/d/' + formId + '/viewform';
+    const response = UrlFetchApp.fetch(viewUrl, {
+      muteHttpExceptions: true,
+      followRedirects: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+
     if (response.getResponseCode() === 200) {
       const html = response.getContentText();
-      const match = html.match(/FB_PUBLIC_LOAD_DATA_\s*=\s*(\[.+?\]);\s*<\/script>/s);
-      if (match && match[1]) {
-        const parsedData = JSON.parse(match[1]);
-        const formItems = (parsedData[1] && parsedData[1][1]) || [];
-        
-        let qIdx = 0;
-        formItems.forEach((it) => {
-          // Bóc tách Image ID từ it[9] (Vị trí Google Forms lưu trữ ảnh chèn trong câu hỏi)
-          let foundImg = "";
-          if (it[9] && Array.isArray(it[9]) && it[9][0] && it[9][0][0]) {
-            const imgId = it[9][0][0];
-            foundImg = `https://lh3.googleusercontent.com/d/${imgId}=w1200`;
-          }
-
-          const itType = it[3];
-          // Nếu là câu hỏi (0: text, 1: paragraph, 2: multiple_choice, 4: checkbox)
-          if (itType === 0 || itType === 1 || itType === 2 || itType === 4) {
-            if (foundImg) {
-              imageMapByIndex[qIdx] = foundImg;
+      const startIdx = html.indexOf('FB_PUBLIC_LOAD_DATA_');
+      if (startIdx !== -1) {
+        const equalsIdx = html.indexOf('=', startIdx);
+        const openBracket = html.indexOf('[', equalsIdx);
+        const scriptClose = html.indexOf('</script>', openBracket);
+        if (openBracket !== -1 && scriptClose !== -1) {
+          const chunk = html.substring(openBracket, scriptClose).trim();
+          const lastSemi = chunk.lastIndexOf(';');
+          const jsonStr = lastSemi !== -1 ? chunk.substring(0, lastSemi).trim() : chunk;
+          const parsedData = JSON.parse(jsonStr);
+          const formItems = (parsedData[1] && parsedData[1][1]) || [];
+          
+          let qIdx = 0;
+          for (let i = 0; i < formItems.length; i++) {
+            const it = formItems[i];
+            let foundImg = "";
+            if (it[9] && Array.isArray(it[9]) && it[9][0] && it[9][0][0]) {
+              const imgId = it[9][0][0];
+              foundImg = 'https://lh3.googleusercontent.com/d/' + imgId + '=w1200';
             }
-            qIdx++;
-          } else if (foundImg) {
-            globalFormImage = foundImg;
+
+            const itType = it[3];
+            // Nếu là câu hỏi (0: text, 1: paragraph, 2: multiple_choice, 4: checkbox)
+            if (itType === 0 || itType === 1 || itType === 2 || itType === 4) {
+              if (foundImg) {
+                imageMapByIndex[qIdx] = foundImg;
+              }
+              qIdx++;
+            } else if (foundImg) {
+              globalFormImage = foundImg;
+            }
           }
-        });
+        }
       }
     }
   } catch (scrapeErr) {
@@ -77,9 +97,6 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
   }
 
   // 2. Mở Form qua FormApp để lấy Đề bài, Đáp án, Lựa chọn A B C D và Giải thích
-  const form = FormApp.openByUrl(formUrl);
-  const items = form.getItems();
-  const questions = [];
   let questionIndex = 0;
 
   items.forEach((item, index) => {
@@ -126,7 +143,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
       const feedback = mcItem.getFeedbackForCorrect() || mcItem.getFeedbackForIncorrect();
 
       questions.push({
-        id: `${form.getId()}-${questionIndex + 1}`,
+        id: `${formId}-${questionIndex + 1}`,
         type: 'single',
         question: titleText,
         vignette: helpText,
@@ -148,7 +165,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
       const feedback = cbItem.getFeedbackForCorrect() || cbItem.getFeedbackForIncorrect();
 
       questions.push({
-        id: `${form.getId()}-${questionIndex + 1}`,
+        id: `${formId}-${questionIndex + 1}`,
         type: 'multiple',
         question: titleText,
         vignette: helpText,
@@ -163,7 +180,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
       const feedback = textItem.getGeneralFeedback();
       
       questions.push({
-        id: `${form.getId()}-${questionIndex + 1}`,
+        id: `${formId}-${questionIndex + 1}`,
         type: 'short_answer',
         question: titleText,
         vignette: helpText,
