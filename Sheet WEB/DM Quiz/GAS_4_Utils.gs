@@ -35,14 +35,87 @@ function findSheetByAliases(ss, aliases) {
   return null;
 }
 
-function extractQuestionsFromForm(formUrl) {
+function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
+  // 1. Cào danh sách hình ảnh trực tiếp từ Google Form HTML (Bắt 100% ảnh đính kèm trong từng câu hỏi)
+  const imageMapByIndex = {};
+  let globalFormImage = defaultDeckImageUrl || "";
+
+  try {
+    const viewUrl = formUrl.replace(/\/edit.*$/, '/viewform');
+    const response = UrlFetchApp.fetch(viewUrl, { muteHttpExceptions: true });
+    if (response.getResponseCode() === 200) {
+      const html = response.getContentText();
+      const match = html.match(/FB_PUBLIC_LOAD_DATA_\s*=\s*(\[.+?\]);\s*<\/script>/s);
+      if (match && match[1]) {
+        const parsedData = JSON.parse(match[1]);
+        const formItems = (parsedData[1] && parsedData[1][1]) || [];
+        
+        let qIdx = 0;
+        formItems.forEach((it) => {
+          // Bóc tách Image ID từ it[9] (Vị trí Google Forms lưu trữ ảnh chèn trong câu hỏi)
+          let foundImg = "";
+          if (it[9] && Array.isArray(it[9]) && it[9][0] && it[9][0][0]) {
+            const imgId = it[9][0][0];
+            foundImg = `https://lh3.googleusercontent.com/d/${imgId}=w1200`;
+          }
+
+          const itType = it[3];
+          // Nếu là câu hỏi (0: text, 1: paragraph, 2: multiple_choice, 4: checkbox)
+          if (itType === 0 || itType === 1 || itType === 2 || itType === 4) {
+            if (foundImg) {
+              imageMapByIndex[qIdx] = foundImg;
+            }
+            qIdx++;
+          } else if (foundImg) {
+            globalFormImage = foundImg;
+          }
+        });
+      }
+    }
+  } catch (scrapeErr) {
+    Logger.log("Lỗi cào ảnh từ Form view: " + scrapeErr.message);
+  }
+
+  // 2. Mở Form qua FormApp để lấy Đề bài, Đáp án, Lựa chọn A B C D và Giải thích
   const form = FormApp.openByUrl(formUrl);
   const items = form.getItems();
   const questions = [];
+  let questionIndex = 0;
 
   items.forEach((item, index) => {
     const itemType = item.getType();
-    
+
+    // Xử lý ImageItem độc lập (nếu có)
+    if (itemType === FormApp.ItemType.IMAGE) {
+      try {
+        const imageItem = item.asImageItem();
+        const helpText = imageItem.getHelpText() ? imageItem.getHelpText().trim() : "";
+        const titleText = imageItem.getTitle() ? imageItem.getTitle().trim() : "";
+        const match = (helpText + " " + titleText).match(/https?:\/\/[^\s"'<>]+/);
+        if (match) {
+          globalFormImage = match[0];
+        }
+      } catch (e) {}
+      return;
+    }
+
+    let itemImageUrl = imageMapByIndex[questionIndex] || globalFormImage;
+    let helpText = item.getHelpText() ? item.getHelpText().trim() : "";
+    let titleText = item.getTitle() ? item.getTitle().trim() : "";
+
+    // Tìm link ảnh nếu người soạn đề dán trong phần mô tả câu hỏi
+    const inlineUrlMatch = (helpText + " " + titleText).match(/https?:\/\/[^\s"'<>]+/);
+    if (inlineUrlMatch) {
+      let foundUrl = inlineUrlMatch[0];
+      if (foundUrl.includes('drive.google.com') || foundUrl.includes('docs.google.com')) {
+        const driveMatch = foundUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || foundUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        if (driveMatch && driveMatch[1]) {
+          foundUrl = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1200`;
+        }
+      }
+      itemImageUrl = foundUrl;
+    }
+
     if (itemType === FormApp.ItemType.MULTIPLE_CHOICE) {
       const mcItem = item.asMultipleChoiceItem();
       const choices = mcItem.getChoices();
@@ -53,14 +126,16 @@ function extractQuestionsFromForm(formUrl) {
       const feedback = mcItem.getFeedbackForCorrect() || mcItem.getFeedbackForIncorrect();
 
       questions.push({
-        id: `${form.getId()}-${index + 1}`,
+        id: `${form.getId()}-${questionIndex + 1}`,
         type: 'single',
-        question: item.getTitle().trim(),
-        vignette: item.getHelpText() ? item.getHelpText().trim() : "",
+        question: titleText,
+        vignette: helpText,
+        imageUrl: itemImageUrl,
         options: optionsList.join('|'),
         answer: answerVal,
         explanation: feedback ? feedback.getText() : ""
       });
+      questionIndex++;
     } else if (itemType === FormApp.ItemType.CHECKBOX) {
       const cbItem = item.asCheckboxItem();
       const choices = cbItem.getChoices();
@@ -73,28 +148,31 @@ function extractQuestionsFromForm(formUrl) {
       const feedback = cbItem.getFeedbackForCorrect() || cbItem.getFeedbackForIncorrect();
 
       questions.push({
-        id: `${form.getId()}-${index + 1}`,
+        id: `${form.getId()}-${questionIndex + 1}`,
         type: 'multiple',
-        question: item.getTitle().trim(),
-        vignette: item.getHelpText() ? item.getHelpText().trim() : "",
+        question: titleText,
+        vignette: helpText,
+        imageUrl: itemImageUrl,
         options: optionsList.join('|'),
         answer: answerVal,
         explanation: feedback ? feedback.getText() : ""
       });
+      questionIndex++;
     } else if (itemType === FormApp.ItemType.TEXT || itemType === FormApp.ItemType.PARAGRAPH_TEXT) {
-      // Hỗ trợ câu hỏi Tự Luận Ngắn / Dài (Fill in the blank / Essay)
       const textItem = itemType === FormApp.ItemType.TEXT ? item.asTextItem() : item.asParagraphTextItem();
       const feedback = textItem.getGeneralFeedback();
       
       questions.push({
-        id: `${form.getId()}-${index + 1}`,
+        id: `${form.getId()}-${questionIndex + 1}`,
         type: 'short_answer',
-        question: item.getTitle().trim(),
-        vignette: item.getHelpText() ? item.getHelpText().trim() : "",
+        question: titleText,
+        vignette: helpText,
+        imageUrl: itemImageUrl,
         options: "",
-        answer: "", // Tự luận thường không có đáp án cứng trong API, dùng giải thích để đối chiếu
+        answer: "",
         explanation: feedback ? feedback.getText() : ""
       });
+      questionIndex++;
     }
   });
 

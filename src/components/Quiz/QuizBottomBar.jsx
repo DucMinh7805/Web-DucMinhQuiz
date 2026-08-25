@@ -49,6 +49,29 @@ export default function QuizBottomBar({
     }
   };
 
+  const checkIsCorrect = (userAns, q) => {
+    if (userAns === undefined || userAns === null || !q) return false;
+    const correctArr = Array.isArray(q.answer)
+      ? q.answer.map(String)
+      : String(q.answer || '').split('|').map(s => s.trim()).filter(Boolean);
+    const userArr = Array.isArray(userAns)
+      ? userAns.map(String)
+      : String(userAns || '').split('|').map(s => s.trim()).filter(Boolean);
+
+    if (q.type === 'short_answer' || q.type === 'fill_in_blank') {
+      if (correctArr.length === 0) return true;
+      const uStr = userArr.join(' ').toLowerCase().trim();
+      const cStr = correctArr.join(' ').toLowerCase().trim();
+      return uStr === cStr || uStr.includes(cStr) || cStr.includes(uStr);
+    }
+
+    if (correctArr.length === 0) return false;
+    if (userArr.length !== correctArr.length) return false;
+    const sortedU = [...userArr].sort();
+    const sortedC = [...correctArr].sort();
+    return sortedU.every((val, i) => val === sortedC[i]);
+  };
+
   return (
     <>
       {/* ========================================================================= */}
@@ -101,7 +124,7 @@ export default function QuizBottomBar({
                   pillClass = 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-black border-transparent shadow-sm ring-2 ring-teal-400/40 scale-105';
                 } else if (isAnswered) {
                   if (mode === 'tutor') {
-                    const isCorrect = userAnswers[idx] === questions[idx]?.answer;
+                    const isCorrect = checkIsCorrect(userAnswers[idx], questions[idx]);
                     pillClass = isCorrect
                       ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 font-bold'
                       : 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/40 font-bold';
@@ -210,7 +233,7 @@ export default function QuizBottomBar({
                   btnStyle = 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-black border-transparent shadow-sm ring-2 ring-teal-400/40';
                 } else if (isAnswered) {
                   if (mode === 'tutor') {
-                    const isCorrect = userAnswers[idx] === questions[idx]?.answer;
+                    const isCorrect = checkIsCorrect(userAnswers[idx], questions[idx]);
                     btnStyle = isCorrect
                       ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 font-bold'
                       : 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/40 font-bold';

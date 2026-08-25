@@ -130,6 +130,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
         const tagsStr = String(row[5] || '').trim(); // Cột F là Tags
         const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(t => t) : [];
         const currentStatus = String(row[4] || '').trim(); // Cột E là Trạng Thái
+        const deckImgUrl = String(row[6] || '').trim(); // Cột G (Tùy chọn) là Link ảnh mô hình / sơ đồ giải phẫu
         
         newSubjectsMap[subKey].decks.push({
           id: deckId,
@@ -137,7 +138,8 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
           path: deckPath,
           formUrl: formUrl,
           questionCount: questionCount,
-          tags: tags
+          tags: tags,
+          imageUrl: deckImgUrl
         });
         
         // --- LOGIC UP ĐỀ MỚI: Nhìn cột E ---
@@ -148,7 +150,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
         if (targetUrls) {
           if (isTarget) {
             try {
-              const questions = extractQuestionsFromForm(formUrl);
+              const questions = extractQuestionsFromForm(formUrl, deckImgUrl);
               newAllDecksData[deckPath] = JSON.stringify(questions);
               fetched++;
             } catch(err) {
@@ -171,7 +173,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
           }
           
           try {
-            const questions = extractQuestionsFromForm(formUrl);
+            const questions = extractQuestionsFromForm(formUrl, deckImgUrl);
             newAllDecksData[deckPath] = JSON.stringify(questions);
             fetched++;
           } catch(err) {

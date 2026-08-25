@@ -91,16 +91,35 @@ export async function fetchDeckQuestions(actualPath, signal) {
     throw new Error("Dữ liệu đề thi không đúng định dạng danh sách.");
   }
 
-  return gasData.map((q, idx) => ({
-    id: q.id || `q_${idx}`,
-    ...q,
-    question: q.question || q.CauHoi || '',
-    answer: q.answer || q.DapAn || '',
-    explanation: q.explanation || q.GiaiThich || q.coche || '',
-    source: q.source || q.Nguon || q.reference || '',
-    imageUrl: q.imageUrl || q.image || '',
-    parsedOptions: q.options 
-      ? (Array.isArray(q.options) ? q.options : String(q.options).split('|')) 
-      : (q.choices ? (Array.isArray(q.choices) ? q.choices : String(q.choices).split('|')) : [])
-  }));
+  return gasData.map((q, idx) => {
+    let rawImg = q.imageUrl || q.image || q.img || q.anh || q.hinhAnh || '';
+    let questionText = q.question || q.CauHoi || '';
+    let vignetteText = q.vignette || q.MoTa || q.vignetteBody || '';
+
+    // Tự động bóc tách link ảnh nếu người soạn đề dán trong phần mô tả câu hỏi hoặc nội dung câu hỏi
+    if (!rawImg) {
+      const urlRegex = /(https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s"'<>]*)?|https?:\/\/(?:drive|docs)\.google\.com\/[^\s"'<>]+)/i;
+      const matchV = vignetteText.match(urlRegex);
+      const matchQ = questionText.match(urlRegex);
+      if (matchV) {
+        rawImg = matchV[0];
+      } else if (matchQ) {
+        rawImg = matchQ[0];
+      }
+    }
+
+    return {
+      id: q.id || `q_${idx}`,
+      ...q,
+      question: questionText,
+      vignette: vignetteText,
+      answer: q.answer || q.DapAn || '',
+      explanation: q.explanation || q.GiaiThich || q.coche || '',
+      source: q.source || q.Nguon || q.reference || '',
+      imageUrl: rawImg,
+      parsedOptions: q.options 
+        ? (Array.isArray(q.options) ? q.options : String(q.options).split('|')) 
+        : (q.choices ? (Array.isArray(q.choices) ? q.choices : String(q.choices).split('|')) : [])
+    };
+  });
 }

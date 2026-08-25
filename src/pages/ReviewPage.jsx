@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, RotateCcw, CheckCircle2, XCircle, 
-  Award, Bookmark, Flag
+  Award, Bookmark, Flag, ZoomIn, X
 } from 'lucide-react';
 import DeepCitationCard from '../components/Quiz/DeepCitationCard';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
+import { getDirectImageUrl } from '../utils/imageHelper';
 
 export default function ReviewPage({
   questions,
@@ -28,15 +29,24 @@ export default function ReviewPage({
   const wrongCount = total - score;
   const flaggedCount = Object.values(flagged || {}).filter(Boolean).length;
 
-  const isQuestionCorrect = (userAns, correctAns) => {
-    const cArr = Array.isArray(correctAns) ? correctAns.map(String) : String(correctAns || '').split('|').map(s => s.trim()).filter(Boolean);
+  const isQuestionCorrect = (userAns, q) => {
+    if (userAns === undefined || userAns === null || !q) return false;
+    const cArr = Array.isArray(q.answer) ? q.answer.map(String) : String(q.answer || '').split('|').map(s => s.trim()).filter(Boolean);
     const uArr = Array.isArray(userAns) ? userAns.map(String) : (userAns ? String(userAns).split('|').map(s => s.trim()).filter(Boolean) : []);
+
+    if (q.type === 'short_answer' || q.type === 'fill_in_blank') {
+      if (cArr.length === 0) return true;
+      const uStr = uArr.join(' ').toLowerCase().trim();
+      const cStr = cArr.join(' ').toLowerCase().trim();
+      return uStr === cStr || uStr.includes(cStr) || cStr.includes(uStr);
+    }
+
     return uArr.length === cArr.length && uArr.length > 0 && [...uArr].sort().every((v, i) => v === [...cArr].sort()[i]);
   };
 
   // Lọc câu hỏi theo tab
   const filteredIndices = questions.map((_, idx) => idx).filter(idx => {
-    const isCorrect = isQuestionCorrect(answers[idx], questions[idx].answer);
+    const isCorrect = isQuestionCorrect(answers[idx], questions[idx]);
     if (filter === 'correct') return isCorrect;
     if (filter === 'wrong') return !isCorrect;
     if (filter === 'flagged') return !!flagged[idx];
@@ -271,37 +281,63 @@ export default function ReviewPage({
                   {q.question}
                 </div>
 
+                {/* Question Image Preview if available */}
+                {q.imageUrl && (
+                  <div className="mb-4 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/10 max-h-64 flex items-center justify-center bg-slate-950/80">
+                    <img 
+                      src={getDirectImageUrl(q.imageUrl)} 
+                      alt="Hình ảnh câu hỏi" 
+                      loading="lazy"
+                      className="max-h-64 w-auto object-contain"
+                    />
+                  </div>
+                )}
+
                 {/* Options Review Breakdown */}
-                <div className="space-y-2.5 mb-5">
-                  {parsedOptions.map((opt, optIdx) => {
-                    const isUserChoice = userArr.includes(opt);
-                    const isRightChoice = correctArr.includes(opt);
+                {parsedOptions.length > 0 ? (
+                  <div className="space-y-2.5 mb-5">
+                    {parsedOptions.map((opt, optIdx) => {
+                      const isUserChoice = userArr.includes(opt);
+                      const isRightChoice = correctArr.includes(opt);
 
-                    let optClass = 'p-3.5 rounded-2xl border text-sm font-semibold flex items-center justify-between transition-all ';
-                    if (isRightChoice) {
-                      optClass += 'bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-400 dark:border-emerald-500 text-emerald-950 dark:text-emerald-200 ring-1 ring-emerald-400/50';
-                    } else if (isUserChoice && !isRightChoice) {
-                      optClass += 'bg-rose-50/90 dark:bg-rose-950/50 border-rose-400 dark:border-rose-500 text-rose-950 dark:text-rose-200 ring-1 ring-rose-400/50';
-                    } else {
-                      optClass += 'bg-slate-50/60 dark:bg-white/5 border-slate-200/70 dark:border-white/5 text-slate-600 dark:text-slate-400 opacity-60';
-                    }
+                      let optClass = 'p-3.5 rounded-2xl border text-sm font-semibold flex items-center justify-between transition-all ';
+                      if (isRightChoice) {
+                        optClass += 'bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-400 dark:border-emerald-500 text-emerald-950 dark:text-emerald-200 ring-1 ring-emerald-400/50';
+                      } else if (isUserChoice && !isRightChoice) {
+                        optClass += 'bg-rose-50/90 dark:bg-rose-950/50 border-rose-400 dark:border-rose-500 text-rose-950 dark:text-rose-200 ring-1 ring-rose-400/50';
+                      } else {
+                        optClass += 'bg-slate-50/60 dark:bg-white/5 border-slate-200/70 dark:border-white/5 text-slate-600 dark:text-slate-400 opacity-60';
+                      }
 
-                    return (
-                      <div key={optIdx} className={optClass}>
-                        <div className="flex items-start space-x-3 w-full">
-                          <span className={`w-7 h-7 rounded-lg text-xs font-black flex items-center justify-center shrink-0 mt-0.5 ${
-                            isRightChoice 
-                              ? 'bg-emerald-500 text-white' 
-                              : (isUserChoice ? 'bg-rose-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-300')
-                          }`}>
-                            {String.fromCharCode(65 + optIdx)}
-                          </span>
-                          <span className="leading-snug">{opt}</span>
+                      return (
+                        <div key={optIdx} className={optClass}>
+                          <div className="flex items-start space-x-3 w-full">
+                            <span className={`w-7 h-7 rounded-lg text-xs font-black flex items-center justify-center shrink-0 mt-0.5 ${
+                              isRightChoice 
+                                ? 'bg-emerald-500 text-white' 
+                                : (isUserChoice ? 'bg-rose-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-300')
+                            }`}>
+                              {String.fromCharCode(65 + optIdx)}
+                            </span>
+                            <span className="leading-snug">{opt}</span>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Short answer user response display */
+                  <div className="space-y-2.5 mb-5">
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 space-y-1">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Câu trả lời của bạn:
+                      </span>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                        {userAns || <span className="text-slate-400 italic">Chưa trả lời</span>}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Deep Citation & Mechanism Card */}
                 <DeepCitationCard

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { 
-  Sparkles, Stethoscope, CheckSquare, ArrowRight
+  Sparkles, Stethoscope, CheckSquare, ArrowRight, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import OptionItem from './OptionItem';
@@ -226,10 +226,10 @@ export default function QuestionCard({
               </div>
 
               {/* Ca lâm sàng (Vignette) & Hình ảnh */}
-              {(hasVignette || question.imageUrl) && (
+              {(hasVignette || question.vignette || question.imageUrl || question.image) && (
                 <QuestionVignette 
-                  vignette={vignette} 
-                  imageUrl={question.imageUrl} 
+                  vignette={vignette || question.vignette} 
+                  imageUrl={question.imageUrl || question.image} 
                 />
               )}
 
