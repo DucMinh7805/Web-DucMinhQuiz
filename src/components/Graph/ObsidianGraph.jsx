@@ -1,44 +1,47 @@
 import { useEffect, useRef, useState, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { forceCollide, forceManyBody } from 'd3-force';
-import { ZoomIn, ZoomOut, RotateCcw, Maximize2, Sparkles } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+import { STAGES } from '../../data/stageMapping';
 
 /**
- * ObsidianGraph: Đồ thị tri thức Y khoa chuẩn mực Obsidian Vault
- * - Hỗ trợ cả 2 chế độ Sáng (Light Mode) và Tối (Dark Mode) hòa quyện 100%
- * - Động cơ vật lý D3-Force chống va chạm d3.forceCollide tuyệt đối
- * - Tương tác siêu nhạy: Click chọn node để xem Inspector bên phải, Double Click / Nút để vào học
- * - Cho phép Sidebar bên ngoài điều khiển Zoom & Focus vào chuyên khoa
+ * ObsidianGraph: Đồ thị tri thức Y khoa 2D Canvas Retina
+ * - LOD (Level of Detail): Ẩn nhãn môn con khi zoom xa, chỉ hiện khi zoom gần (scale >= 1.2x) hoặc hover
+ * - Phân cấp kích thước 3 tầng: Root (18px) -> Chuyên khoa (12px) -> Môn con (5px)
+ * - Tối ưu 60fps: Stop simulation khi settle, ResizeObserver, visibilitychange
+ * - Màu sắc định danh theo Domain Y Khoa
  */
 
-// Bảng màu cho Chế độ Tối (Dark Mode Neon)
-const DARK_PALETTES = [
-  { main: '#38bdf8', glow: 'rgba(56, 189, 248, 0.45)', text: '#ffffff', bg: '#0284c7' }, // Sky Blue (Nội khoa)
-  { main: '#fbbf24', glow: 'rgba(251, 191, 36, 0.45)', text: '#ffffff', bg: '#d97706' }, // Amber (Cơ sở ngành)
-  { main: '#34d399', glow: 'rgba(52, 211, 153, 0.45)', text: '#ffffff', bg: '#059669' }, // Emerald (Ngoại khoa)
-  { main: '#c084fc', glow: 'rgba(192, 132, 252, 0.45)', text: '#ffffff', bg: '#9333ea' }, // Purple (Nền tảng)
-  { main: '#f43f5e', glow: 'rgba(244, 63, 94, 0.45)', text: '#ffffff', bg: '#e11d48' }, // Rose (Sản khoa)
-  { main: '#818cf8', glow: 'rgba(129, 140, 248, 0.45)', text: '#ffffff', bg: '#4f46e5' }, // Indigo
-  { main: '#2dd4bf', glow: 'rgba(45, 212, 191, 0.45)', text: '#ffffff', bg: '#0d9488' }, // Teal
-  { main: '#fb923c', glow: 'rgba(251, 146, 60, 0.45)', text: '#ffffff', bg: '#ea580c' }, // Orange
-];
+// Bảng màu Domain Y Khoa Chuẩn (Medical Domain Colors)
+const MEDICAL_PALETTES = {
+  root: { main: '#0284c7', glow: 'rgba(2, 132, 199, 0.45)', text: '#ffffff' },
+  preclinical: { main: '#8b5cf6', glow: 'rgba(139, 92, 246, 0.4)', text: '#ffffff' }, // Tím (Cơ sở ngành)
+  internal: { main: '#06b6d4', glow: 'rgba(6, 182, 212, 0.4)', text: '#ffffff' },    // Cyan (Nội khoa)
+  surgery: { main: '#10b981', glow: 'rgba(16, 185, 129, 0.4)', text: '#ffffff' },     // Emerald (Ngoại khoa)
+  obgyn: { main: '#f43f5e', glow: 'rgba(244, 63, 94, 0.4)', text: '#ffffff' },        // Rose (Sản - Nhi)
+  specialty: { main: '#f59e0b', glow: 'rgba(245, 158, 11, 0.4)', text: '#ffffff' },   // Amber (Chuyên khoa lẻ)
+  default: { main: '#6366f1', glow: 'rgba(99, 102, 241, 0.4)', text: '#ffffff' }
+};
 
-// Bảng màu cho Chế độ Sáng (Light Mode Pastel Y Khoa)
-const LIGHT_PALETTES = [
-  { main: '#0284c7', glow: 'rgba(2, 132, 199, 0.25)', text: '#0f172a', bg: '#e0f2fe' }, // Sky Blue
-  { main: '#d97706', glow: 'rgba(217, 119, 6, 0.25)', text: '#0f172a', bg: '#fef3c7' }, // Amber
-  { main: '#059669', glow: 'rgba(5, 150, 105, 0.25)', text: '#0f172a', bg: '#d1fae5' }, // Emerald
-  { main: '#7c3aed', glow: 'rgba(124, 58, 237, 0.25)', text: '#0f172a', bg: '#ede9fe' }, // Purple
-  { main: '#e11d48', glow: 'rgba(225, 29, 72, 0.25)', text: '#0f172a', bg: '#ffe4e6' }, // Rose
-  { main: '#4f46e5', glow: 'rgba(79, 70, 229, 0.25)', text: '#0f172a', bg: '#e0e7ff' }, // Indigo
-  { main: '#0d9488', glow: 'rgba(13, 148, 136, 0.25)', text: '#0f172a', bg: '#ccfbf1' }, // Teal
-  { main: '#c2410c', glow: 'rgba(194, 65, 12, 0.25)', text: '#0f172a', bg: '#ffedd5' }, // Orange
-];
+function getCategoryPalette(catName = '') {
+  const norm = catName.toLowerCase();
+  if (norm.includes('cơ sở') || norm.includes('nền tảng') || norm.includes('tiền lâm sàng')) {
+    return MEDICAL_PALETTES.preclinical;
+  }
+  if (norm.includes('nội')) return MEDICAL_PALETTES.internal;
+  if (norm.includes('ngoại')) return MEDICAL_PALETTES.surgery;
+  if (norm.includes('sản') || norm.includes('nhi')) return MEDICAL_PALETTES.obgyn;
+  if (norm.includes('răng') || norm.includes('mắt') || norm.includes('tai') || norm.includes('lẻ')) {
+    return MEDICAL_PALETTES.specialty;
+  }
+  return MEDICAL_PALETTES.default;
+}
 
 const ObsidianGraph = forwardRef(function ObsidianGraph({ 
   manifest, 
   searchTerm = '', 
+  activeStages = [STAGES.ALL],
   onSelectNode,
   selectedNode 
 }, ref) {
@@ -79,27 +82,46 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
     }
   }));
 
-  // Cập nhật kích thước canvas responsive
+  // 1. ResizeObserver theo dõi kích thước khung chứa chính xác
   useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setDimensions({ width: rect.width || 800, height: rect.height || 600 });
+    if (!containerRef.current) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setDimensions({ width, height });
+        }
+      }
+    });
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // 2. Tạm dừng render loop khi tab không hoạt động (document.visibilitychange)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && fgRef.current) {
+        fgRef.current.pauseAnimation();
+      } else if (fgRef.current) {
+        fgRef.current.resumeAnimation();
       }
     };
 
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
-  // Xây dựng Dữ liệu Nodes & Links
+  // 3. Xây dựng Dữ liệu Nodes & Links đồng bộ Stage Filter
   const graphData = useMemo(() => {
     if (!manifest?.subjects || manifest.subjects.length === 0) {
       return { nodes: [], links: [] };
     }
 
+    const isAllStage = activeStages.includes(STAGES.ALL);
     const catMap = {};
+
     manifest.subjects.forEach(sub => {
       const cId = sub.categoryId || 'khac';
       const cName = sub.categoryName || 'Khác';
@@ -113,113 +135,118 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
     const nodes = [];
     const links = [];
 
-    const activePalettes = isDarkMode ? DARK_PALETTES : LIGHT_PALETTES;
-    const rootPalette = isDarkMode 
-      ? { main: '#60a5fa', glow: 'rgba(96, 165, 250, 0.6)', text: '#ffffff' }
-      : { main: '#2563eb', glow: 'rgba(37, 99, 235, 0.3)', text: '#0f172a' };
-
-    // 1. Root Hub (Y Khoa)
+    // Root Hub (Y Khoa) - Tầng 1 (R = 18px)
     const rootNode = {
       id: 'root',
       name: 'Y Khoa',
       type: 'root',
-      val: 22,
-      color: rootPalette.main,
-      glow: rootPalette.glow,
+      val: 24,
+      color: '#0284c7',
+      glow: 'rgba(2, 132, 199, 0.45)',
       description: 'Trung tâm Tri thức & Mạng lưới Y khoa Lâm sàng Toàn diện.',
       totalSubjects: manifest.subjects.length,
-      totalCategories: categoryList.length
+      totalCategories: categoryList.length,
+      isDimmedByFilter: false
     };
     nodes.push(rootNode);
 
-    // 2. Chuyên Khoa & Môn Học
-    categoryList.forEach((cat, cIdx) => {
-      const palette = activePalettes[cIdx % activePalettes.length];
+    // Chuyên Khoa & Môn Học
+    categoryList.forEach(cat => {
+      const palette = getCategoryPalette(cat.name);
       
+      // Kiểm tra xem chuyên khoa có môn nào khớp với stage filter không
+      const hasMatchingSubject = isAllStage || cat.subjects.some(s => {
+        const sStages = s.stages || [];
+        return sStages.some(st => activeStages.includes(st));
+      });
+
+      // Tầng 2: Chuyên Khoa (R = 12px)
       const catNode = {
         id: `cat-${cat.id}`,
         name: cat.name,
         type: 'category',
         realCategoryId: cat.id,
-        val: 14 + Math.min(cat.subjects.length * 0.4, 6),
+        val: 16,
         color: palette.main,
         glow: palette.glow,
         palette: palette,
         subjectCount: cat.subjects.length,
-        description: `Chuyên khoa ${cat.name} với ${cat.subjects.length} môn học trực thuộc.`
+        description: `Chuyên khoa ${cat.name} với ${cat.subjects.length} môn học trực thuộc.`,
+        isDimmedByFilter: !hasMatchingSubject
       };
       nodes.push(catNode);
 
-      // Link: Root -> Chuyên Khoa
+      // Link: Root -> Chuyên Khoa (khoảng cách nới rộng theo số môn con)
       links.push({
         source: 'root',
         target: catNode.id,
         color: palette.main,
-        distance: 140,
+        distance: 120 + Math.min(cat.subjects.length * 3, 40),
         isCore: true
       });
 
-      // 3. Môn học thuộc khoa
+      // Tầng 3: Môn học con (R = 5px)
       cat.subjects.forEach(sub => {
+        const sStages = sub.stages || [];
+        const isMatchStage = isAllStage || sStages.some(st => activeStages.includes(st));
+
         const subNode = {
           id: `sub-${sub.id}`,
           subjectId: sub.id,
           name: sub.name,
           categoryName: cat.name,
           type: 'subject',
-          val: 6 + Math.min((sub.decks?.length || 1) * 0.6, 4),
+          val: 6,
           color: palette.main,
           glow: palette.glow,
           palette: palette,
           parentCatId: catNode.id,
           decksCount: sub.decks?.length || 0,
+          totalQuestions: sub.totalQuestions || 0,
+          stages: sStages,
           description: sub.description || `Môn học ${sub.name} thuộc khối ${cat.name}.`,
           code: sub.code || 'MED',
-          source: sub.source || '',
-          sourceAuthor: sub.sourceAuthor || ''
+          isDimmedByFilter: !isMatchStage
         };
         nodes.push(subNode);
 
-        // Link: Chuyên Khoa -> Môn Học
+        // Link: Chuyên Khoa -> Môn Học (Lực đàn hồi mềm)
         links.push({
           source: catNode.id,
           target: subNode.id,
           color: palette.main,
-          distance: 55 + Math.random() * 25
+          distance: 45 + Math.min(cat.subjects.length * 2, 35)
         });
       });
     });
 
     return { nodes, links };
-  }, [manifest, isDarkMode]);
+  }, [manifest, activeStages]);
 
-  // Cấu hình D3-Force physics engine
+  // 4. Cấu hình D3-Force Physics Engine & Auto Settle Stop
   useEffect(() => {
     if (!fgRef.current) return;
 
-    // Lực đẩy tĩnh điện d3 ManyBody mềm mại hơn để giống Obsidian
-    fgRef.current.d3Force('charge', forceManyBody().strength(-350).distanceMax(500));
-
-    // Lực chống va chạm nhẹ nhàng
+    fgRef.current.d3Force('charge', forceManyBody().strength(-280).distanceMax(450));
     fgRef.current.d3Force(
       'collide',
       forceCollide().radius(node => {
-        const baseR = node.type === 'root' ? 26 : node.type === 'category' ? 20 : 13;
+        const baseR = node.type === 'root' ? 24 : node.type === 'category' ? 16 : 9;
         return baseR + 2;
-      }).strength(0.6).iterations(2)
+      }).strength(0.7).iterations(2)
     );
 
     // Zoom vừa vặn khung hình ban đầu
     const timer = setTimeout(() => {
       if (fgRef.current) {
-        fgRef.current.zoomToFit(400, 60);
+        fgRef.current.zoomToFit(400, 50);
       }
-    }, 600);
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [graphData]);
 
-  // Xử lý Highlight khi Hover
+  // 5. Xử lý Highlight khi Hover
   const updateHighlight = useCallback((node) => {
     setHoverNode(node || null);
 
@@ -243,15 +270,13 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
     setHighlightLinks(newHighlightLinks);
   }, [graphData]);
 
-  // Xử lý Click Node (Zoom In mượt mà)
+  // 6. Xử lý Click Node
   const handleNodeClick = useCallback((node) => {
     if (!node) return;
     
-    // Tạo cảm giác mềm mại bằng cách di chuyển camera và zoom vào node đó
     if (fgRef.current) {
-      // Zoom 2x vào node trong 800ms
-      fgRef.current.centerAt(node.x, node.y, 800);
-      fgRef.current.zoom(2.0, 800);
+      fgRef.current.centerAt(node.x, node.y, 600);
+      fgRef.current.zoom(2.0, 600);
     }
 
     if (onSelectNode) {
@@ -259,61 +284,77 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
     }
   }, [onSelectNode]);
 
-  // Vẽ Canvas từng Node & Nhãn chữ chuẩn Obsidian
+  // 7. Paint Canvas từng Node & Nhãn chữ với cơ chế LOD (Level of Detail)
   const paintNode = useCallback((node, ctx, globalScale) => {
     const isHovered = hoverNode && hoverNode.id === node.id;
     const isSelected = selectedNode && selectedNode.id === node.id;
     const isHighlighted = highlightNodes.has(node.id) || isSelected;
-    const isDimmed = (hoverNode || selectedNode) && !isHighlighted;
+    const isDimmed = node.isDimmedByFilter || ((hoverNode || selectedNode) && !isHighlighted);
+    
     const term = searchTerm.trim().toLowerCase();
     const matchesSearch = term && node.name.toLowerCase().includes(term);
 
-    const radius = node.type === 'root' ? 12 : node.type === 'category' ? 9 : 5;
-    const currentRadius = (isHovered || isSelected) ? radius * 1.35 : radius;
+    // Kích thước 3 tầng: Root = 18px, Category = 12px, Subject = 5px
+    const baseRadius = node.type === 'root' ? 18 : node.type === 'category' ? 12 : 5;
+    const currentRadius = (isHovered || isSelected) ? baseRadius * 1.3 : baseRadius;
 
     ctx.save();
-    ctx.globalAlpha = isDimmed ? 0.18 : 1.0;
+    ctx.globalAlpha = isDimmed ? 0.15 : 1.0;
 
-    // 1. Vầng hào quang phát quang mềm mại
+    // A. Vầng hào quang Glow (Chỉ vẽ cho Root, Category hoặc khi Highlight để giữ hiệu năng)
     if (isHovered || isSelected || isHighlighted || node.type === 'root' || node.type === 'category') {
       ctx.beginPath();
-      ctx.arc(node.x, node.y, currentRadius * 2.4, 0, Math.PI * 2);
-      ctx.fillStyle = node.glow || (isDarkMode ? 'rgba(56, 189, 248, 0.35)' : 'rgba(2, 132, 199, 0.25)');
+      ctx.arc(node.x, node.y, currentRadius * 2.2, 0, Math.PI * 2);
+      ctx.fillStyle = node.glow || 'rgba(6, 182, 212, 0.25)';
       ctx.fill();
     }
 
-    // 2. Chấm nơ-ron
+    // B. Vòng tròn nơ-ron chính
     ctx.beginPath();
     ctx.arc(node.x, node.y, currentRadius, 0, Math.PI * 2);
-    ctx.fillStyle = node.color || '#38bdf8';
+    ctx.fillStyle = node.color || '#06b6d4';
     ctx.fill();
 
-    // 3. Viền sáng sắc nét
-    ctx.strokeStyle = (isHovered || isSelected) ? '#ffffff' : (isDarkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.15)');
-    ctx.lineWidth = ((isHovered || isSelected) ? 2.2 : 1.1) / globalScale;
+    // C. Viền sắc nét
+    ctx.strokeStyle = (isHovered || isSelected) ? '#ffffff' : (isDarkMode ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.15)');
+    ctx.lineWidth = ((isHovered || isSelected) ? 2.0 : 1.0) / globalScale;
     ctx.stroke();
 
-    // 4. Nhãn chữ hiển thị 100% rõ ràng, sắc nét
-    const fontSize = Math.max(11 / globalScale, 3.2);
-    ctx.font = `${(isHovered || isSelected) ? 'bold' : node.type === 'subject' ? '500' : 'bold'} ${fontSize}px Inter, -apple-system, sans-serif`;
+    // D. Cơ chế LOD (Level of Detail) cho Text Label:
+    // - Root & Category: LUÔN HIỂN THỊ
+    // - Subject con: CHỈ HIỂN THỊ khi (Zoom scale >= 1.2x) HOẶC (Được Hover / Selected / Highlight / Khớp tìm kiếm)
+    const shouldShowLabel = 
+      node.type === 'root' || 
+      node.type === 'category' || 
+      globalScale >= 1.2 || 
+      isHovered || 
+      isSelected || 
+      isHighlighted || 
+      matchesSearch;
 
-    const text = node.name;
-    const textY = node.y + currentRadius + (2.5 / globalScale);
+    if (shouldShowLabel) {
+      const fontSize = Math.max(10 / globalScale, 3.2);
+      ctx.font = `${(isHovered || isSelected || node.type !== 'subject') ? 'bold' : '500'} ${fontSize}px Inter, -apple-system, sans-serif`;
 
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
+      const text = node.name;
+      const textY = node.y + currentRadius + (2.5 / globalScale);
 
-    if (isDarkMode) {
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-      ctx.shadowBlur = 4 / globalScale;
-      ctx.fillStyle = (isHovered || isSelected) ? '#ffffff' : (matchesSearch ? '#38bdf8' : (node.type === 'subject' ? '#cbd5e1' : '#f8fafc'));
-    } else {
-      ctx.shadowColor = 'rgba(255, 255, 255, 0.95)';
-      ctx.shadowBlur = 4 / globalScale;
-      ctx.fillStyle = (isHovered || isSelected) ? '#0284c7' : (matchesSearch ? '#0284c7' : '#0f172a');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      if (isDarkMode) {
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+        ctx.shadowBlur = 3 / globalScale;
+        ctx.fillStyle = (isHovered || isSelected || matchesSearch) ? '#38bdf8' : (node.type === 'subject' ? '#cbd5e1' : '#f8fafc');
+      } else {
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+        ctx.shadowBlur = 3 / globalScale;
+        ctx.fillStyle = (isHovered || isSelected || matchesSearch) ? '#0284c7' : '#0f172a';
+      }
+
+      ctx.fillText(text, node.x, textY);
     }
 
-    ctx.fillText(text, node.x, textY);
     ctx.restore();
   }, [hoverNode, selectedNode, highlightNodes, searchTerm, isDarkMode]);
 
@@ -334,7 +375,7 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
         nodeVal="val"
         nodeCanvasObject={paintNode}
         nodePointerAreaPaint={(node, color, ctx) => {
-          const r = (node.type === 'root' ? 14 : node.type === 'category' ? 11 : 7) + 6;
+          const r = (node.type === 'root' ? 18 : node.type === 'category' ? 12 : 6) + 4;
           ctx.beginPath();
           ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
           ctx.fillStyle = color;
@@ -344,55 +385,45 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
         onNodeClick={handleNodeClick}
         linkColor={link => {
           if (highlightLinks.has(link)) return isDarkMode ? '#ffffff' : '#0284c7';
-          if (hoverNode || selectedNode) return isDarkMode ? 'rgba(51, 65, 85, 0.15)' : 'rgba(203, 213, 225, 0.3)';
+          if (hoverNode || selectedNode) return isDarkMode ? 'rgba(51, 65, 85, 0.12)' : 'rgba(203, 213, 225, 0.25)';
           return link.isCore 
-            ? (isDarkMode ? 'rgba(100, 116, 139, 0.45)' : 'rgba(148, 163, 184, 0.55)')
-            : (isDarkMode ? 'rgba(71, 85, 105, 0.3)' : 'rgba(203, 213, 225, 0.6)');
+            ? (isDarkMode ? 'rgba(100, 116, 139, 0.35)' : 'rgba(148, 163, 184, 0.45)')
+            : (isDarkMode ? 'rgba(71, 85, 105, 0.25)' : 'rgba(203, 213, 225, 0.5)');
         }}
-        linkWidth={link => (highlightLinks.has(link) ? 2.2 : link.isCore ? 1.4 : 0.9)}
-        linkDirectionalParticles={link => (highlightLinks.has(link) ? 3 : 1)}
-        linkDirectionalParticleWidth={2}
-        linkDirectionalParticleSpeed={0.004}
-        linkDirectionalParticleColor={link => link.color || '#38bdf8'}
-        cooldownTicks={120}
-        warmupTicks={50}
+        linkWidth={link => (highlightLinks.has(link) ? 2.0 : link.isCore ? 1.2 : 0.8)}
+        cooldownTicks={80}
+        warmupTicks={30}
         enableNodeDrag={true}
         enableZoomInteraction={true}
         enablePanInteraction={true}
       />
 
-      {/* Floating Controls Bar (Sát góc dưới phải) */}
-      <div className="absolute bottom-4 right-4 flex items-center space-x-1.5 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-lg">
+      {/* Floating Controls Bar */}
+      <div className="absolute bottom-4 right-4 flex items-center space-x-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-lg z-10">
         <button
           onClick={() => {
-            if (fgRef.current) {
-              fgRef.current.zoom(fgRef.current.zoom() * 1.3, 300);
-            }
+            if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() * 1.3, 300);
           }}
-          className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-sky-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-teal-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           title="Phóng to"
         >
           <ZoomIn className="w-4 h-4" />
         </button>
         <button
           onClick={() => {
-            if (fgRef.current) {
-              fgRef.current.zoom(fgRef.current.zoom() * 0.75, 300);
-            }
+            if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() * 0.75, 300);
           }}
-          className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-sky-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-teal-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           title="Thu nhỏ"
         >
           <ZoomOut className="w-4 h-4" />
         </button>
         <button
           onClick={() => {
-            if (fgRef.current) {
-              fgRef.current.zoomToFit(400, 60);
-            }
+            if (fgRef.current) fgRef.current.zoomToFit(400, 50);
           }}
-          className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-sky-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          title="Căn giữa màn hình"
+          className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-teal-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          title="Căn giữa"
         >
           <RotateCcw className="w-4 h-4" />
         </button>

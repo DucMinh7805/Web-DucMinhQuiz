@@ -86,8 +86,17 @@ export default function MainLayout({ manifest }) {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50/80 dark:bg-[#060a14] text-slate-800 dark:text-slate-200 flex flex-col md:flex-row antialiased selection:bg-teal-500/20 selection:text-teal-700">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#060a14] text-slate-800 dark:text-slate-200 flex flex-col md:flex-row antialiased selection:bg-teal-500/20 selection:text-teal-700 relative">
       
+      {/* Global Ocean Cyan Mesh Ambient Background */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        {/* Subtle Cyber Medical Mesh Dots */}
+        <div className="absolute inset-0 bg-[radial-gradient(#0d9488_1.5px,transparent_1.5px)] [background-size:24px_24px] opacity-20 dark:opacity-15" />
+        {/* Ambient glows */}
+        <div className="absolute -top-24 right-1/4 w-[700px] h-[400px] bg-teal-500/10 dark:bg-teal-500/15 rounded-full blur-[140px]" />
+        <div className="absolute -bottom-24 left-1/3 w-[600px] h-[400px] bg-cyan-500/10 dark:bg-cyan-500/15 rounded-full blur-[140px]" />
+      </div>
+
       {/* Global Spotlight Search Modal */}
       <GlobalSearchModal 
         isOpen={isSearchOpen} 
@@ -100,7 +109,7 @@ export default function MainLayout({ manifest }) {
         <Link to="/" className="flex items-center space-x-2">
           <img src="/DucMinh lon.png" alt="Logo" loading="lazy" className="h-9 w-9 object-contain rounded-xl" />
           <span className="font-extrabold text-lg text-slate-900 dark:text-white tracking-tight">
-            Med<span className="text-teal-500">Quiz</span>
+            Diamond<span className="text-teal-500">Quiz</span>
           </span>
         </Link>
         <div className="flex items-center space-x-2">
@@ -110,9 +119,6 @@ export default function MainLayout({ manifest }) {
             title="Tìm kiếm (Ctrl + K)"
           >
             <Search className="w-4 h-4" />
-          </button>
-          <button onClick={toggleTheme} className="p-2 text-slate-500 dark:text-slate-400">
-            {isDarkMode ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5" />}
           </button>
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -159,7 +165,7 @@ export default function MainLayout({ manifest }) {
                 />
                 <div className="min-w-0">
                   <span className="font-black text-lg text-slate-900 dark:text-white tracking-tight block">
-                    Med<span className="text-teal-500">Quiz</span>
+                    Diamond<span className="text-teal-500">Quiz</span>
                   </span>
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block truncate">
                     Y Khoa Lâm Sàng

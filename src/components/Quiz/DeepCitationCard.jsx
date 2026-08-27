@@ -83,7 +83,7 @@ export default function DeepCitationCard({
   }, [question, explanation, subjectName]);
 
   const handleCopyCitation = () => {
-    const textToCopy = `[Trích dẫn Y Khoa MedQuiz]\nNguồn: ${citationData.sourceBook}\nChương/Bài: ${citationData.chapter}\nMức chứng cứ: ${citationData.evidenceLevel}\nĐáp án: ${correctAnswer}\nCơ chế: ${explanation || question?.question}`;
+    const textToCopy = `[Trích dẫn Y Khoa DiamondQuiz]\nNguồn: ${citationData.sourceBook}\nChương/Bài: ${citationData.chapter}\nMức chứng cứ: ${citationData.evidenceLevel}\nĐáp án: ${correctAnswer}\nCơ chế: ${explanation || question?.question}`;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

@@ -101,18 +101,18 @@ export default function LibraryPage() {
       <div className="w-full max-w-7xl mx-auto space-y-6">
 
         {/* 1. Header Banner */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 sm:p-8 rounded-3xl bg-white/80 dark:bg-[#0b1120]/80 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 shadow-sm relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 p-5 sm:p-8 rounded-3xl bg-white/80 dark:bg-[#0b1120]/80 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-teal-500 via-cyan-500 to-indigo-500" />
           
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20 text-xs font-extrabold uppercase">
+          <div className="space-y-1 sm:space-y-1.5">
+            <div className="hidden sm:inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20 text-xs font-extrabold uppercase">
               <BookOpen className="w-3.5 h-3.5 text-teal-500" />
               <span>Kho Tri Thức Chuẩn Y Học</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
               Thư Viện Sách & Slide Y Khoa
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-xl">
+            <p className="hidden sm:block text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-xl">
               Nơi lưu trữ và tra cứu các giáo trình, khuyến cáo chính thức và bài giảng của giảng viên trong Tab Tài Liệu.
             </p>
           </div>
@@ -134,7 +134,7 @@ export default function LibraryPage() {
 
           {/* Categories Pill */}
           {categories.length > 2 && (
-            <div className="flex items-center space-x-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 custom-scrollbar">
+            <div className="flex items-center space-x-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 custom-scrollbar sm:[mask-image:none] [mask-image:linear-gradient(to_right,black_85%,transparent_100%)] sm:[-webkit-mask-image:none] [-webkit-mask-image:linear-gradient(to_right,black_85%,transparent_100%)]">
               {categories.map((cat) => (
                 <button
                   key={cat}
@@ -154,7 +154,7 @@ export default function LibraryPage() {
 
         {/* 3. Books Grid or Empty State */}
         {filteredBooks.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-5">
             {filteredBooks.map((book) => (
               <BookCard
                 key={book.id}

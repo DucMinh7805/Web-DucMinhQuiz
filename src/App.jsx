@@ -18,19 +18,21 @@ import { ThemeProvider } from './context/ThemeContext';
 import { fetchManifest, fetchDeckQuestions } from './services/quizApi';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 
+import { DEFAULT_SAMPLE_MANIFEST } from './data/defaultManifest';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 0, // Đồng bộ ngay lập tức mỗi khi mở web hoặc F5
-      refetchOnWindowFocus: true,
+      staleTime: 1000 * 60 * 5, // Cache 5 phút, không spam Google Sheet mỗi khi F5
+      refetchOnWindowFocus: false,
       retry: 1,
     },
   },
 });
 
-// Wrapper component để fetch và cache manifest siêu tốc
+// Wrapper component để fetch và cache manifest siêu tốc (Load tức thì 0.01s)
 function AppDataWrapper({ children }) {
-  const { data: manifest, isLoading, isError, error, refetch } = useQuery({
+  const { data: manifest, isError, error, refetch } = useQuery({
     queryKey: ['manifest'],
     queryFn: async () => {
       const data = await fetchManifest();
@@ -41,32 +43,29 @@ function AppDataWrapper({ children }) {
       const localData = localStorage.getItem('medquiz_manifest');
       if (localData) {
         try {
-          return JSON.parse(localData);
+          const parsed = JSON.parse(localData);
+          if (parsed && Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
+            return parsed;
+          }
         } catch {}
       }
-      return undefined;
+      return DEFAULT_SAMPLE_MANIFEST;
     }
   });
 
-  if (isLoading) return (
-    <div className="flex justify-center items-center h-screen bg-surface dark:bg-navy-900 text-slate-800 dark:text-slate-200">
-      <div className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
-
   if (isError) return (
-    <div className="flex flex-col justify-center items-center h-screen text-center p-6 bg-surface dark:bg-navy-900 text-slate-800 dark:text-slate-200">
-      <div className="text-error mb-4 font-bold text-lg">{error?.message || "Không thể tải danh sách môn học. Vui lòng kiểm tra lại kết nối mạng."}</div>
+    <div className="flex flex-col justify-center items-center h-screen text-center p-6 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+      <div className="text-rose-500 mb-4 font-bold text-lg">{error?.message || "Không thể tải danh sách môn học. Đang dùng dữ liệu ngoại tuyến."}</div>
       <button 
         onClick={() => refetch()}
-        className="px-6 py-3 bg-primary text-white font-bold rounded-xl shadow-md hover:bg-primary-600 transition-colors"
+        className="px-6 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl shadow-md transition-colors"
       >
         Thử lại ngay
       </button>
     </div>
   );
 
-  return children(manifest);
+  return children(manifest || DEFAULT_SAMPLE_MANIFEST);
 }
 
 // Wrapper cho QuizPage để fetch dữ liệu từ form

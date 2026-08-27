@@ -228,7 +228,7 @@ export default function ReviewPage({
           {filteredIndices.map(idx => {
             const q = questions[idx];
             const userAns = answers[idx];
-            const isCorrect = isQuestionCorrect(userAns, q.answer);
+            const isCorrect = isQuestionCorrect(userAns, q);
             const isFlag = !!flagged[idx];
             const parsedOptions = q.parsedOptions || (q.options ? q.options.split('|') : []);
 

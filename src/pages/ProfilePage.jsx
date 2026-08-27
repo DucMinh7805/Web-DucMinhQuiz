@@ -64,23 +64,23 @@ export default function ProfilePage() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white/90 dark:bg-navy-850/90 backdrop-blur-xl rounded-3xl shadow-sm border border-slate-200/80 dark:border-navy-700/80 overflow-hidden"
+        className="bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-3xl shadow-sm border border-slate-200/80 dark:border-white/10 overflow-hidden"
       >
-        <div className="h-32 sm:h-40 bg-gradient-to-r from-primary-600 via-primary-500 to-indigo-600"></div>
+        <div className="h-32 sm:h-40 bg-gradient-to-r from-teal-600 via-teal-500 to-cyan-600"></div>
         <div className="px-6 sm:px-10 pb-8 relative">
           <div className="flex flex-col sm:flex-row items-center sm:items-end -mt-16 sm:-mt-20 mb-6 sm:mb-2 space-y-4 sm:space-y-0 sm:space-x-6">
-            <div className="h-32 w-32 rounded-full border-4 border-white dark:border-navy-850 bg-primary-50 dark:bg-navy-750 flex items-center justify-center shadow-lg overflow-hidden relative">
-              <User className="h-16 w-16 text-primary-500" />
+            <div className="h-32 w-32 rounded-full border-4 border-white dark:border-[#0c1222] bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center shadow-lg overflow-hidden relative">
+              <User className="h-16 w-16 text-teal-600 dark:text-teal-400" />
             </div>
             <div className="text-center sm:text-left pb-2">
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">{user.name}</h1>
-              <p className="text-sm sm:text-base text-primary-600 dark:text-primary-400 font-bold mt-0.5">{user.role}</p>
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{user.name}</h1>
+              <p className="text-sm sm:text-base text-teal-600 dark:text-teal-400 font-bold mt-0.5">{user.role}</p>
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 mt-8 pt-8 border-t border-slate-100 dark:border-navy-700">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 mt-8 pt-8 border-t border-slate-100 dark:border-white/5">
             <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300">
-              <div className="bg-slate-100 dark:bg-navy-750 p-2.5 rounded-xl text-indigo-500">
+              <div className="bg-slate-100 dark:bg-white/5 p-2.5 rounded-xl text-indigo-500 border border-slate-200/60 dark:border-white/5">
                 <Calendar className="h-5 w-5" />
               </div>
               <div>
@@ -92,7 +92,7 @@ export default function ProfilePage() {
             </div>
             
             <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300">
-              <div className="bg-primary-50 dark:bg-primary-950/40 p-2.5 rounded-xl text-primary-500">
+              <div className="bg-teal-50 dark:bg-teal-950/40 p-2.5 rounded-xl text-teal-600 dark:text-teal-400 border border-teal-500/20">
                 <BookOpen className="h-5 w-5" />
               </div>
               <div>
@@ -102,7 +102,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300">
-              <div className="bg-emerald-50 dark:bg-emerald-950/40 p-2.5 rounded-xl text-emerald-500">
+              <div className="bg-emerald-50 dark:bg-emerald-950/40 p-2.5 rounded-xl text-emerald-500 border border-emerald-500/20">
                 <Award className="h-5 w-5" />
               </div>
               <div>
@@ -138,38 +138,38 @@ export default function ProfilePage() {
         className="mb-8"
       >
         <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center">
-          <BookOpen className="mr-2 h-5 w-5 text-primary" />
+          <BookOpen className="mr-2 h-5 w-5 text-teal-600 dark:text-teal-400" />
           Thống kê Năng lực (Coverage & Accuracy)
         </h2>
 
         {subjectStats.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {subjectStats.map((stat, index) => (
-              <div key={index} className="bg-white dark:bg-navy-800 rounded-3xl p-5 border border-slate-200/80 dark:border-navy-700 shadow-sm hover:border-primary-300 dark:hover:border-primary-700 transition-all">
+              <div key={index} className="bg-white/80 dark:bg-[#0c1222]/90 rounded-3xl p-5 border border-slate-200/80 dark:border-white/10 shadow-sm hover:border-teal-500/40 dark:hover:border-teal-400/40 transition-all">
                 <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4">{stat.subjectId}</h3>
                 
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between text-xs font-bold mb-1">
                       <span className="text-slate-500 dark:text-slate-400">Độ phủ (Câu đã làm)</span>
-                      <span className="text-primary-600 dark:text-primary-400">{stat.questionsDone} câu</span>
+                      <span className="text-teal-600 dark:text-teal-400">{stat.questionsDone} câu</span>
                     </div>
                     {/* Thanh tiến độ giả lập độ phủ */}
-                    <div className="w-full bg-slate-100 dark:bg-navy-900 rounded-full h-2">
-                      <div className="bg-primary h-2 rounded-full" style={{ width: `${Math.min(stat.questionsDone / 2, 100)}%` }}></div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+                      <div className="bg-teal-500 h-2 rounded-full" style={{ width: `${Math.min(stat.questionsDone / 2, 100)}%` }}></div>
                     </div>
                   </div>
 
                   <div>
                     <div className="flex justify-between text-xs font-bold mb-1">
                       <span className="text-slate-500 dark:text-slate-400">Độ chính xác (Hiểu bài)</span>
-                      <span className={stat.accuracy >= 80 ? 'text-success-600 dark:text-success-400' : stat.accuracy >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-error-600 dark:text-error-400'}>
+                      <span className={stat.accuracy >= 80 ? 'text-emerald-600 dark:text-emerald-400' : stat.accuracy >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}>
                         {stat.accuracy}%
                       </span>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-navy-900 rounded-full h-2">
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
                       <div 
-                        className={`h-2 rounded-full ${stat.accuracy >= 80 ? 'bg-success' : stat.accuracy >= 50 ? 'bg-amber-500' : 'bg-error'}`} 
+                        className={`h-2 rounded-full ${stat.accuracy >= 80 ? 'bg-emerald-500' : stat.accuracy >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`} 
                         style={{ width: `${stat.accuracy}%` }}
                       ></div>
                     </div>
@@ -179,8 +179,8 @@ export default function ProfilePage() {
             ))}
           </div>
         ) : (
-          <div className="bg-white dark:bg-navy-800 rounded-3xl shadow-sm border border-slate-200 dark:border-navy-700 p-8 text-center flex flex-col items-center">
-            <div className="bg-slate-100 dark:bg-navy-900 p-4 rounded-2xl text-slate-400 dark:text-slate-500 mb-4">
+          <div className="bg-white/80 dark:bg-[#0c1222]/90 rounded-3xl shadow-sm border border-slate-200 dark:border-white/10 p-8 text-center flex flex-col items-center">
+            <div className="bg-slate-100 dark:bg-white/5 p-4 rounded-2xl text-slate-400 dark:text-slate-500 mb-4">
               <BookOpen className="h-8 w-8" />
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400">Bạn chưa có dữ liệu thống kê. Hãy làm các đề thi để xem mức độ hiểu bài nhé.</p>
@@ -195,30 +195,30 @@ export default function ProfilePage() {
         transition={{ delay: 0.2 }}
       >
         <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center">
-          <CheckCircle2 className="mr-2 h-5 w-5 text-blue-600 dark:text-blue-400" />
+          <CheckCircle2 className="mr-2 h-5 w-5 text-teal-600 dark:text-teal-400" />
           Lịch sử ôn tập chi tiết
         </h2>
 
         {progressList.length > 0 ? (
-          <div className="bg-white dark:bg-navy-800 rounded-3xl shadow-sm border border-slate-200/80 dark:border-navy-700 overflow-hidden">
+          <div className="bg-white/80 dark:bg-[#0c1222]/90 rounded-3xl shadow-sm border border-slate-200/80 dark:border-white/10 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-navy-900/50 border-b border-slate-200/80 dark:border-navy-700 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
+                  <tr className="bg-slate-50 dark:bg-white/5 border-b border-slate-200/80 dark:border-white/10 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
                     <th className="p-4 sm:p-5">Môn học & Bộ đề</th>
                     <th className="p-4 sm:p-5">Điểm số</th>
                     <th className="p-4 sm:p-5 hidden sm:table-cell">Thời gian</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-navy-700">
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                   {progressList.map((prog, index) => {
                     const percent = Math.round((prog.score / prog.total) * 100);
-                    let scoreColor = 'text-success-700 bg-success-50 border-success-200 dark:text-success-400 dark:bg-success-900/20 dark:border-success-800/30';
-                    if (percent < 50) scoreColor = 'text-error-700 bg-error-50 border-error-200 dark:text-error-400 dark:bg-error-900/20 dark:border-error-800/30';
+                    let scoreColor = 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-900/20 dark:border-emerald-800/30';
+                    if (percent < 50) scoreColor = 'text-rose-700 bg-rose-50 border-rose-200 dark:text-rose-400 dark:bg-rose-900/20 dark:border-rose-800/30';
                     else if (percent < 80) scoreColor = 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-900/20 dark:border-amber-800/30';
 
                     return (
-                      <tr key={index} className="hover:bg-slate-50/70 dark:hover:bg-navy-900/50 transition-colors">
+                      <tr key={index} className="hover:bg-slate-50/70 dark:hover:bg-white/5 transition-colors">
                         <td className="p-4 sm:p-5">
                           <p className="font-bold text-slate-800 dark:text-slate-200 text-sm sm:text-base">{prog.subjectId}</p>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{prog.deckId}</p>
@@ -239,8 +239,8 @@ export default function ProfilePage() {
             </div>
           </div>
         ) : (
-          <div className="bg-white dark:bg-navy-800 rounded-3xl shadow-sm border border-slate-200 dark:border-navy-700 p-10 text-center flex flex-col items-center">
-            <div className="bg-slate-100 dark:bg-navy-900 p-4 rounded-2xl text-slate-400 dark:text-slate-500 mb-4">
+          <div className="bg-white/80 dark:bg-[#0c1222]/90 rounded-3xl shadow-sm border border-slate-200 dark:border-white/10 p-10 text-center flex flex-col items-center">
+            <div className="bg-slate-100 dark:bg-white/5 p-4 rounded-2xl text-slate-400 dark:text-slate-500 mb-4">
               <BookOpen className="h-10 w-10" />
             </div>
             <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">Chưa có lịch sử làm bài</h3>

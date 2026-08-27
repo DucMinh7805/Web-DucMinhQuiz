@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'DucMinh lon.png'],
       manifest: {
-        name: 'MedQuiz - Y Khoa Lâm Sàng',
-        short_name: 'MedQuiz',
-        description: 'Ứng dụng luyện thi và ôn tập Y Khoa lâm sàng',
+        name: 'DiamondQuiz - Y Khoa Lâm Sàng',
+        short_name: 'DiamondQuiz',
+        description: 'Ngân hàng đề thi và ca lâm sàng Y khoa toàn diện',
         theme_color: '#0f172a',
         background_color: '#f8fafc',
         display: 'standalone',
@@ -34,6 +34,7 @@ export default defineConfig({
     watch: {
       usePolling: true,
       interval: 1000,
+      ignored: ['**/node_modules/**', '**/dist/**', '**/.git/**']
     },
   },
 })
