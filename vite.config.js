@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'DucMinh lon.png'],
+      includeAssets: ['favicon.svg', 'DucMinh lon.png'],
       manifest: {
         name: 'DiamondQuiz - Y Khoa Lâm Sàng',
         short_name: 'DiamondQuiz',
