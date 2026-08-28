@@ -6,9 +6,8 @@ import {
 
 /**
  * QuizBottomBar: Thanh điều khiển ngang thông minh ở đáy trang làm bài
+ * - Bố cục 3 cụm cân đối, chống đè nút trên màn hình Mobile & Tablet
  * - Tự động trượt mượt mà sang trái/phải để luôn hiện các câu tiếp theo khi chọn câu
- * - Hỗ trợ lăn chuột cuộn ngang và kéo vuốt
- * - Full-width không bị giới hạn khung hẹp
  */
 export default function QuizBottomBar({
   currentIndex,
@@ -31,7 +30,7 @@ export default function QuizBottomBar({
   const scrollContainerRef = useRef(null);
   const buttonRefs = useRef([]);
 
-  // Tự động cuộn căn giữa câu hiện tại để luôn thấy các câu tiếp theo (6-7 câu)
+  // Tự động cuộn căn giữa câu hiện tại
   useEffect(() => {
     if (buttonRefs.current[currentIndex]) {
       buttonRefs.current[currentIndex].scrollIntoView({
@@ -42,7 +41,6 @@ export default function QuizBottomBar({
     }
   }, [currentIndex]);
 
-  // Hỗ trợ lăn con trỏ chuột để cuộn ngang hàng số câu trên máy tính
   const handleWheel = (e) => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollLeft += e.deltaY;
@@ -75,43 +73,43 @@ export default function QuizBottomBar({
   return (
     <>
       {/* ========================================================================= */}
-      {/* THANH ĐIỀU KHIỂN NGANG DƯỚI ĐÁY (ERGONOMIC BOTTOM WORKBAR)                 */}
+      {/* THANH ĐIỀU KHIỂN NGANG DƯỚI ĐÁY (CHỐNG TRÀN NÚT TRÊN MOBILE)              */}
       {/* ========================================================================= */}
-      <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-[#0b1120]/95 backdrop-blur-2xl border-t border-slate-200/80 dark:border-white/10 py-2.5 px-3 sm:px-8 shadow-[0_-4px_25px_rgba(0,0,0,0.08)]">
-        <div className="w-full flex items-center justify-between gap-2 sm:gap-6">
+      <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-[#0b1120]/95 backdrop-blur-2xl border-t border-slate-200/80 dark:border-white/10 py-2 px-2 sm:py-2.5 sm:px-6 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] select-none">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-1.5 sm:gap-4">
           
           {/* Cụm Trái: Trước / Tiếp */}
-          <div className="flex items-center space-x-1.5 shrink-0">
+          <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
             <button
               type="button"
               onClick={onPrev}
               disabled={currentIndex === 0}
-              className="py-2 px-3 sm:px-4 rounded-xl border border-slate-200/80 dark:border-white/10 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed flex items-center transition-all"
+              className="py-2 px-2.5 sm:px-4 rounded-xl border border-slate-200/80 dark:border-white/10 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed flex items-center transition-all"
               title="Câu trước (←)"
             >
               <ChevronLeft className="w-4 h-4 sm:mr-1" />
-              <span>Trước</span>
+              <span className="hidden xs:inline">Trước</span>
             </button>
 
             <button
               type="button"
               onClick={onNext}
               disabled={currentIndex === totalQuestions - 1}
-              className="py-2 px-3 sm:px-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed flex items-center transition-all shadow-sm"
+              className="py-2 px-2.5 sm:px-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed flex items-center transition-all shadow-xs"
               title="Câu tiếp (→)"
             >
-              <span>Tiếp</span>
+              <span className="hidden xs:inline">Tiếp</span>
               <ChevronRight className="w-4 h-4 sm:ml-1" />
             </button>
           </div>
 
-          {/* Cụm Giữa: Hàng Số Câu Tự Động Trượt Căn Giữa (Auto-centering Horizontal Bar) */}
-          <div className="flex-1 flex items-center justify-center min-w-0 max-w-3xl px-1">
-            {/* Desktop & Tablet: Dãy số câu trượt mượt tự động căn giữa */}
+          {/* Cụm Giữa: Hàng Số Câu (Desktop) hoặc Nút Mở Lưới (Mobile) */}
+          <div className="flex-1 flex items-center justify-center min-w-0 px-1">
+            {/* Desktop: Dãy số câu trượt mượt */}
             <div 
               ref={scrollContainerRef}
               onWheel={handleWheel}
-              className="hidden sm:flex items-center space-x-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-1 px-1 scroll-smooth"
+              className="hidden md:flex items-center space-x-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-1 px-1 scroll-smooth max-w-md"
             >
               {Array.from({ length: totalQuestions }).map((_, idx) => {
                 const isCurrent = idx === currentIndex;
@@ -139,7 +137,7 @@ export default function QuizBottomBar({
                     ref={(el) => (buttonRefs.current[idx] = el)}
                     type="button"
                     onClick={() => onSelectQuestion(idx)}
-                    className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl text-xs font-bold flex items-center justify-center border shrink-0 transition-all relative ${pillClass}`}
+                    className={`w-8 h-8 rounded-xl text-xs font-bold flex items-center justify-center border shrink-0 transition-all relative ${pillClass}`}
                     title={`Câu ${idx + 1}`}
                   >
                     {idx + 1}
@@ -151,38 +149,38 @@ export default function QuizBottomBar({
               })}
             </div>
 
-            {/* Nút mở Bảng Câu Hỏi Toàn Bộ */}
+            {/* Nút mở Bảng Câu Hỏi Toàn Bộ (Hiện trên cả Mobile & Desktop) */}
             <button
               type="button"
               onClick={() => setIsGridModalOpen(true)}
-              className="sm:ml-2 py-1.5 px-3 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:text-teal-500 font-bold text-xs flex items-center space-x-1.5 shrink-0 transition-colors"
+              className="py-1.5 px-2.5 sm:px-3.5 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:text-teal-500 font-extrabold text-xs flex items-center space-x-1 shrink-0 transition-colors border border-slate-200/60 dark:border-white/5"
               title="Mở toàn bộ bảng câu hỏi"
             >
-              <Grid className="w-3.5 h-3.5" />
-              <span>Câu {currentIndex + 1}/{totalQuestions}</span>
+              <Grid className="w-3.5 h-3.5 text-teal-500" />
+              <span>{currentIndex + 1}/{totalQuestions}</span>
             </button>
           </div>
 
           {/* Cụm Phải: Cắm Cờ & Nộp Bài Thi */}
-          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+          <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
             <button
               type="button"
               onClick={onToggleFlag}
-              className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center transition-all border ${
+              className={`py-2 px-2.5 sm:px-3 rounded-xl text-xs font-bold flex items-center transition-all border ${
                 isCurrentFlagged
-                  ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                  ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
                   : 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-white/10 hover:text-amber-500'
               }`}
               title="Cắm cờ câu này (F)"
             >
-              <Flag className={`w-3.5 h-3.5 sm:mr-1.5 ${isCurrentFlagged ? 'fill-current' : ''}`} />
-              <span className="hidden sm:inline">{isCurrentFlagged ? 'Đã cờ' : 'Cắm cờ'}</span>
+              <Flag className={`w-3.5 h-3.5 ${isCurrentFlagged ? 'fill-current' : ''}`} />
+              <span className="hidden sm:inline sm:ml-1.5">{isCurrentFlagged ? 'Đã cờ' : 'Cắm cờ'}</span>
             </button>
 
             <button
               type="button"
               onClick={onSubmitQuiz}
-              className="py-2 px-3.5 sm:px-5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white font-extrabold text-xs sm:text-sm flex items-center shadow-md shadow-teal-500/20 transition-transform active:scale-95"
+              className="py-2 px-3 sm:px-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white font-black text-xs sm:text-sm flex items-center shadow-md shadow-teal-500/20 transition-transform active:scale-95 shrink-0"
             >
               <Send className="w-3.5 h-3.5 sm:mr-1.5" />
               <span>Nộp bài</span>
@@ -193,7 +191,7 @@ export default function QuizBottomBar({
       </div>
 
       {/* ========================================================================= */}
-      {/* MODAL BẢNG LƯỚI TOÀN BỘ CÂU HỎI (KHI CẦN XEM TỔNG QUAN)                   */}
+      {/* MODAL BẢNG LƯỚI TOÀN BỘ CÂU HỎI                                           */}
       {/* ========================================================================= */}
       {isGridModalOpen && (
         <div 

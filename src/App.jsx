@@ -12,7 +12,10 @@ const MainLayout = lazy(() => import('./layouts/MainLayout'));
 const MistakesNotebookPage = lazy(() => import('./pages/MistakesNotebookPage'));
 const LabValuesPage = lazy(() => import('./pages/LabValuesPage'));
 const LibraryPage = lazy(() => import('./pages/LibraryPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 import AuthGuard from './components/Auth/AuthGuard';
+import AppErrorBoundary from './components/Common/AppErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { fetchManifest, fetchDeckQuestions } from './services/quizApi';
@@ -116,59 +119,62 @@ function QuizDataLoader({ _manifest }) {
     </div>
   );
 
-  return <QuizPage getQuestionsByDeckPath={getQuestionsByDeckPath} />;
+  return <QuizPage getQuestionsByDeckPath={getQuestionsByDeckPath} manifest={_manifest} />;
 }
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <Router>
-            <Suspense fallback={<div className="flex flex-col justify-center items-center h-screen bg-white dark:bg-navy-900"><div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div></div>}>
-              <Routes>
-              {/* Trang Đăng nhập xuất hiện đầu tiên nếu chưa đăng nhập */}
-              <Route path="/login" element={<LoginPage />} />
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <AuthProvider>
+            <Router>
+              <Suspense fallback={<div className="flex flex-col justify-center items-center h-screen bg-white dark:bg-[#060a14]"><div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <Routes>
+                  {/* Trang Đăng nhập xuất hiện đầu tiên nếu chưa đăng nhập */}
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
 
-              {/* Tất cả các trang ứng dụng được bảo vệ bởi AuthGuard */}
-              <Route
-                element={
-                  <AuthGuard>
-                    <AppDataWrapper>
-                      {(manifest) => <MainLayout manifest={manifest} />}
-                    </AppDataWrapper>
-                  </AuthGuard>
-                }
-              >
-                <Route path="/" element={<HomePage />} />
-                <Route path="/graph" element={<KnowledgeGraphPage />} />
-                <Route path="/category/:id" element={<CategoryPage />} />
-                <Route path="/subject/:id" element={<DeckSelectionPage />} />
-                <Route path="/library" element={<LibraryPage />} />
-                <Route path="/lab-values" element={<LabValuesPage />} />
-                <Route path="/mistakes" element={<MistakesNotebookPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-              </Route>
+                  {/* Tất cả các trang ứng dụng được bảo vệ bởi AuthGuard */}
+                  <Route
+                    element={
+                      <AuthGuard>
+                        <AppDataWrapper>
+                          {(manifest) => <MainLayout manifest={manifest} />}
+                        </AppDataWrapper>
+                      </AuthGuard>
+                    }
+                  >
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/graph" element={<KnowledgeGraphPage />} />
+                    <Route path="/category/:id" element={<CategoryPage />} />
+                    <Route path="/subject/:id" element={<DeckSelectionPage />} />
+                    <Route path="/library" element={<LibraryPage />} />
+                    <Route path="/lab-values" element={<LabValuesPage />} />
+                    <Route path="/mistakes" element={<MistakesNotebookPage />} />
+                    <Route path="/profile" element={<ProfilePage />} />
+                  </Route>
 
-              {/* Phòng thi Quiz (Toàn màn hình với Left Toolbar chuyên dụng) */}
-              <Route
-                path="/quiz/:deckPath"
-                element={
-                  <AuthGuard>
-                    <AppDataWrapper>
-                      {(manifest) => <QuizDataLoader _manifest={manifest} />}
-                    </AppDataWrapper>
-                  </AuthGuard>
-                }
-              />
+                  {/* Phòng thi Quiz (Toàn màn hình với Left Toolbar chuyên dụng) */}
+                  <Route
+                    path="/quiz/:deckPath"
+                    element={
+                      <AuthGuard>
+                        <AppDataWrapper>
+                          {(manifest) => <QuizDataLoader _manifest={manifest} />}
+                        </AppDataWrapper>
+                      </AuthGuard>
+                    }
+                  />
 
-              {/* Bắt tất cả các đường dẫn sai chuyển về trang chủ */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-            </Suspense>
-          </Router>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+                  {/* Bắt tất cả các đường dẫn sai chuyển về trang chủ */}
+                  <Route path="*" element={<NotFoundPage />} />
+                </Routes>
+              </Suspense>
+            </Router>
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   );
 }

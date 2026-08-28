@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import MistakesFlashcardReview from '../components/Mistakes/MistakesFlashcardReview';
 import MistakesEmptyState from '../components/Mistakes/MistakesEmptyState';
+import usePageTitle from '../hooks/usePageTitle';
 
 const emptyArray = [];
 
@@ -23,6 +24,7 @@ function formatSubjectName(subjectId) {
 }
 
 export default function MistakesNotebookPage() {
+  usePageTitle('Sổ tay câu sai');
   const { user, removeMistake, clearMistakes, reviewMistake } = useAuth();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');

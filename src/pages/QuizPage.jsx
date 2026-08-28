@@ -1,21 +1,25 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { shuffleArray } from '../utils/shuffle';
 
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Clock, BookOpen } from 'lucide-react';
 import QuizBottomBar from '../components/Quiz/QuizBottomBar';
 import QuestionCard from '../components/Quiz/QuestionCard';
 import SubmitConfirmModal from '../components/Quiz/SubmitConfirmModal';
 import ReviewPage from './ReviewPage';
+import usePageTitle from '../hooks/usePageTitle';
 
 /**
  * QuizPage: Phòng thi & luyện tập trắc nghiệm Y khoa
- * - Hỗ trợ Chế độ Luyện tập (Tutor) & Chế độ Thi thử (Exam)
- * - Tự động co giãn màn hình, cỡ chữ to rõ ràng
+ * - Nhận diện Chế độ Luyện tập (Tutor) & Chế độ Thi thử (Exam) từ trang chọn đề
+ * - Hiển thị Tên Môn Học & Tên Đề Thi chuẩn Tiếng Việt từ Manifest/Google Sheet
+ * - Hỗ trợ thao tác vuốt sang trái/phải trên Mobile/Tablet để đổi câu mượt mà
  */
-export default function QuizPage({ getQuestionsByDeckPath }) {
+export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
+  usePageTitle('Phòng thi');
   const { deckPath } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { updateProgress } = useAuth();
 
@@ -23,11 +27,51 @@ export default function QuizPage({ getQuestionsByDeckPath }) {
   const subjectId = actualPath.split('/')[0] || '';
   const deckId = actualPath.split('/')[1] || '';
 
+  // Chế độ thi: Nhận từ query param ?mode=exam hoặc ?mode=tutor (mặc định 'tutor')
+  const initialMode = searchParams.get('mode') === 'exam' ? 'exam' : 'tutor';
+  const [mode, setMode] = useState(initialMode);
+
+  // Tìm Tên Môn Học & Tên Đề Thi bằng Tiếng Việt từ Manifest
+  const { subjectName, deckName } = useMemo(() => {
+    if (!manifest?.subjects) {
+      return {
+        subjectName: subjectId.replace(/_/g, ' '),
+        deckName: deckId.replace(/_/g, ' ')
+      };
+    }
+
+    for (const sub of manifest.subjects) {
+      if (Array.isArray(sub.decks)) {
+        const foundDeck = sub.decks.find(d => 
+          d.path === actualPath || 
+          (d.path && d.path.replace('/', '-') === deckPath) ||
+          d.id === deckId
+        );
+        if (foundDeck) {
+          return {
+            subjectName: sub.name,
+            deckName: foundDeck.name
+          };
+        }
+      }
+      if (sub.id === subjectId) {
+        return {
+          subjectName: sub.name,
+          deckName: deckId.replace(/_/g, ' ')
+        };
+      }
+    }
+
+    return {
+      subjectName: subjectId.replace(/_/g, ' '),
+      deckName: deckId.replace(/_/g, ' ')
+    };
+  }, [manifest, actualPath, deckPath, subjectId, deckId]);
+
   const rawQuestions = getQuestionsByDeckPath ? getQuestionsByDeckPath(actualPath) : null;
   const [activeQuestions, setActiveQuestions] = useState([]);
   
   // States
-  const [mode, setMode] = useState('tutor'); // 'tutor' | 'exam'
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({});
   const [flagged, setFlagged] = useState({});
@@ -78,7 +122,6 @@ export default function QuizPage({ getQuestionsByDeckPath }) {
     const handleKeyDown = (e) => {
       if (isSubmitModalOpen || quizFinished) return;
 
-      // Tuyệt đối không bắt phím tắt khi người dùng đang gõ trong input, textarea hoặc contenteditable
       const targetTag = e.target?.tagName?.toUpperCase();
       if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || e.target?.isContentEditable) {
         return;
@@ -101,11 +144,11 @@ export default function QuizPage({ getQuestionsByDeckPath }) {
   if (!activeQuestions || activeQuestions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 text-center">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
+        <div className="w-12 h-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mb-4" />
         <p className="text-slate-500 font-medium">Đang tải nội dung bộ đề thi...</p>
         <button
           onClick={() => navigate(-1)}
-          className="mt-4 text-blue-600 font-bold hover:underline"
+          className="mt-4 text-teal-600 font-bold hover:underline"
         >
           Quay lại danh sách
         </button>
@@ -149,6 +192,32 @@ export default function QuizPage({ getQuestionsByDeckPath }) {
     if (currentIndex < activeQuestions.length - 1) setCurrentIndex(currentIndex + 1);
   };
 
+  // Vuốt chạm cảm ứng trái/phải trên màn hình Mobile & Tablet
+  const touchStartXRef = useRef(null);
+  const touchStartYRef = useRef(null);
+
+  const handleTouchStart = (e) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+
+    // Ngưỡng vuốt nhạy: > 45px và góc quét ngang chiếm ưu thế
+    if (Math.abs(deltaX) > 45 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+      if (deltaX < 0) {
+        handleNext();
+      } else {
+        handlePrev();
+      }
+    }
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+  };
+
   // Submit & Calculate Score
   const handleSubmitQuiz = () => {
     setIsSubmitModalOpen(false);
@@ -187,11 +256,9 @@ export default function QuizPage({ getQuestionsByDeckPath }) {
       }
     });
 
-    // Pass correctCount as score to ReviewPage
     setScore(correctCount);
     setQuizFinished(true);
 
-    // Save progress & mistakes
     updateProgress(
       subjectId,
       deckId,
@@ -201,7 +268,6 @@ export default function QuizPage({ getQuestionsByDeckPath }) {
     );
   };
 
-  // Retake handlers
   const handleRetakeAll = () => {
     setAnswers({});
     setFlagged({});
@@ -244,7 +310,6 @@ export default function QuizPage({ getQuestionsByDeckPath }) {
     setTimeLeft(wrongList.length * 90);
   };
 
-  // If Quiz is finished, show Review Page
   if (quizFinished) {
     return (
       <ReviewPage
@@ -254,19 +319,29 @@ export default function QuizPage({ getQuestionsByDeckPath }) {
         score={score}
         subjectId={subjectId}
         deckId={deckId}
-        deckName={deckId.replace(/_/g, ' ')}
+        deckName={deckName}
         onRetakeAll={handleRetakeAll}
         onRetakeMistakes={handleRetakeMistakes}
       />
     );
   }
 
+  const formatTimer = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
   return (
-    <div className="h-screen max-h-screen overflow-hidden bg-slate-50/80 dark:bg-[#060a14] text-slate-800 dark:text-slate-200 flex flex-col antialiased">
+    <div 
+      className="h-screen max-h-screen overflow-hidden bg-slate-50/80 dark:bg-[#060a14] text-slate-800 dark:text-slate-200 flex flex-col antialiased"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       
-      {/* 1. Sleek Top Header Bar (Thông tin Bộ Đề & Chuyển Chế Độ) */}
-      <div className="bg-white/80 dark:bg-[#0b1120]/80 backdrop-blur-xl border-b border-slate-200/60 dark:border-white/10 py-2.5 px-4 sm:px-8 flex items-center justify-between shrink-0 z-20 shadow-xs">
-        <div className="flex items-center space-x-3 min-w-0">
+      {/* 1. Sleek Top Header Bar (Tên Môn Học & Tên Đề Thi Tiếng Việt Rõ Ràng) */}
+      <div className="bg-white/85 dark:bg-[#0b1120]/85 backdrop-blur-xl border-b border-slate-200/60 dark:border-white/10 py-2.5 px-3 sm:px-8 flex items-center justify-between shrink-0 z-20 shadow-2xs">
+        <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1 mr-2">
           <button
             type="button"
             onClick={() => {
@@ -275,50 +350,39 @@ export default function QuizPage({ getQuestionsByDeckPath }) {
               }
               navigate(-1);
             }}
-            className="p-2 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 transition-colors shrink-0"
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 transition-colors shrink-0"
             title="Thoát phòng thi"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           
-          <div className="min-w-0">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 dark:text-teal-300 bg-teal-500/10 dark:bg-teal-500/20 px-2 py-0.5 rounded-md border border-teal-500/20 mr-2">
-              {subjectId.replace(/_/g, ' ')}
+          <div className="min-w-0 flex flex-col sm:flex-row sm:items-center sm:space-x-2">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-teal-700 dark:text-teal-300 bg-teal-500/10 dark:bg-teal-500/20 px-2 py-0.5 rounded-md border border-teal-500/20 w-fit truncate shrink-0 mb-0.5 sm:mb-0">
+              {subjectName}
             </span>
-            <span className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white truncate inline-block align-middle max-w-xs sm:max-w-md">
-              {deckId.replace(/_/g, ' ')}
+            <span className="font-black text-xs sm:text-base text-slate-900 dark:text-white truncate" title={deckName}>
+              {deckName}
             </span>
           </div>
         </div>
 
-        {/* Mode Switcher (Luyện tập / Thi thử) */}
-        <div className="flex items-center space-x-1.5 bg-slate-100/80 dark:bg-white/5 p-1 rounded-2xl border border-slate-200/60 dark:border-white/10 shrink-0">
-          <button
-            type="button"
-            onClick={() => setMode('tutor')}
-            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
-              mode === 'tutor'
-                ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Luyện tập
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('exam')}
-            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
-              mode === 'exam'
-                ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Thi thử
-          </button>
+        {/* Khung Trạng Thái Chế Độ (Đã cố định từ lúc chọn đề) */}
+        <div className="shrink-0">
+          {mode === 'exam' ? (
+            <div className="flex items-center space-x-1.5 bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-black shadow-xs">
+              <Clock className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+              <span>{formatTimer(timeLeft)}</span>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-1.5 bg-teal-500/10 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/30 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black">
+              <BookOpen className="w-3.5 h-3.5 text-teal-500" />
+              <span className="hidden sm:inline">Luyện tập</span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 2. Main Question Workstation (Nằm trọn 1 màn hình không cần cuộn trang) */}
+      {/* 2. Main Question Workstation (Hỗ trợ vuốt chạm trái phải) */}
       <main className="flex-1 min-h-0 w-full py-2 px-2 sm:px-6 lg:px-8 flex items-start justify-center overflow-y-auto custom-scrollbar pb-24 sm:pb-20">
         <QuestionCard
           questionIndex={currentIndex}
@@ -335,7 +399,7 @@ export default function QuizPage({ getQuestionsByDeckPath }) {
         />
       </main>
 
-      {/* 3. Ergonomic Bottom Workbar (Thanh Điều Khiển Ngang Ở Đáy) */}
+      {/* 3. Ergonomic Bottom Workbar (Thanh Điều Khiển Chống Tràn Nút) */}
       <QuizBottomBar
         currentIndex={currentIndex}
         totalQuestions={activeQuestions.length}

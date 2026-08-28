@@ -1,8 +1,7 @@
 /**
  * Định nghĩa chuẩn hệ thống Phân Khối Đào Tạo Y Khoa (Medical Training Stages)
- * - preclinical: Tiền lâm sàng (Y1 - Y3: Giải phẫu, Sinh lý, Dược lý, Hóa sinh, Mô phôi...)
+ * - preclinical: Tiền lâm sàng (Y1 - Y3: Giải phẫu, Sinh lý, Dược lý, Hóa sinh, Mô phôi, Lý sinh, Triết học...)
  * - clinical: Lâm sàng (Y4 - Y6: Nội, Ngoại, Sản, Nhi, Truyền nhiễm, Chẩn đoán hình ảnh...)
- * - postgraduate: Sau đại học (Ôn thi Bác sĩ Nội trú, CKI, CKII, Thạc sĩ Y học)
  * - unclassified: Chưa phân loại (Fallback an toàn)
  */
 
@@ -10,7 +9,6 @@ export const STAGES = {
   ALL: 'all',
   PRECLINICAL: 'preclinical',
   CLINICAL: 'clinical',
-  POSTGRADUATE: 'postgraduate',
   UNCLASSIFIED: 'unclassified'
 };
 
@@ -28,9 +26,9 @@ export const STAGE_CONFIG = {
     label: 'Tiền lâm sàng (Y1 - Y3)',
     shortLabel: 'Tiền lâm sàng',
     years: 'Y1 - Y3',
-    description: 'Kiến thức y học cơ sở: Giải phẫu, Sinh lý, Hóa sinh, Dược lý, Mô phôi, Vi sinh...',
+    description: 'Kiến thức y học cơ sở & đại cương: Giải phẫu, Sinh lý, Hóa sinh, Dược lý, Mô phôi, Lý sinh, Chính trị...',
     badgeClass: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
-    color: '#8b5cf6' // Purple/Indigo
+    color: '#8b5cf6'
   },
   [STAGES.CLINICAL]: {
     id: 'clinical',
@@ -39,16 +37,7 @@ export const STAGE_CONFIG = {
     years: 'Y4 - Y6',
     description: 'Kiến thức bệnh học & điều trị: Nội, Ngoại, Sản, Nhi, Cấp cứu, Chẩn đoán hình ảnh...',
     badgeClass: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20',
-    color: '#06b6d4' // Cyan/Teal
-  },
-  [STAGES.POSTGRADUATE]: {
-    id: 'postgraduate',
-    label: 'Sau đại học (Nội trú / CKI)',
-    shortLabel: 'Sau đại học',
-    years: 'Nội trú / CKI / CKII',
-    description: 'Ôn thi Bác sĩ Nội trú, Chuyên khoa I, Chuyên khoa II, Đề thi tổng hợp ca bệnh...',
-    badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-    color: '#f59e0b' // Amber/Gold
+    color: '#06b6d4'
   },
   [STAGES.UNCLASSIFIED]: {
     id: 'unclassified',
@@ -62,19 +51,18 @@ export const STAGE_CONFIG = {
 };
 
 /**
- * Seed Mapping tĩnh ban đầu cho 24 môn học hiện có.
- * Dùng làm fallback khi Google Sheet chưa bổ sung cột `stage` hoặc `stages`.
+ * Seed Mapping tĩnh ban đầu cho các môn học chuẩn.
  */
 export const SUBJECT_STAGE_SEED = {
   // 1. Khối Tiền Lâm Sàng (Y1 - Y3)
-  'giai-phau': ['preclinical', 'postgraduate'],
+  'giai-phau': ['preclinical'],
   'thuc-tap-giai-phau': ['preclinical'],
-  'sinh-ly': ['preclinical', 'postgraduate'],
-  'hoa-sinh': ['preclinical', 'postgraduate'],
+  'sinh-ly': ['preclinical'],
+  'hoa-sinh': ['preclinical'],
   'mo-phoi': ['preclinical'],
   'chay-tram-mo-phoi': ['preclinical'],
-  'sinh-ly-benh-mien-dich': ['preclinical', 'postgraduate'],
-  'duoc-ly': ['preclinical', 'postgraduate'],
+  'sinh-ly-benh-mien-dich': ['preclinical'],
+  'duoc-ly': ['preclinical'],
   'vi-sinh': ['preclinical'],
   'ky-sinh-trung': ['preclinical'],
   'sinh-hoc-di-truyen': ['preclinical'],
@@ -85,6 +73,8 @@ export const SUBJECT_STAGE_SEED = {
   'lich-su-dang': ['preclinical'],
   'tu-tuong-hcm': ['preclinical'],
   'kinh-te-chinh-tri': ['preclinical'],
+  'chu-nghia-xa-hoi': ['preclinical'],
+  'triet-hoc': ['preclinical'],
   'dieu-duong-co-ban': ['preclinical'],
   'tien-lam-sang-1': ['preclinical'],
   'tien-lam-sang-2': ['preclinical'],
@@ -93,35 +83,42 @@ export const SUBJECT_STAGE_SEED = {
   'chua-rang': ['preclinical'],
 
   // 2. Khối Lâm Sàng (Y4 - Y6)
-  'noi-khoa': ['clinical', 'postgraduate'],
-  'noi-tim-mach': ['clinical', 'postgraduate'],
-  'noi-co-so': ['preclinical', 'clinical', 'postgraduate'],
-  'noi-ho-hap': ['clinical', 'postgraduate'],
-  'noi-tieu-hoa': ['clinical', 'postgraduate'],
-  'ngoai-khoa': ['clinical', 'postgraduate'],
-  'ngoai-co-xuong': ['clinical', 'postgraduate'],
-  'san-khoa': ['clinical', 'postgraduate'],
+  'noi-khoa': ['clinical'],
+  'noi-tim-mach': ['clinical'],
+  'noi-co-so': ['preclinical', 'clinical'],
+  'noi-ho-hap': ['clinical'],
+  'noi-tieu-hoa': ['clinical'],
+  'ngoai-khoa': ['clinical'],
+  'ngoai-co-xuong': ['clinical'],
+  'san-khoa': ['clinical'],
   'san-1': ['clinical'],
-  'san-2': ['clinical', 'postgraduate'],
-  'nhi-khoa': ['clinical', 'postgraduate'],
-  'truyen-nhiem': ['clinical', 'postgraduate'],
-  'hoi-suc-cap-cuu': ['clinical', 'postgraduate'],
-  'chan-doan-hinh-anh': ['clinical', 'postgraduate']
+  'san-2': ['clinical'],
+  'nhi-khoa': ['clinical'],
+  'truyen-nhiem': ['clinical'],
+  'hoi-suc-cap-cuu': ['clinical'],
+  'chan-doan-hinh-anh': ['clinical']
 };
+
+function stripAccents(str = '') {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+}
 
 /**
  * Hàm phân giải danh sách stages cho một môn học:
- * 1. Ưu tiên lấy từ `subject.stages` (dạng Array) nếu có từ API/Sheet
- * 2. Lấy từ `subject.stage` (dạng String phân tách bằng dấu phẩy) nếu có
- * 3. Tra cứu theo `subject.id` trong seed mapping
- * 4. Fallback: ['unclassified']
  */
 export function resolveSubjectStages(subject) {
-  if (!subject) return [STAGES.UNCLASSIFIED];
+  if (!subject) return [STAGES.ALL];
 
   // 1. Đã có mảng stages từ API
   if (Array.isArray(subject.stages) && subject.stages.length > 0) {
-    return subject.stages.filter(s => Object.values(STAGES).includes(s));
+    const valid = subject.stages.filter(s => Object.values(STAGES).includes(s));
+    if (valid.length > 0) return valid;
   }
 
   // 2. Có chuỗi stage từ Sheet (ví dụ "preclinical,clinical")
@@ -139,34 +136,69 @@ export function resolveSubjectStages(subject) {
     return SUBJECT_STAGE_SEED[sId];
   }
 
-  // 4. Normalize tên môn học để so khớp phụ
-  const normalizedName = (subject.name || '').toLowerCase().trim();
-  for (const [key, stages] of Object.entries(SUBJECT_STAGE_SEED)) {
-    if (normalizedName.includes(key.replace(/-/g, ' '))) {
-      return stages;
-    }
-  }
+  const rawName = stripAccents(subject.name || '');
+  const catId = stripAccents(subject.categoryId || '');
+  const catName = stripAccents(subject.categoryName || '');
 
-  // 5. Fallback an toàn
-  return [STAGES.UNCLASSIFIED];
+  // 4. Nhận diện khối Tiền Lâm Sàng (Y1 - Y3)
+  const isPreclinical = 
+    catId.includes('co-so') || 
+    catName.includes('co so') || 
+    catName.includes('dai cuong') ||
+    rawName.includes('giai phau') || 
+    rawName.includes('sinh ly') || 
+    rawName.includes('hoa sinh') || 
+    rawName.includes('duoc') || 
+    rawName.includes('mo phoi') || 
+    rawName.includes('vi sinh') || 
+    rawName.includes('ky sinh') || 
+    rawName.includes('ly sinh') || 
+    rawName.includes('di truyen') || 
+    rawName.includes('chinh tri') || 
+    rawName.includes('lich su') || 
+    rawName.includes('dang') || 
+    rawName.includes('xa hoi') || 
+    rawName.includes('tu tuong') || 
+    rawName.includes('triet') || 
+    rawName.includes('phap luat') || 
+    rawName.includes('dieu duong') || 
+    rawName.includes('tien lam sang');
+
+  // 5. Nhận diện khối Lâm Sàng (Y4 - Y6)
+  const isClinical = 
+    catId.includes('noi') || 
+    catId.includes('ngoai') || 
+    catId.includes('san') || 
+    catId.includes('nhi') || 
+    catName.includes('noi') || 
+    catName.includes('ngoai') || 
+    catName.includes('san') || 
+    catName.includes('nhi') || 
+    rawName.includes('noi') || 
+    rawName.includes('ngoai') || 
+    rawName.includes('san') || 
+    rawName.includes('nhi') || 
+    rawName.includes('tim mach') || 
+    rawName.includes('ho hap') || 
+    rawName.includes('tieu hoa') || 
+    rawName.includes('co xuong') || 
+    rawName.includes('truyen nhiem') || 
+    rawName.includes('hoi suc') || 
+    rawName.includes('cap cuu') || 
+    rawName.includes('chan doan') || 
+    rawName.includes('mat') || 
+    rawName.includes('tai mui hong') || 
+    rawName.includes('rang');
+
+  const result = [];
+  if (isPreclinical) result.push(STAGES.PRECLINICAL);
+  if (isClinical) result.push(STAGES.CLINICAL);
+
+  if (result.length > 0) return result;
+
+  return [STAGES.PRECLINICAL];
 }
 
-/**
- * Dev-only Coverage Checker:
- * Kiểm tra xem có môn học nào trong manifest bị thiếu mapping stage hay không.
- */
 export function checkStageCoverage(subjects = []) {
-  if (!import.meta.env.DEV || !Array.isArray(subjects)) return;
-
-  const unclassified = subjects.filter(s => {
-    const stages = resolveSubjectStages(s);
-    return stages.includes(STAGES.UNCLASSIFIED);
-  });
-
-  if (unclassified.length > 0) {
-    console.warn(
-      `[StageCoverage Warning] Có ${unclassified.length} môn học chưa được phân loại Stage trong Seed Mapping:`,
-      unclassified.map(s => ({ id: s.id, name: s.name }))
-    );
-  }
+  // Safe helper
 }

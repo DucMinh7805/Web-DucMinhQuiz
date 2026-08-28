@@ -2,8 +2,10 @@ import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
 import { User, Calendar, BookOpen, Award, CheckCircle2, Bookmark, ArrowRight } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
+import usePageTitle from '../hooks/usePageTitle';
 
 export default function ProfilePage() {
+  usePageTitle('Hồ sơ cá nhân');
   const { user } = useAuth();
   const navigate = useNavigate();
 

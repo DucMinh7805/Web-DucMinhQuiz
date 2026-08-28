@@ -8,6 +8,7 @@ import DeepCitationCard from '../components/Quiz/DeepCitationCard';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { getDirectImageUrl } from '../utils/imageHelper';
+import usePageTitle from '../hooks/usePageTitle';
 
 export default function ReviewPage({
   questions,
@@ -20,6 +21,7 @@ export default function ReviewPage({
   onRetakeAll,
   onRetakeMistakes
 }) {
+  usePageTitle('Xem lại bài thi');
   const navigate = useNavigate();
   const { user } = useAuth();
   const [filter, setFilter] = useState('all'); // 'all' | 'correct' | 'wrong' | 'flagged'

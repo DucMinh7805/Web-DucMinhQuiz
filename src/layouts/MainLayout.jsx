@@ -8,6 +8,7 @@ import {
   Network, Search, BookOpen
 } from 'lucide-react';
 import GlobalSearchModal from '../components/Search/GlobalSearchModal';
+import FloatingContactButton from '../components/Common/FloatingContactButton';
 
 /**
  * MainLayout: Bố cục thanh điều hướng bên trái
@@ -104,35 +105,35 @@ export default function MainLayout({ manifest }) {
         manifest={manifest}
       />
 
-      {/* Mobile Header */}
-      <div className="md:hidden bg-white/90 dark:bg-[#0b1120]/90 backdrop-blur-xl border-b border-slate-200/60 dark:border-white/10 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+      {/* Mobile Header (Mềm mại, đồng nhất màu nền, không bị lệch viền) */}
+      <div className="md:hidden bg-white/80 dark:bg-[#060a14]/80 backdrop-blur-xl border-b border-slate-200/40 dark:border-white/5 px-4 py-2.5 flex items-center justify-between sticky top-0 z-40">
         <Link to="/" className="flex items-center space-x-2">
-          <img src="/DucMinh lon.png" alt="Logo" loading="lazy" className="h-9 w-9 object-contain rounded-xl" />
-          <span className="font-extrabold text-lg text-slate-900 dark:text-white tracking-tight">
+          <img src="/DucMinh lon.png" alt="Logo" loading="lazy" className="h-8 w-8 object-contain rounded-xl" />
+          <span className="font-extrabold text-base text-slate-900 dark:text-white tracking-tight">
             Diamond<span className="text-teal-500">Quiz</span>
           </span>
         </Link>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1.5">
           <button 
             onClick={() => setIsSearchOpen(true)}
-            className="p-2 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:text-teal-500"
+            className="p-2 rounded-xl bg-slate-100/80 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:text-teal-500"
             title="Tìm kiếm (Ctrl + K)"
           >
             <Search className="w-4 h-4" />
           </button>
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-2 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/15 transition-colors"
+            className="p-2 rounded-xl bg-slate-100/80 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
             aria-label="Toggle menu"
           >
-            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
       {/* Left Sidebar (Desktop & Mobile Drawer) */}
       <aside
-        className={`fixed md:sticky top-0 inset-y-0 left-0 z-50 bg-white/95 dark:bg-[#0b1120]/95 backdrop-blur-2xl border-r border-slate-200/60 dark:border-white/10 flex flex-col justify-between transition-all duration-300 md:translate-x-0 ${
+        className={`fixed md:sticky top-0 inset-y-0 left-0 z-50 bg-white/95 dark:bg-[#080d1a]/95 backdrop-blur-2xl border-r border-slate-200/50 dark:border-white/5 flex flex-col justify-between transition-all duration-300 md:translate-x-0 ${
           isMobileMenuOpen ? 'translate-x-0 w-72' : '-translate-x-full'
         } ${isCollapsed ? 'md:w-20' : 'md:w-64'} h-screen shrink-0 shadow-xl`}
       >
@@ -335,7 +336,8 @@ export default function MainLayout({ manifest }) {
       <main className="flex-1 min-w-0 relative overflow-y-auto">
         <Outlet context={manifest} />
       </main>
-
+      
+      <FloatingContactButton />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { API_CONFIG } from '../config/api';
 import { trackEvent } from '../utils/analytics';
+import usePageTitle from '../hooks/usePageTitle';
 
 /**
  * Chuẩn hóa Số Điện Thoại Việt Nam
@@ -26,6 +27,7 @@ function normalizePhoneNumber(rawPhone) {
 }
 
 export default function LoginPage() {
+  usePageTitle('Đăng nhập');
   const [isSignUpMode, setIsSignUpMode] = useState(false);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');

@@ -7,10 +7,12 @@ import HomeFeaturedSubjects from '../components/Home/HomeFeaturedSubjects';
 import HomeFourPillars, { FOUR_PILLARS_CONFIG } from '../components/Home/HomeFourPillars';
 import HomeQuickTools from '../components/Home/HomeQuickTools';
 import HomeFooter from '../components/Home/HomeFooter';
+import usePageTitle from '../hooks/usePageTitle';
 
 const emptyArray = [];
 
 export default function HomePage() {
+  usePageTitle('Trang chủ');
   const manifest = useOutletContext();
   const { user } = useAuth();
 

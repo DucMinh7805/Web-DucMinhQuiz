@@ -12,6 +12,14 @@
     /* Chặn hiệu ứng cuộn quá trớn (pull-to-refresh) trên mobile */
     overscroll-behavior-y: none;
     -webkit-tap-highlight-color: transparent; /* Bỏ màu xanh khi tap trên iOS */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE & Edge */
+  }
+
+  html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+    width: 0;
+    height: 0;
   }
 
   body {

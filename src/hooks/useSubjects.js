@@ -161,7 +161,6 @@ export function useSubjects({ manifest }) {
       all: normalizedSubjects.length,
       preclinical: 0,
       clinical: 0,
-      postgraduate: 0,
       unclassified: 0
     };
 

@@ -100,6 +100,14 @@ function SubjectCardItem({ sub, idx, onHoverSubject, navigate }) {
   const rawCoverUrl = directCover || `/images/subjects/${sub.id}.webp`;
   const hasValidImage = !!rawCoverUrl && !imgError;
 
+  const decksCount = typeof sub.decksCount === 'number' && sub.decksCount > 0 
+    ? sub.decksCount 
+    : (Array.isArray(sub.decks) ? sub.decks.length : 0);
+
+  const totalQuestions = typeof sub.totalQuestions === 'number' && sub.totalQuestions > 0 
+    ? sub.totalQuestions 
+    : (Array.isArray(sub.decks) ? sub.decks.reduce((sum, d) => sum + (d.questionCount || 0), 0) : (sub.questionsCount || 0));
+
   return (
     <motion.div
       layout
@@ -148,21 +156,21 @@ function SubjectCardItem({ sub, idx, onHoverSubject, navigate }) {
         </h3>
 
         {/* 3. FOOTER THẺ: THỐNG KÊ BỘ ĐỀ & NÚT LUYỆN THI */}
-        <div className="flex items-center justify-between text-[11px] sm:text-xs pt-1 border-t border-slate-100 dark:border-white/5">
-          <div className="flex items-center space-x-2 text-slate-500 dark:text-slate-400 font-semibold text-[10px] sm:text-[11px]">
-            <span className="flex items-center space-x-1">
+        <div className="flex items-center justify-between text-[10px] sm:text-xs pt-1.5 border-t border-slate-100 dark:border-white/5">
+          <div className="flex items-center space-x-2 text-slate-500 dark:text-slate-400 font-semibold text-[10px] sm:text-[11px] truncate">
+            <span className="flex items-center space-x-1 shrink-0">
               <Layers className="w-3 h-3 text-teal-500" />
-              <span>{sub.decksCount} đề</span>
+              <span>{decksCount} đề</span>
             </span>
-            <span className="flex items-center space-x-1">
+            <span className="flex items-center space-x-1 shrink-0">
               <BarChart2 className="w-3 h-3 text-cyan-500" />
-              <span>{sub.totalQuestions} câu</span>
+              <span>{totalQuestions} câu</span>
             </span>
           </div>
 
-          <div className="flex items-center space-x-1 font-extrabold text-[10px] sm:text-xs text-teal-600 dark:text-teal-400 group-hover:translate-x-0.5 transition-transform shrink-0">
-            <span>Luyện thi</span>
-            <PlayCircle className="w-3.5 h-3.5 fill-teal-500/10" />
+          <div className="flex items-center space-x-1 font-extrabold text-[10px] sm:text-xs text-teal-600 dark:text-teal-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-1">
+            <span className="hidden sm:inline">Luyện thi</span>
+            <PlayCircle className="w-3.5 h-3.5 fill-teal-500/10 text-teal-500" />
           </div>
         </div>
       </div>

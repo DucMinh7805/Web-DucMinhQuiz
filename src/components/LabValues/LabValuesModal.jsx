@@ -48,7 +48,7 @@ export default function LabValuesModal({ isOpen, onClose }) {
               </div>
               <div>
                 <h2 className="text-xl font-bold tracking-tight">Tra cứu Trị số Xét nghiệm (Lab Reference Values)</h2>
-                <p className="text-blue-100 text-xs">Các khoảng tham chiếu sinh hóa, huyết học chuẩn lâm sàng</p>
+                <p className="text-blue-100 text-xs">Các khoảng tham chiếu sinh hóa, huyết học, điện giải và khí máu lâm sàng</p>
               </div>
             </div>
             <button

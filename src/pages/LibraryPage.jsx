@@ -7,6 +7,7 @@ import {
 import BookCard from '../components/Library/BookCard';
 
 import { useOutletContext } from 'react-router-dom';
+import usePageTitle from '../hooks/usePageTitle';
 
 /**
  * LibraryPage: Thư viện Giáo Trình & Slide Y Khoa Trực Tuyến
@@ -18,6 +19,7 @@ const EMPTY_BOOKS = [];
 const EMPTY_SUBJECTS = [];
 
 export default function LibraryPage() {
+  usePageTitle('Kho Sách & Slide');
   const manifest = useOutletContext();
   const books = manifest?.books || EMPTY_BOOKS;
   const subjects = manifest?.subjects || EMPTY_SUBJECTS;

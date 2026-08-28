@@ -8,8 +8,12 @@ import { useOutletContext } from 'react-router-dom';
 import SubjectCardGrid from '../components/Graph/SubjectCardGrid';
 
 import { FOUR_PILLARS_CONFIG } from '../components/Home/HomeFourPillars';
+import usePageTitle from '../hooks/usePageTitle';
+
+import Breadcrumb from '../components/Common/Breadcrumb';
 
 export default function CategoryPage() {
+  usePageTitle('Chuyên khoa');
   const manifest = useOutletContext();
   const { id: categoryId } = useParams();
   const navigate = useNavigate();
@@ -34,6 +38,7 @@ export default function CategoryPage() {
 
   return (
     <div className="min-h-full py-6 px-4 sm:px-8 lg:px-12 w-full space-y-6">
+      <Breadcrumb items={[{ label: categoryName || 'Chuyên khoa' }]} />
       {/* Tiêu đề Khoa */}
       <div className="bg-white/80 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-3xl p-6 sm:p-10 border border-slate-200/80 dark:border-white/10 shadow-sm relative overflow-hidden text-center">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-teal-500/10 via-cyan-500/5 to-transparent rounded-bl-full pointer-events-none"></div>
