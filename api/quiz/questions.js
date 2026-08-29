@@ -16,10 +16,28 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, message: 'Thiếu tham số deckPath' });
     }
 
-    // Lấy toàn bộ câu hỏi của bộ đề
-    const questions = await Question.find({ deckPath, isPublished: true })
+    const decodedPath = decodeURIComponent(deckPath).trim();
+    const escaped = decodedPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // Tìm kiếm linh hoạt không phân biệt hoa thường và hỗ trợ cả dấu gạch chéo
+    let questions = await Question.find({
+      deckPath: { $regex: new RegExp(`^${escaped}$`, 'i') },
+      isPublished: true
+    })
       .sort({ orderIndex: 1, createdAt: 1 })
       .lean();
+
+    // Fallback nếu path có dạng thay thế gạch ngang
+    if (!questions || questions.length === 0) {
+      const altPath = decodedPath.replace(/\//g, '-');
+      const altEscaped = altPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      questions = await Question.find({
+        deckPath: { $regex: new RegExp(`^${altEscaped}$`, 'i') },
+        isPublished: true
+      })
+        .sort({ orderIndex: 1, createdAt: 1 })
+        .lean();
+    }
 
     const formattedQuestions = questions.map((q, idx) => ({
       id: q._id,
@@ -33,7 +51,6 @@ export default async function handler(req, res) {
       options: q.options || [],
       parsedOptions: (q.options || []).map(opt => opt.text),
       correctOptionIds: q.correctOptionIds || [],
-      // Cung cấp answer dạng text cho tương thích ngược với UI cũ
       answer: (q.options || [])
         .filter(opt => (q.correctOptionIds || []).includes(opt.id))
         .map(opt => opt.text)
