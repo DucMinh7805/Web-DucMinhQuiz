@@ -1,5 +1,5 @@
 import { connectToDatabase } from '../_utils/db.js';
-import { User, Session } from '../models/index.js';
+import { User, Session } from '../_models/index.js';
 import { 
   comparePassword, 
   signAccessToken, 

@@ -1,5 +1,5 @@
 import { connectToDatabase } from '../_utils/db.js';
-import { User } from '../models/index.js';
+import { User } from '../_models/index.js';
 import { hashPassword } from '../_utils/auth.js';
 import { normalizePhone, isValidVietnamesePhone } from '../_utils/normalize.js';
 import { checkRateLimit, getClientIp } from '../_utils/rateLimiter.js';

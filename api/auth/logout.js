@@ -1,5 +1,5 @@
 import { connectToDatabase } from '../_utils/db.js';
-import { Session } from '../models/index.js';
+import { Session } from '../_models/index.js';
 import { 
   hashRefreshToken, 
   clearRefreshTokenCookie, 

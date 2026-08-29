@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { connectToDatabase } from '../_utils/db.js';
-import { UserProgress, MistakeItem, Deck, Subject } from '../models/index.js';
+import { UserProgress, MistakeItem, Deck, Subject } from '../_models/index.js';
 import { authenticateUser } from '../_utils/auth.js';
 import { calculateSM2 } from '../_utils/sm2.js';
 

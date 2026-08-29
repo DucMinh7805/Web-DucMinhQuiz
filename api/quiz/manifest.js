@@ -1,5 +1,5 @@
 import { connectToDatabase } from '../_utils/db.js';
-import { Subject, Deck } from '../models/index.js';
+import { Subject, Deck } from '../_models/index.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
