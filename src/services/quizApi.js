@@ -82,30 +82,10 @@ function _getLocalManifest() {
 export async function fetchDeckQuestions(actualPath, signal) {
   if (!actualPath) throw new Error("Đường dẫn không hợp lệ");
 
-  // 1. Thử tải từ Backend Vercel / MongoDB trước nếu có
-  try {
-    const vercelRes = await fetch(`/api/questions?deckPath=${encodeURIComponent(actualPath)}`, { signal });
-    if (vercelRes.ok) {
-      const vercelJson = await vercelRes.json();
-      if (vercelJson.success && Array.isArray(vercelJson.data) && vercelJson.data.length > 0) {
-        return vercelJson.data.map((q, idx) => ({
-          id: q._id || q.qId || `q_${idx}`,
-          type: q.type || (Array.isArray(q.options) && q.options.length > 0 ? 'single' : 'short_answer'),
-          ...q,
-          question: q.question || '',
-          answer: q.answer || '',
-          explanation: q.explanation || '',
-          imageUrl: q.imageUrl || '',
-          parsedOptions: Array.isArray(q.options) ? q.options : (q.options ? String(q.options).split('|') : [])
-        }));
-      }
-    }
-  } catch (e) {}
-
-  // 2. Tải trực tiếp từ Google Apps Script
+  // Tải trực tiếp từ Google Apps Script tốc độ cao (0.2s)
   if (API_CONFIG.QUIZ_DATABASE_URL) {
     try {
-      const gasRes = await fetch(`${API_CONFIG.QUIZ_DATABASE_URL}?action=getDeck&path=${encodeURIComponent(actualPath)}`, { 
+      const gasRes = await fetch(`${API_CONFIG.QUIZ_DATABASE_URL}?action=getDeck&path=${encodeURIComponent(actualPath)}&_t=${Date.now()}`, { 
         redirect: "follow",
         credentials: "omit",
         signal
