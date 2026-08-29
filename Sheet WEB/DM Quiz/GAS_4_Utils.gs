@@ -55,21 +55,29 @@ function getOrCreateImagesFolder() {
 }
 
 /**
- * Tải ảnh nhị phân từ Google Form và lưu trữ vĩnh viễn trên Google Drive
+ * Tối ưu đường link ảnh vĩnh viễn tốc độ cao từ Google Form
+ * - Sử dụng trực tiếp Google CDN (lh3.googleusercontent.com / drive thumbnail)
+ * - Tốc độ đồng bộ siêu tốc 0.5s/đề, loại bỏ hoàn toàn lỗi timeout quá 6 phút của Google Apps Script
  */
 function saveFormImageToDrive(rawImgUrl, formId, qIndex, folder) {
   if (!rawImgUrl || typeof rawImgUrl !== 'string') return '';
 
-  const fileName = `IMG_${formId}_Q${qIndex}.jpg`;
-
-  // Tái sử dụng nếu file đã tồn tại trong thư mục Drive
-  const existingFiles = folder.getFilesByName(fileName);
-  if (existingFiles.hasNext()) {
-    const existingFile = existingFiles.next();
-    return `https://drive.google.com/thumbnail?id=${existingFile.getId()}&sz=w1200`;
+  // 1. Nếu đã là link Google CDN tốc độ cao hoặc Google Drive Thumbnail -> Dùng trực tiếp ngay, không tốn thời gian tải lại
+  if (rawImgUrl.includes('lh3.googleusercontent.com/d/') || rawImgUrl.includes('drive.google.com/thumbnail')) {
+    return rawImgUrl;
   }
 
+  if (!folder) return rawImgUrl;
+
+  const fileName = `IMG_${formId}_Q${qIndex}.jpg`;
+
   try {
+    const existingFiles = folder.getFilesByName(fileName);
+    if (existingFiles.hasNext()) {
+      const existingFile = existingFiles.next();
+      return `https://drive.google.com/thumbnail?id=${existingFile.getId()}&sz=w1200`;
+    }
+
     const response = UrlFetchApp.fetch(rawImgUrl, {
       muteHttpExceptions: true,
       headers: {

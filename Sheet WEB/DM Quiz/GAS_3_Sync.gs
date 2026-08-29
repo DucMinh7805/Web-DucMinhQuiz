@@ -73,10 +73,11 @@ function syncSelectedDecks() {
   }
   
   const targetUrls = new Set();
+  const selectedValues = sheet.getRange(startRow, 1, numRows, Math.max(sheet.getLastColumn(), 6)).getValues();
   for (let r = 0; r < numRows; r++) {
     const currentRow = startRow + r;
     if (currentRow > 1) {
-      const formUrl = sheet.getRange(currentRow, 3).getValue();
+      const formUrl = selectedValues[r][2]; // Cột C
       if (formUrl && String(formUrl).includes('google.com/forms')) {
         targetUrls.add(String(formUrl).trim());
       }
@@ -87,7 +88,7 @@ function syncSelectedDecks() {
     return ui.alert('Lỗi', 'Không tìm thấy link Google Form nào ở Cột C trong vùng bạn vừa bôi đen.', ui.ButtonSet.OK);
   }
   
-  SpreadsheetApp.getActiveSpreadsheet().toast(`Đang nạp ${targetUrls.size} đề thi được chọn...`, 'Đang xử lý');
+  SpreadsheetApp.getActiveSpreadsheet().toast(`Bắt đầu nạp ${targetUrls.size} đề thi được chọn...`, 'Đang xử lý', 5);
   runUpDeSync(true, targetUrls);
 }
 
@@ -143,13 +144,13 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
         });
         
         // --- LOGIC UP ĐỀ MỚI: Nhìn cột E ---
-        // Nếu cột E đã có chữ ✅ Đã lên app thì BỎ QUA luôn không làm gì hết (tiết kiệm thời gian)
         const isTarget = targetUrls ? (targetUrls instanceof Set ? targetUrls.has(formUrl) : targetUrls === formUrl) : false;
         
         // 1. Chế độ bôi đen
         if (targetUrls) {
           if (isTarget) {
             try {
+              ss.toast(`Đang nạp (${fetched + 1}/${targetUrls.size}): ${deckName}...`, '⚡ Đang xử lý', 10);
               const questions = extractQuestionsFromForm(formUrl, deckImgUrl);
               newAllDecksData[deckPath] = JSON.stringify(questions);
               fetched++;

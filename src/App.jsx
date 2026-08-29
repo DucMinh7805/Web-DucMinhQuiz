@@ -1,5 +1,4 @@
-
-import { BrowserRouter as Router, Routes, Route, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useParams, useLocation } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const KnowledgeGraphPage = lazy(() => import('./pages/KnowledgeGraphPage'));
@@ -28,20 +27,22 @@ import { DEFAULT_SAMPLE_MANIFEST } from './data/defaultManifest';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // Cache 5 phút, không spam Google Sheet mỗi khi F5
+      staleTime: 1000 * 30, // 30s cache
       refetchOnWindowFocus: false,
       retry: 1,
     },
   },
 });
 
-// Wrapper component để fetch và cache manifest siêu tốc (Load tức thì 0.01s)
+// Wrapper component để fetch và cache manifest siêu tốc và luôn đồng bộ dữ liệu thật từ Sheet
 function AppDataWrapper({ children }) {
   const { data: manifest, isError, error, refetch } = useQuery({
     queryKey: ['manifest'],
     queryFn: async () => {
       const data = await fetchManifest();
-      localStorage.setItem('medquiz_manifest', JSON.stringify(data));
+      if (data && Array.isArray(data.subjects) && data.subjects.length > 0) {
+        localStorage.setItem('medquiz_manifest', JSON.stringify(data));
+      }
       return data;
     },
     initialData: () => {
@@ -55,7 +56,9 @@ function AppDataWrapper({ children }) {
         } catch {}
       }
       return DEFAULT_SAMPLE_MANIFEST;
-    }
+    },
+    initialDataUpdatedAt: 0, // Kích hoạt fetch ngầm ngay lập tức để nạp dữ liệu thật mới nhất từ Sheet
+    staleTime: 1000 * 30,
   });
 
   if (isError) return (
@@ -75,17 +78,18 @@ function AppDataWrapper({ children }) {
 
 // Wrapper cho QuizPage để fetch dữ liệu từ form
 function QuizDataLoader({ _manifest }) {
-  const { deckPath } = useParams();
+  const location = useLocation();
+  const rawPath = location.pathname.replace(/^\/quiz\/?/, '');
+  const deckPath = decodeURIComponent(rawPath);
 
   const { data: questions, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['deck', deckPath],
     queryFn: async () => {
-      const actualPath = deckPath ? deckPath.replace('-', '/') : '';
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // Timeout 15 giây
 
       try {
-        const data = await fetchDeckQuestions(actualPath, controller.signal);
+        const data = await fetchDeckQuestions(deckPath, controller.signal);
         clearTimeout(timeoutId);
         return data;
       } catch (err) {
@@ -103,18 +107,18 @@ function QuizDataLoader({ _manifest }) {
   const getQuestionsByDeckPath = () => questions;
 
   if (isLoading) return (
-    <div className="flex flex-col justify-center items-center h-screen bg-surface dark:bg-navy-900 text-slate-800 dark:text-slate-200">
-      <div className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+    <div className="flex flex-col justify-center items-center h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+      <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mb-3"></div>
       <p className="text-sm font-semibold opacity-70">Đang tải câu hỏi ca lâm sàng...</p>
     </div>
   );
 
   if (isError) return (
-    <div className="flex flex-col justify-center items-center h-screen text-center p-6 bg-surface dark:bg-navy-900 text-slate-800 dark:text-slate-200">
-      <div className="text-error mb-4 font-bold text-lg">{error?.message || "Không thể tải nội dung bộ đề. Lỗi mạng hoặc Google phản hồi chậm."}</div>
+    <div className="flex flex-col justify-center items-center h-screen text-center p-6 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+      <div className="text-rose-500 mb-4 font-bold text-lg">{error?.message || "Không thể tải nội dung bộ đề. Lỗi mạng hoặc Google phản hồi chậm."}</div>
       <button 
         onClick={() => refetch()}
-        className="px-6 py-3 bg-primary text-white font-bold rounded-xl shadow-md hover:bg-primary-600 transition-colors"
+        className="px-6 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl shadow-md transition-colors"
       >
         Tải lại Đề thi
       </button>
@@ -131,7 +135,7 @@ export default function App() {
         <ThemeProvider>
           <AuthProvider>
             <Router>
-              <Suspense fallback={<div className="flex flex-col justify-center items-center h-screen bg-white dark:bg-[#060a14]"><div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+              <Suspense fallback={<div className="flex flex-col justify-center items-center h-screen bg-white dark:bg-navy-900"><div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <Routes>
                   {/* Trang Đăng nhập */}
                   <Route path="/login" element={<LoginPage />} />
@@ -161,7 +165,7 @@ export default function App() {
 
                   {/* Phòng thi Quiz (Toàn màn hình) — bắt buộc đăng nhập */}
                   <Route
-                    path="/quiz/:deckPath"
+                    path="/quiz/*"
                     element={
                       <AuthGuard>
                         <AppDataWrapper>

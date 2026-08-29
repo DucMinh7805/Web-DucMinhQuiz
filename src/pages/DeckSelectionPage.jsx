@@ -16,8 +16,22 @@ export default function DeckSelectionPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const manifest = useOutletContext();
-  const subject = manifest?.subjects?.find(s => s.id === id);
   const { user } = useAuth();
+
+  const normalizeKey = str => String(str || '')
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d").replace(/Đ/g, "D")
+    .toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const subject = useMemo(() => {
+    if (!manifest?.subjects || !id) return null;
+    const targetKey = normalizeKey(id);
+    return manifest.subjects.find(s => 
+      s.id === id || 
+      normalizeKey(s.id) === targetKey ||
+      normalizeKey(s.name) === targetKey
+    );
+  }, [manifest, id]);
   
   const [activeTag, setActiveTag] = useState('all');
   const [selectedDeckForModal, setSelectedDeckForModal] = useState(null);
@@ -131,8 +145,8 @@ export default function DeckSelectionPage() {
               </div>
             )}
             <div>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 dark:text-white tracking-tight mb-2 flex items-center">
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-teal-600 via-teal-500 to-cyan-500">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 dark:text-white mb-2">
+                <span className="inline-block py-1 leading-normal text-teal-600 dark:text-teal-400">
                   {subject.name}
                 </span>
               </h1>
@@ -185,7 +199,7 @@ export default function DeckSelectionPage() {
         </div>
       )}
 
-      {/* Danh sách Bộ đề (Row View Gọn Gàng) */}
+      {/* Danh sách Bộ đề (Row View Gọn Gàng kèm STT) */}
       <div className="space-y-3.5">
         <AnimatePresence>
           {filteredDecks.map((deck, index) => {
@@ -199,6 +213,9 @@ export default function DeckSelectionPage() {
               progressPercent = Math.round((progress.score / progress.total) * 100);
             }
 
+            // Chuẩn hóa tên đề: loại bỏ tiền tố thừa "Đề 1 - " nếu có, chỉ lấy tên sạch từ Sheet
+            const cleanTitle = String(deck.name || '').replace(/^(?:đề|de)\s*\d+[\s\-:–—]+/i, '').trim() || deck.name;
+
             return (
               <motion.div
                 layout
@@ -209,45 +226,52 @@ export default function DeckSelectionPage() {
                 key={deck.id || index}
                 className="group bg-white/80 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-200/80 dark:border-white/10 hover:border-teal-500/50 dark:hover:border-teal-400/50 hover:shadow-lg transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                    <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors truncate">
-                      {deck.name}
-                    </h3>
-
-                    {/* Hiển thị các tag nhỏ của đề */}
-                    {Array.isArray(deck.tags) && deck.tags.map((tag, idx) => (
-                      <span 
-                        key={idx} 
-                        className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20"
-                      >
-                        {tag}
-                      </span>
-                    ))}
+                <div className="flex items-start sm:items-center space-x-3.5 flex-1 min-w-0">
+                  {/* Khung Số Thứ Tự (STT) */}
+                  <div className="w-10 h-10 rounded-2xl bg-teal-500/10 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 font-black text-xs sm:text-sm flex items-center justify-center shrink-0 border border-teal-500/20 shadow-xs mt-0.5 sm:mt-0">
+                    {String(index + 1).padStart(2, '0')}
                   </div>
 
-                  <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    <span>{deck.questionCount || 0} câu hỏi</span>
-                    <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
-                    <span>Dự kiến {Math.round((deck.questionCount || 0) * 1.5)} phút</span>
-                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors leading-snug break-words">
+                        {cleanTitle}
+                      </h3>
 
-                  {/* Thanh tiến độ làm bài */}
-                  {progress && (
-                    <div className="mt-3 max-w-xs">
-                      <div className="flex justify-between text-[11px] font-bold mb-1">
-                        <span className={progressPercent >= 80 ? 'text-emerald-600 dark:text-emerald-400' : progressPercent >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-teal-600 dark:text-teal-400'}>
-                          Đã làm {progressPercent}% ({progress.score}/{progress.total} câu)
+                      {/* Hiển thị các tag nhỏ của đề */}
+                      {Array.isArray(deck.tags) && deck.tags.map((tag, idx) => (
+                        <span 
+                          key={idx} 
+                          className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20 shrink-0"
+                        >
+                          {tag}
                         </span>
-                      </div>
-                      <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full transition-all duration-700 ${progressPercent >= 80 ? 'bg-emerald-500' : progressPercent >= 50 ? 'bg-amber-500' : 'bg-teal-500'}`}
-                          style={{ width: `${progressPercent}%` }}
-                        />
-                      </div>
+                      ))}
                     </div>
-                  )}
+
+                    <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      <span>{deck.questionCount || 0} câu hỏi</span>
+                      <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
+                      <span>Dự kiến {Math.round((deck.questionCount || 0) * 1.5)} phút</span>
+                    </div>
+
+                    {/* Thanh tiến độ làm bài */}
+                    {progress && (
+                      <div className="mt-3 max-w-xs">
+                        <div className="flex justify-between text-[11px] font-bold mb-1">
+                          <span className={progressPercent >= 80 ? 'text-emerald-600 dark:text-emerald-400' : progressPercent >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-teal-600 dark:text-teal-400'}>
+                            Đã làm {progressPercent}% ({progress.score}/{progress.total} câu)
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-700 ${progressPercent >= 80 ? 'bg-emerald-500' : progressPercent >= 50 ? 'bg-amber-500' : 'bg-teal-500'}`}
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 {/* 1 Nút Duy Nhất: Vào Làm Bài (Bấm mở Modal chọn Luyện tập / Thi thử) */}
@@ -312,9 +336,9 @@ export default function DeckSelectionPage() {
               <button
                 type="button"
                 onClick={() => {
-                  const targetPath = selectedDeckForModal.path.replace('/', '-');
+                  const targetPath = selectedDeckForModal.path;
                   setSelectedDeckForModal(null);
-                  navigate(`/quiz/${targetPath}?mode=tutor`);
+                  navigate(`/quiz/${encodeURIComponent(targetPath)}?mode=tutor`);
                 }}
                 className="w-full text-left p-4 rounded-2xl border-2 border-teal-500/30 hover:border-teal-500 bg-teal-500/5 dark:bg-teal-500/10 hover:bg-teal-500/15 transition-all group relative overflow-hidden"
               >
@@ -341,9 +365,9 @@ export default function DeckSelectionPage() {
               <button
                 type="button"
                 onClick={() => {
-                  const targetPath = selectedDeckForModal.path.replace('/', '-');
+                  const targetPath = selectedDeckForModal.path;
                   setSelectedDeckForModal(null);
-                  navigate(`/quiz/${targetPath}?mode=exam`);
+                  navigate(`/quiz/${encodeURIComponent(targetPath)}?mode=exam`);
                 }}
                 className="w-full text-left p-4 rounded-2xl border-2 border-indigo-500/30 hover:border-indigo-500 bg-indigo-500/5 dark:bg-indigo-500/10 hover:bg-indigo-500/15 transition-all group relative overflow-hidden"
               >

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { shuffleArray } from '../utils/shuffle';
 
@@ -19,13 +19,16 @@ import usePageTitle from '../hooks/usePageTitle';
 export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
   usePageTitle('Phòng thi');
   const { deckPath } = useParams();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { updateProgress } = useAuth();
 
-  const actualPath = deckPath ? deckPath.replace('-', '/') : '';
-  const subjectId = actualPath.split('/')[0] || '';
-  const deckId = actualPath.split('/')[1] || '';
+  const rawPath = location.pathname.replace(/^\/quiz\/?/, '');
+  const actualPath = decodeURIComponent(rawPath || deckPath || '');
+  const pathParts = actualPath.split('/').filter(Boolean);
+  const subjectId = pathParts[0] || '';
+  const deckId = pathParts.slice(1).join('/') || '';
 
   // Chế độ thi: Nhận từ query param ?mode=exam hoặc ?mode=tutor (mặc định 'tutor')
   const initialMode = searchParams.get('mode') === 'exam' ? 'exam' : 'tutor';

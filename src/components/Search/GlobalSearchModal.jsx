@@ -130,7 +130,7 @@ export default function GlobalSearchModal({ isOpen, onClose, manifest }) {
                 icon: FileText,
                 iconColor: 'text-blue-500 bg-blue-500/10',
                 action: () => {
-                  navigate(deck.path ? `/quiz/${deck.path.replace('/', '-')}` : `/subject/${sub.id}`);
+                  navigate(deck.path ? `/quiz/${encodeURIComponent(deck.path)}` : `/subject/${sub.id}`);
                   onClose();
                 }
               });

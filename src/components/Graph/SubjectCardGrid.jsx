@@ -151,7 +151,7 @@ function SubjectCardItem({ sub, idx, onHoverSubject, navigate }) {
 
       {/* 2. NỘI DUNG THẺ (Tên môn & Thống kê - Khung nhỏ gọn ~30%) */}
       <div className="flex-1 min-w-0 flex flex-col justify-between p-3 sm:p-3.5 space-y-2">
-        <h3 className="font-bold sm:font-black text-xs sm:text-sm text-slate-900 dark:text-white leading-snug group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors line-clamp-1">
+        <h3 className="font-bold sm:font-black text-xs sm:text-sm text-slate-900 dark:text-white leading-snug group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors line-clamp-2 min-h-[2rem] flex items-center">
           {sub.name}
         </h3>
 
