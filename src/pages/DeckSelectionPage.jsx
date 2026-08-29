@@ -159,14 +159,23 @@ export default function DeckSelectionPage() {
           </motion.div>
           
           <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300">
-            <div className="flex items-center bg-teal-500/10 dark:bg-teal-500/20 text-teal-800 dark:text-teal-300 border border-teal-500/20 px-3 py-1.5 rounded-xl">
-              <BarChart className="w-4 h-4 mr-1.5 text-teal-600 dark:text-teal-400" />
-              {decks.length} bộ đề thi
-            </div>
-            <div className="flex items-center bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-xl border border-slate-200/60 dark:border-white/5">
-              <Clock className="w-4 h-4 mr-1.5 text-sky-500" />
-              {totalQuestions} câu hỏi
-            </div>
+            {decks.length > 0 ? (
+              <>
+                <div className="flex items-center bg-teal-500/10 dark:bg-teal-500/20 text-teal-800 dark:text-teal-300 border border-teal-500/20 px-3 py-1.5 rounded-xl">
+                  <BarChart className="w-4 h-4 mr-1.5 text-teal-600 dark:text-teal-400" />
+                  {decks.length} bộ đề thi
+                </div>
+                <div className="flex items-center bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-xl border border-slate-200/60 dark:border-white/5">
+                  <Clock className="w-4 h-4 mr-1.5 text-sky-500" />
+                  {totalQuestions} câu hỏi
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-3.5 py-1.5 rounded-xl font-bold">
+                <Clock className="w-4 h-4 mr-1.5 text-amber-500" />
+                Đề thi đang cập nhật
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -199,9 +208,15 @@ export default function DeckSelectionPage() {
         </div>
       )}
 
-      {/* Danh sách Bộ đề (Row View Gọn Gàng kèm STT) */}
-      <div className="space-y-3.5">
-        <AnimatePresence>
+      {/* Danh sách Bộ đề (Row View Gọn Gàng kèm STT hoặc Thông báo Đang cập nhật) */}
+      {filteredDecks.length === 0 ? (
+        <div className="bg-white/80 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 text-center border border-slate-200/80 dark:border-white/10 shadow-sm my-4 flex items-center justify-center space-x-2 text-slate-600 dark:text-slate-300 font-bold text-sm sm:text-base">
+          <Clock className="w-5 h-5 text-amber-500 shrink-0" />
+          <span>Đề thi đang cập nhật</span>
+        </div>
+      ) : (
+        <div className="space-y-3.5">
+          <AnimatePresence>
           {filteredDecks.map((deck, index) => {
             const deckId = deck.path ? deck.path.split('/')[1] : null;
             const progress = (user?.progress && user.progress[id] && deckId && user.progress[id][deckId]) 
@@ -294,8 +309,9 @@ export default function DeckSelectionPage() {
               </motion.div>
             );
           })}
-        </AnimatePresence>
-      </div>
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* MODAL POPUP CHỌN CHẾ ĐỘ THI (LUYỆN TẬP / THI THỬ)                         */}
