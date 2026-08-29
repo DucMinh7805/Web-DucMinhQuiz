@@ -228,9 +228,8 @@ export default function DeckSelectionPage() {
               progressPercent = Math.round((progress.score / progress.total) * 100);
             }
 
-            // Chuẩn hóa tên đề: đọc cả deck.title và deck.name, loại bỏ tiền tố thừa nếu có
-            const rawTitle = deck.title || deck.name || `Đề ${index + 1}`;
-            const cleanTitle = String(rawTitle).replace(/^(?:đề|de)\s*\d+[\s\-:–—]+/i, '').trim() || rawTitle;
+            // Hiển thị nguyên bản 100% Tên Đề từ Cột B tab UpDe
+            const deckTitle = deck.title || deck.name || `Đề ${index + 1}`;
 
             return (
               <motion.div
@@ -251,7 +250,7 @@ export default function DeckSelectionPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors leading-snug break-words">
-                        {cleanTitle}
+                        {deckTitle}
                       </h3>
 
                       {/* Hiển thị các tag nhỏ của đề */}

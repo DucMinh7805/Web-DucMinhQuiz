@@ -97,40 +97,45 @@ export default function GlobalSearchModal({ isOpen, onClose, manifest }) {
     // 1. Tìm Môn học & Chuyên khoa (Subjects)
     if (manifest?.subjects) {
       manifest.subjects.forEach(sub => {
+        const subName = String(sub?.name || '');
+        const subCat = String(sub?.categoryName || '');
+        const subDesc = String(sub?.description || '');
+
         if (
-          sub.name.toLowerCase().includes(q) || 
-          (sub.categoryName && sub.categoryName.toLowerCase().includes(q)) ||
-          (sub.description && sub.description.toLowerCase().includes(q))
+          subName.toLowerCase().includes(q) || 
+          subCat.toLowerCase().includes(q) ||
+          subDesc.toLowerCase().includes(q)
         ) {
           list.push({
-            id: `sub-${sub.id}`,
+            id: `sub-${sub.id || sub.code}`,
             type: 'subject',
-            title: sub.name,
-            subtitle: sub.categoryName || 'Chuyên khoa',
+            title: subName || 'Môn học',
+            subtitle: subCat || 'Chuyên khoa',
             badge: `${sub.decks?.length || 0} đề`,
             icon: BookOpen,
             iconColor: 'text-primary-500 bg-primary-500/10',
             action: () => {
-              navigate(`/subject/${sub.id}`);
+              navigate(`/subject/${sub.id || sub.code}`);
               onClose();
             }
           });
         }
 
         // Tìm Bộ đề (Decks)
-        if (sub.decks) {
+        if (Array.isArray(sub.decks)) {
           sub.decks.forEach(deck => {
-            if (deck.name.toLowerCase().includes(q)) {
+            const deckTitle = String(deck?.title || deck?.name || '');
+            if (deckTitle.toLowerCase().includes(q)) {
               list.push({
-                id: `deck-${sub.id}-${deck.id}`,
+                id: `deck-${sub.id || sub.code}-${deck.id || deck.path}`,
                 type: 'deck',
-                title: deck.name,
-                subtitle: `Môn: ${sub.name}`,
+                title: deckTitle,
+                subtitle: `Môn: ${subName}`,
                 badge: `${deck.questionCount || 0} câu`,
                 icon: FileText,
                 iconColor: 'text-blue-500 bg-blue-500/10',
                 action: () => {
-                  navigate(deck.path ? `/quiz/${encodeURIComponent(deck.path)}` : `/subject/${sub.id}`);
+                  navigate(deck.path ? `/quiz/${encodeURIComponent(deck.path)}` : `/subject/${sub.id || sub.code}`);
                   onClose();
                 }
               });
@@ -141,43 +146,53 @@ export default function GlobalSearchModal({ isOpen, onClose, manifest }) {
     }
 
     // 2. Tìm Trị số Xét nghiệm (Lab Values)
-    LAB_CATEGORIES.forEach(cat => {
-      cat.tests.forEach(test => {
-        if (
-          test.name.toLowerCase().includes(q) ||
-          test.normal.toLowerCase().includes(q) ||
-          (test.notes && test.notes.toLowerCase().includes(q))
-        ) {
-          list.push({
-            id: `lab-${test.name}`,
-            type: 'lab',
-            title: test.name,
-            subtitle: `${cat.name} • Chuẩn: ${test.normal}`,
-            badge: test.unit || 'Lab',
-            icon: Activity,
-            iconColor: 'text-emerald-500 bg-emerald-500/10',
-            action: () => {
-              navigate('/lab-values');
-              onClose();
+    if (Array.isArray(LAB_CATEGORIES)) {
+      LAB_CATEGORIES.forEach(cat => {
+        if (Array.isArray(cat?.tests)) {
+          cat.tests.forEach(test => {
+            const testName = String(test?.name || '');
+            const testNormal = String(test?.normal || '');
+            const testNotes = String(test?.notes || '');
+            if (
+              testName.toLowerCase().includes(q) ||
+              testNormal.toLowerCase().includes(q) ||
+              testNotes.toLowerCase().includes(q)
+            ) {
+              list.push({
+                id: `lab-${testName}`,
+                type: 'lab',
+                title: testName,
+                subtitle: `${cat.name || 'Xét nghiệm'} • Chuẩn: ${testNormal}`,
+                badge: test.unit || 'Lab',
+                icon: Activity,
+                iconColor: 'text-emerald-500 bg-emerald-500/10',
+                action: () => {
+                  navigate('/lab-values');
+                  onClose();
+                }
+              });
             }
           });
         }
       });
-    });
+    }
 
     // 3. Tìm Sổ tay câu sai (Mistakes)
-    if (user?.mistakes) {
+    if (Array.isArray(user?.mistakes)) {
       user.mistakes.forEach((m, idx) => {
+        const qText = String(m?.question || '');
+        const sId = String(m?.subjectId || '');
+        const ansText = String(m?.answer || '');
         if (
-          m.question.toLowerCase().includes(q) ||
-          (m.subjectId && m.subjectId.toLowerCase().includes(q)) ||
-          (m.answer && m.answer.toLowerCase().includes(q))
+          qText.toLowerCase().includes(q) ||
+          sId.toLowerCase().includes(q) ||
+          ansText.toLowerCase().includes(q)
         ) {
           list.push({
             id: `mistake-${m.id || idx}`,
             type: 'mistake',
-            title: m.question.slice(0, 70) + (m.question.length > 70 ? '...' : ''),
-            subtitle: `Câu sai • ${m.subjectId || 'Y khoa'}`,
+            title: qText.slice(0, 70) + (qText.length > 70 ? '...' : ''),
+            subtitle: `Câu sai • ${sId || 'Y khoa'}`,
             badge: 'Sổ tay',
             icon: Bookmark,
             iconColor: 'text-error-500 bg-error-500/10',

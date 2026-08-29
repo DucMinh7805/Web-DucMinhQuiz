@@ -80,10 +80,14 @@ export default function LoginPage() {
       setIsLoading(true);
       try {
         const action = isSignUpMode ? 'register' : 'login';
+        // Ép kiểu văn bản thuần túy sang Google Sheet bằng dấu ' để giữ nguyên số 0 ở đầu
+        const phoneParam = isSignUpMode ? (`'${cleanPhone}`) : cleanPhone;
+        const passParam = isSignUpMode ? (`'${password}`) : password;
+
         const params = new URLSearchParams({
           action,
-          phone: cleanPhone,
-          password: password,
+          phone: phoneParam,
+          password: passParam,
           name: fullName.trim(),
           email: email.trim()
         });

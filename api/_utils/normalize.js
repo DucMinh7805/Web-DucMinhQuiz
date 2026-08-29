@@ -5,8 +5,8 @@
 export function normalizePhone(rawPhone) {
   if (!rawPhone || typeof rawPhone !== 'string') return '';
   
-  // Loại bỏ mọi ký tự không phải là số và dấu +
-  let cleaned = rawPhone.trim().replace(/[\s.-]/g, '');
+  // Loại bỏ mọi ký tự không phải là số, dấu + và dấu nháy đơn
+  let cleaned = rawPhone.trim().replace(/['"\s.-]/g, '');
 
   if (cleaned.startsWith('+84')) {
     cleaned = '0' + cleaned.slice(3);

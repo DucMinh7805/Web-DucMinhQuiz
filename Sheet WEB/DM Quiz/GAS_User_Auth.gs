@@ -1,46 +1,34 @@
 /**
- * =========================================================================
- * FILE 2: GAS_User_Auth.gs (DÀNH RIÊNG CHO SHEET QUẢN LÝ MẬT KHẨU / USERS)
- * Link Sheet: https://docs.google.com/spreadsheets/d/1geZTg_PVO8aVP7ziOeOUHbw-1wtk4cfTZLaIapWhcgY/edit?usp=sharing
- * =========================================================================
- * Tự động quản lý tài khoản:
- * Cột A: Số Điện Thoại
- * Cột B: Họ và Tên (Tên hiển thị)
- * Cột C: Email (Nhận thông báo)
- * Cột D: Mật Khẩu
- * Cột E: Ngày Đăng Ký (Hệ thống TỰ ĐỘNG ĐIỀN)
- * Cột F: Trạng Thái (Hệ thống TỰ ĐỘNG GHI "Hoạt động")
+ * ============================================================================
+ * GOOGLE APPS SCRIPT: HỆ THỐNG XÁC THỰC NGƯỜI DÙNG & QUẢN LÝ MẬT KHẨU (SHEET 2)
+ * Thư mục: Sheet WEB/DM Quiz/GAS_User_Auth.gs
+ * ============================================================================
+ * Chức năng:
+ * 1. Đăng ký tài khoản mới: Tự động ép kiểu Văn Bản thuần túy cho SĐT (Cột A)
+ *    và Mật Khẩu (Cột D) để không bao giờ bị mất số 0 ở đầu.
+ * 2. Đăng nhập an toàn: Tự động chuẩn hóa SĐT đối soát chính xác cho cả tài khoản cũ & mới.
+ * 3. Đổi mật khẩu & Kiểm tra SĐT tồn tại.
+ * ============================================================================
  */
-
-const USERS_SHEET_NAME = "Users";
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('🔐 Quản Lý Người Dùng MedQuiz')
-      .addItem('👥 Khởi tạo / Chuẩn hóa Cột Tab Users', 'initUsersSheet')
+      .addItem('👥 Chuẩn hóa Cột Tab Mật Khẩu', 'initUsersSheet')
       .addToUi();
 }
 
-/**
- * Tự động khởi tạo tiêu đề cột chuẩn nếu sheet còn trống
- */
 function initUsersSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let userSheet = ss.getSheetByName(USERS_SHEET_NAME) || ss.getSheets()[0];
-  
-  if (userSheet.getLastRow() === 0) {
-    userSheet.setName(USERS_SHEET_NAME);
-    userSheet.appendRow(["Số Điện Thoại", "Họ và Tên", "Email", "Mật Khẩu", "Ngày Đăng Ký", "Trạng Thái"]);
-    userSheet.getRange("A1:F1").setFontWeight("bold").setBackground("#d1fae5");
-    SpreadsheetApp.getUi().alert('Thành công', 'Đã khởi tạo tiêu đề cột chuẩn cho Tab Users!', SpreadsheetApp.getUi().ButtonSet.OK);
+  const sheet = getTargetSheet();
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["Số Điện Thoại", "Họ và Tên", "Email", "Mật Khẩu", "Ngày Đăng Ký", "Trạng Thái"]);
+    sheet.getRange("A1:F1").setFontWeight("bold").setBackground("#d1fae5");
+    SpreadsheetApp.getUi().alert('Thành công', 'Đã khởi tạo tiêu đề cột chuẩn!', SpreadsheetApp.getUi().ButtonSet.OK);
   } else {
-    SpreadsheetApp.getUi().alert('Thông báo', 'Tab Users đã có dữ liệu.', SpreadsheetApp.getUi().ButtonSet.OK);
+    SpreadsheetApp.getUi().alert('Thông báo', 'Tab đã có dữ liệu.', SpreadsheetApp.getUi().ButtonSet.OK);
   }
 }
 
-/**
- * Xử lý yêu cầu Đăng Nhập & Đăng Ký từ Web
- */
 function doGet(e) {
   return handleAuthRequest(e);
 }
@@ -50,120 +38,211 @@ function doPost(e) {
 }
 
 function handleAuthRequest(e) {
-  const action = (e.parameter && e.parameter.action) || 'ping';
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let userSheet = ss.getSheetByName(USERS_SHEET_NAME) || ss.getSheets()[0];
-
   try {
-    // =========================================================================
-    // 1. ACTION: register (Đăng Ký Tài Khoản Mới)
-    // =========================================================================
-    if (action === 'register') {
-      const phone = String(e.parameter.phone || '').trim();
-      const name = String(e.parameter.name || '').trim();
-      const email = String(e.parameter.email || '').trim();
-      const pass = String(e.parameter.password || '').trim();
+    var params = (e && e.parameter) ? e.parameter : {};
+    var action = (params.action || "ping").toLowerCase().trim();
 
-      if (!phone || !pass) {
-        throw new Error("Vui lòng nhập đầy đủ Số Điện Thoại và Mật Khẩu");
-      }
-
-      const usersData = userSheet.getDataRange().getValues();
-      
-      // Kiểm tra trùng SĐT
-      for (let i = 1; i < usersData.length; i++) {
-        if (String(usersData[i][0]).trim() === phone) {
-          throw new Error("Số Điện Thoại này đã được đăng ký tài khoản!");
-        }
-      }
-
-      // TỰ ĐỘNG GHI: Ngày đăng ký hiện tại & Trạng thái "Hoạt động"
-      const registerDate = new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
-      const status = "Hoạt động";
-
-      userSheet.appendRow([phone, name || `Học viên ${phone.slice(-4)}`, email, pass, registerDate, status]);
-
-      // Gửi email chào mừng tự động nếu có email
-      if (email && email.includes('@')) {
-        try {
-          MailApp.sendEmail({
-            to: email,
-            subject: "🩺 Chào mừng bạn đến với MedQuiz - Nền Tảng Y Khoa Lâm Sàng",
-            htmlBody: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 16px;">
-                <h2 style="color: #0f766e;">Chào ${name},</h2>
-                <p>Tài khoản của bạn đã được khởi tạo thành công trên hệ thống <b>MedQuiz</b> với Số Điện Thoại: <b>${phone}</b>.</p>
-                <p>Chúc bạn ôn tập hiệu quả và đạt kết quả cao trong các kỳ thi lâm sàng!</p>
-                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-                <p style="font-size: 12px; color: #64748b;">Hệ thống hỗ trợ ôn tập MedQuiz Engine.</p>
-              </div>
-            `
-          });
-        } catch(mailErr) {}
-      }
-
-      return ContentService.createTextOutput(JSON.stringify({
-        success: true,
-        message: "Đăng ký tài khoản thành công!",
-        user: {
-          phone: phone,
-          name: name || `Học viên ${phone.slice(-4)}`,
-          email: email
-        }
-      })).setMimeType(ContentService.MimeType.JSON);
+    if (action === "ping") {
+      return jsonResponse({ status: "Auth Server Running", time: new Date() });
     }
 
-    // =========================================================================
-    // 2. ACTION: login (Đăng Nhập Bằng SĐT + Mật Khẩu)
-    // =========================================================================
-    if (action === 'login') {
-      const phone = String(e.parameter.phone || '').trim();
-      const pass = String(e.parameter.password || '').trim();
-
-      if (!phone || !pass) {
-        throw new Error("Vui lòng nhập Số Điện Thoại và Mật Khẩu");
-      }
-
-      const usersData = userSheet.getDataRange().getValues();
-      
-      for (let i = 1; i < usersData.length; i++) {
-        const storedPhone = String(usersData[i][0]).trim();
-        const storedPass = String(usersData[i][3]).trim();
-        const storedName = String(usersData[i][1]).trim();
-        const storedEmail = String(usersData[i][2]).trim();
-        const storedStatus = String(usersData[i][5] || 'Hoạt động').trim();
-
-        if (storedPhone === phone) {
-          if (storedPass !== pass) {
-            throw new Error("Mật khẩu không chính xác. Vui lòng thử lại!");
-          }
-          if (storedStatus.toLowerCase() === 'khóa' || storedStatus.toLowerCase() === 'bị khóa') {
-            throw new Error("Tài khoản này hiện đang bị tạm khóa. Vui lòng liên hệ quản trị viên!");
-          }
-
-          // Trả về Họ Tên gốc đã lưu từ lúc tạo tài khoản
-          return ContentService.createTextOutput(JSON.stringify({
-            success: true,
-            user: {
-              phone: storedPhone,
-              name: storedName || `Học viên ${storedPhone.slice(-4)}`,
-              email: storedEmail
-            }
-          })).setMimeType(ContentService.MimeType.JSON);
-        }
-      }
-
-      throw new Error("Số Điện Thoại chưa được đăng ký trên hệ thống!");
+    if (action === "register") {
+      return handleRegister(params);
+    } else if (action === "login") {
+      return handleLogin(params);
+    } else if (action === "checkphone") {
+      return handleCheckPhone(params);
+    } else if (action === "changepassword") {
+      return handleChangePassword(params);
+    } else {
+      return jsonResponse({ success: false, error: "Action không hợp lệ: " + action });
     }
-
-    // Ping check
-    return ContentService.createTextOutput(JSON.stringify({ status: "Auth Server Running", time: new Date() }))
-      .setMimeType(ContentService.MimeType.JSON);
-
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      error: err.message
-    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return jsonResponse({ success: false, error: "Lỗi máy chủ: " + error.message });
   }
+}
+
+/**
+ * 1. ĐĂNG KÝ TÀI KHOẢN MỚI
+ */
+function handleRegister(params) {
+  var rawPhone = String(params.phone || "").trim();
+  var rawPass = String(params.password || "").trim();
+  var name = String(params.name || "").trim();
+  var email = String(params.email || "").trim();
+
+  var cleanPhone = cleanPhoneNumber(rawPhone);
+
+  if (!cleanPhone || cleanPhone.length < 9) {
+    return jsonResponse({ success: false, error: "Vui lòng nhập Số Điện Thoại hợp lệ!" });
+  }
+  if (!rawPass || rawPass.length < 4) {
+    return jsonResponse({ success: false, error: "Mật khẩu tối thiểu phải từ 4 ký tự!" });
+  }
+
+  var sheet = getTargetSheet();
+  var data = sheet.getDataRange().getValues();
+
+  // Kiểm tra trùng SĐT
+  for (var i = 1; i < data.length; i++) {
+    var rowPhone = cleanPhoneNumber(data[i][0]);
+    if (rowPhone === cleanPhone) {
+      return jsonResponse({ success: false, error: "Số Điện Thoại này đã được đăng ký tài khoản!" });
+    }
+  }
+
+  // Ép kiểu TEXT bằng dấu nháy đơn (') để Google Sheet bảo toàn 100% số 0 ở đầu
+  var textPhone = "'" + cleanPhone;
+  var textPass = "'" + rawPass.replace(/^'/, "");
+  var registerDate = Utilities.formatDate(new Date(), "GMT+7", "HH:mm:ss dd/MM/yyyy");
+  var status = "Hoạt động";
+
+  sheet.appendRow([textPhone, name || ("Học viên " + cleanPhone.slice(-4)), email, textPass, registerDate, status]);
+
+  // Gửi email chào mừng nếu có
+  if (email && email.includes("@")) {
+    try {
+      MailApp.sendEmail({
+        to: email,
+        subject: "🩺 Chào mừng bạn đến với MedQuiz - Nền Tảng Y Khoa Lâm Sàng",
+        htmlBody: '<div style="font-family:Arial,sans-serif;padding:20px;border:1px solid #e2e8f0;border-radius:16px;">'
+          + '<h2 style="color:#0f766e;">Chào ' + (name || 'Bạn') + ',</h2>'
+          + '<p>Tài khoản MedQuiz của bạn đã được khởi tạo thành công với Số Điện Thoại: <b>' + cleanPhone + '</b>.</p>'
+          + '<p>Chúc bạn ôn tập hiệu quả và đạt kết quả cao trong kỳ thi!</p>'
+          + '</div>'
+      });
+    } catch(mErr) {}
+  }
+
+  return jsonResponse({
+    success: true,
+    message: "Đăng ký tài khoản thành công!",
+    user: {
+      phone: cleanPhone,
+      name: name || ("Học viên " + cleanPhone.slice(-4)),
+      email: email
+    }
+  });
+}
+
+/**
+ * 2. ĐĂNG NHẬP
+ */
+function handleLogin(params) {
+  var rawPhone = String(params.phone || "").trim();
+  var rawPass = String(params.password || "").trim().replace(/^'/, "");
+
+  var cleanPhone = cleanPhoneNumber(rawPhone);
+
+  if (!cleanPhone || !rawPass) {
+    return jsonResponse({ success: false, error: "Vui lòng nhập đầy đủ Số Điện Thoại và Mật Khẩu!" });
+  }
+
+  var sheet = getTargetSheet();
+  var data = sheet.getDataRange().getValues();
+
+  for (var i = 1; i < data.length; i++) {
+    var rowPhone = cleanPhoneNumber(data[i][0]);
+    var rowName = String(data[i][1] || "").trim();
+    var rowEmail = String(data[i][2] || "").trim();
+    var rowPass = String(data[i][3] || "").replace(/^'/, "").trim();
+    var rowStatus = String(data[i][5] || "Hoạt động").trim();
+
+    if (rowPhone === cleanPhone) {
+      if (rowPass !== rawPass) {
+        return jsonResponse({ success: false, error: "Mật khẩu không chính xác. Vui lòng thử lại!" });
+      }
+      if (rowStatus.toLowerCase() === "khóa" || rowStatus.toLowerCase() === "bị khóa" || rowStatus.toLowerCase() === "tạm khóa") {
+        return jsonResponse({ success: false, error: "Tài khoản của bạn đang bị tạm khóa. Vui lòng liên hệ quản trị viên!" });
+      }
+
+      return jsonResponse({
+        success: true,
+        user: {
+          phone: cleanPhone,
+          name: rowName || ("Học viên " + cleanPhone.slice(-4)),
+          email: rowEmail,
+          status: rowStatus
+        }
+      });
+    }
+  }
+
+  return jsonResponse({ success: false, error: "Số Điện Thoại chưa được đăng ký trên hệ thống!" });
+}
+
+/**
+ * 3. KIỂM TRA SỐ ĐIỆN THOẠI
+ */
+function handleCheckPhone(params) {
+  var cleanPhone = cleanPhoneNumber(params.phone);
+  var sheet = getTargetSheet();
+  var data = sheet.getDataRange().getValues();
+
+  for (var i = 1; i < data.length; i++) {
+    var rowPhone = cleanPhoneNumber(data[i][0]);
+    if (rowPhone === cleanPhone) {
+      return jsonResponse({ success: true, exists: true });
+    }
+  }
+  return jsonResponse({ success: true, exists: false });
+}
+
+/**
+ * 4. ĐỔI MẬT KHẨU
+ */
+function handleChangePassword(params) {
+  var cleanPhone = cleanPhoneNumber(params.phone);
+  var oldPass = String(params.oldPassword || "").replace(/^'/, "").trim();
+  var newPass = String(params.newPassword || "").replace(/^'/, "").trim();
+
+  if (!newPass || newPass.length < 4) {
+    return jsonResponse({ success: false, error: "Mật khẩu mới phải từ 4 ký tự!" });
+  }
+
+  var sheet = getTargetSheet();
+  var data = sheet.getDataRange().getValues();
+
+  for (var i = 1; i < data.length; i++) {
+    var rowPhone = cleanPhoneNumber(data[i][0]);
+    var rowPass = String(data[i][3] || "").replace(/^'/, "").trim();
+
+    if (rowPhone === cleanPhone) {
+      if (oldPass && rowPass !== oldPass) {
+        return jsonResponse({ success: false, error: "Mật khẩu cũ không chính xác!" });
+      }
+      sheet.getRange(i + 1, 4).setValue("'" + newPass);
+      return jsonResponse({ success: true, message: "Đổi mật khẩu thành công!" });
+    }
+  }
+
+  return jsonResponse({ success: false, error: "Không tìm thấy tài khoản!" });
+}
+
+/**
+ * Helper: Chuẩn hóa số điện thoại (Luôn trả về định dạng 10 chữ số có 0 ở đầu)
+ */
+function cleanPhoneNumber(val) {
+  var p = String(val || "").replace(/['"\s.-]/g, "");
+  if (p.startsWith("+84")) p = "0" + p.slice(3);
+  if (p.startsWith("84") && p.length >= 11) p = "0" + p.slice(2);
+  if (p.length === 9 && !p.startsWith("0")) p = "0" + p;
+  return p;
+}
+
+/**
+ * Helper: Lấy Sheet quản lý mật khẩu
+ */
+function getTargetSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Mật Khẩu") || ss.getSheetByName("Mật khẩu") || ss.getSheetByName("Users") || ss.getSheets()[0];
+  return sheet;
+}
+
+/**
+ * Helper: Phản hồi JSON chuẩn
+ */
+function jsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
 }

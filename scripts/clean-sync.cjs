@@ -1,5 +1,5 @@
 /**
- * Clean sync script: Đồng bộ chuẩn 100% 24 Môn học & 18 Sách/Slide vào MongoDB
+ * Clean sync script: Đồng bộ chuẩn 100% 24 Môn học, 18 Sách/Slide & 217 Bộ Đề (Tiêu đề Cột B & Tags Cột F) vào MongoDB
  */
 const dns = require('dns');
 dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -43,7 +43,7 @@ async function run() {
 
   // 1. Dọn dẹp bảng subjects cũ và nạp lại đúng 24 môn chuẩn
   console.log('\n--- CHUẨN HÓA TOÀN BỘ 24 MÔN HỌC & CHUYÊN KHOA ---');
-  await db.collection('subjects').deleteMany({}); // Xóa sạch để nạp đúng 24 môn không bị trùng
+  await db.collection('subjects').deleteMany({});
 
   for (let i = 0; i < gasSubjects.length; i++) {
     const s = gasSubjects[i];
@@ -107,6 +107,41 @@ async function run() {
     });
     console.log(`  📖 [${i + 1}/${gasBooks.length}] ${b.title} (${b.department})`);
   }
+
+  // 3. Đồng bộ Decks (Title nguyên bản Cột B & Tags nguyên bản Cột F)
+  console.log('\n--- ĐỒNG BỘ TITLE CỘT B & TAGS CỘT F CHO TOÀN BỘ BỘ ĐỀ ---');
+  let updatedDecksCount = 0;
+  for (let i = 0; i < gasSubjects.length; i++) {
+    const s = gasSubjects[i];
+    const sId = s.id || `SUBJ_${i}`;
+    const decks = s.decks || [];
+
+    for (let dIdx = 0; dIdx < decks.length; dIdx++) {
+      const d = decks[dIdx];
+      const dPath = d.path || `${sId}/de-${dIdx + 1}`;
+      const dTitle = d.name || d.title || `Đề ${dIdx + 1}`;
+      // Chỉ lấy đúng những gì có ở Cột F (nếu không có thì để mảng rỗng [])
+      const dTags = Array.isArray(d.tags) ? d.tags : (typeof d.tags === 'string' && d.tags.trim() ? d.tags.split(/[,;|]/).map(t => t.trim()).filter(Boolean) : []);
+
+      const res = await db.collection('decks').updateMany(
+        { $or: [
+          { path: dPath }, 
+          { path: new RegExp(`^${dPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+        ] },
+        {
+          $set: {
+            title: dTitle,
+            tags: dTags, // Tuyệt đối không auto-gán tag ảo
+            totalQuestions: d.questionCount || 0,
+            timeLimitMinutes: Math.ceil((d.questionCount || 20) * 1.5),
+            updatedAt: new Date()
+          }
+        }
+      );
+      if (res.modifiedCount > 0) updatedDecksCount += res.modifiedCount;
+    }
+  }
+  console.log(`✅ Đã cập nhật chính xác tiêu đề Cột B và Tags Cột F cho ${updatedDecksCount} bộ đề.`);
 
   const finalSubjects = await db.collection('subjects').countDocuments();
   const finalBooks = await db.collection('books').countDocuments();
