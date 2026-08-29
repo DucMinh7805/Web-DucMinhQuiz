@@ -7,6 +7,12 @@ import { DEFAULT_SAMPLE_MANIFEST } from '../data/defaultManifest';
  * - Tuyệt đối không sinh dữ liệu môn học giả lập / mô phỏng
  */
 export async function fetchManifest() {
+  // Kiểm tra URL hợp lệ trước khi fetch
+  if (!API_CONFIG.QUIZ_DATABASE_URL) {
+    console.warn('[QuizAPI] QUIZ_DATABASE_URL chưa được cấu hình. Sử dụng dữ liệu cache.');
+    return _getLocalManifest();
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
@@ -40,7 +46,13 @@ export async function fetchManifest() {
     console.warn('[QuizAPI] Không thể tải Manifest từ Google Apps Script:', error);
   }
 
-  // Đọc từ Cache LocalStorage nếu có dữ liệu đã đồng bộ trước đó
+  return _getLocalManifest();
+}
+
+/**
+ * Đọc Manifest từ LocalStorage Cache
+ */
+function _getLocalManifest() {
   try {
     const local = localStorage.getItem('medquiz_manifest');
     if (local) {
@@ -49,8 +61,9 @@ export async function fetchManifest() {
         return parsed;
       }
     }
-  } catch(e) {}
-
+  } catch(e) {
+    console.warn('[QuizAPI] Lỗi đọc cache:', e);
+  }
   return DEFAULT_SAMPLE_MANIFEST;
 }
 
@@ -84,12 +97,13 @@ export async function fetchDeckQuestions(actualPath, signal) {
   } catch (e) {}
 
   // 2. Tải trực tiếp từ Google Apps Script
-  try {
-    const gasRes = await fetch(`${API_CONFIG.QUIZ_DATABASE_URL}?action=getDeck&path=${encodeURIComponent(actualPath)}`, { 
-      redirect: "follow",
-      credentials: "omit",
-      signal
-    });
+  if (API_CONFIG.QUIZ_DATABASE_URL) {
+    try {
+      const gasRes = await fetch(`${API_CONFIG.QUIZ_DATABASE_URL}?action=getDeck&path=${encodeURIComponent(actualPath)}`, { 
+        redirect: "follow",
+        credentials: "omit",
+        signal
+      });
     
     if (gasRes.ok) {
       const rawText = await gasRes.text();
@@ -128,9 +142,10 @@ export async function fetchDeckQuestions(actualPath, signal) {
         }
       }
     }
-  } catch (e) {
-    console.warn("[QuizAPI] Lỗi kết nối Google Apps Script:", e);
-    throw new Error("Không thể tải nội dung bộ đề từ Google Apps Script. Vui lòng kiểm tra kết nối mạng!");
+    } catch (e) {
+      console.warn("[QuizAPI] Lỗi kết nối Google Apps Script:", e);
+      throw new Error("Không thể tải nội dung bộ đề từ Google Apps Script. Vui lòng kiểm tra kết nối mạng!");
+    }
   }
 
   return [];
