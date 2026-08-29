@@ -41,12 +41,18 @@ export async function fetchManifest() {
         }
       }
     }
+    throw new Error(`Google Apps Script trả về dữ liệu không hợp lệ (HTTP ${res.status})`);
   } catch (error) {
     clearTimeout(timeoutId);
-    console.warn('[QuizAPI] Không thể tải Manifest từ Google Apps Script:', error);
+    console.error('[QuizAPI] Không thể tải Manifest từ Google Apps Script:', error);
+    
+    // Nếu có cache cục bộ trước đó thì tận dụng
+    const cached = _getLocalManifest();
+    if (cached && Array.isArray(cached.subjects) && cached.subjects.length > 0) {
+      return cached;
+    }
+    throw new Error("Không thể kết nối máy chủ dữ liệu Google Sheet. Vui lòng kiểm tra lại mạng hoặc quyền truy cập Web App!");
   }
-
-  return _getLocalManifest();
 }
 
 /**

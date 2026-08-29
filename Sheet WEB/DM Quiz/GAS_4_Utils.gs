@@ -1,5 +1,3 @@
-const IMAGES_FOLDER_NAME = "MedQuiz_Form_Images";
-
 function normalizeName(str) {
   if (!str) return '';
   return String(str)
@@ -41,7 +39,8 @@ function findSheetByAliases(ss, aliases) {
  * Lấy hoặc tự động tạo thư mục lưu trữ ảnh vĩnh viễn trên Google Drive của người dùng
  */
 function getOrCreateImagesFolder() {
-  const folders = DriveApp.getFoldersByName(IMAGES_FOLDER_NAME);
+  const folderName = "MedQuiz_Form_Images";
+  const folders = DriveApp.getFoldersByName(folderName);
   if (folders.hasNext()) {
     const folder = folders.next();
     try {
@@ -49,7 +48,7 @@ function getOrCreateImagesFolder() {
     } catch(e) {}
     return folder;
   }
-  const newFolder = DriveApp.createFolder(IMAGES_FOLDER_NAME);
+  const newFolder = DriveApp.createFolder(folderName);
   newFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return newFolder;
 }
@@ -62,8 +61,8 @@ function getOrCreateImagesFolder() {
 function saveFormImageToDrive(rawImgUrl, formId, qIndex, folder) {
   if (!rawImgUrl || typeof rawImgUrl !== 'string') return '';
 
-  // 1. Nếu đã là link Google CDN tốc độ cao hoặc Google Drive Thumbnail -> Dùng trực tiếp ngay, không tốn thời gian tải lại
-  if (rawImgUrl.includes('lh3.googleusercontent.com/d/') || rawImgUrl.includes('drive.google.com/thumbnail')) {
+  // 1. Nếu đã là link Google Drive Thumbnail có sẵn -> Dùng trực tiếp ngay
+  if (rawImgUrl.includes('drive.google.com/thumbnail')) {
     return rawImgUrl;
   }
 

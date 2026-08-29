@@ -36,12 +36,12 @@ const queryClient = new QueryClient({
 
 // Wrapper component để fetch và cache manifest siêu tốc và luôn đồng bộ dữ liệu thật từ Sheet
 function AppDataWrapper({ children }) {
-  const { data: manifest, isError, error, refetch } = useQuery({
+  const { data: manifest, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['manifest'],
     queryFn: async () => {
       const data = await fetchManifest();
-      if (data && Array.isArray(data.subjects) && data.subjects.length > 0) {
-        localStorage.setItem('medquiz_manifest', JSON.stringify(data));
+      if (!data || !Array.isArray(data.subjects) || data.subjects.length === 0) {
+        throw new Error("Không tìm thấy danh sách môn học từ Google Sheet. Vui lòng kiểm tra lại dữ liệu!");
       }
       return data;
     },
@@ -55,15 +55,25 @@ function AppDataWrapper({ children }) {
           }
         } catch {}
       }
-      return DEFAULT_SAMPLE_MANIFEST;
+      return undefined; // Cho phép hiển thị Loading khi chưa có cache
     },
-    initialDataUpdatedAt: 0, // Kích hoạt fetch ngầm ngay lập tức để nạp dữ liệu thật mới nhất từ Sheet
-    staleTime: 1000 * 30,
+    staleTime: 1000 * 60 * 5, // 5 phút cache
+    retry: 2,
   });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col justify-center items-center h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+        <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-base font-bold text-teal-600 dark:text-teal-400">Đang đồng bộ dữ liệu Y Khoa từ Google Sheet...</p>
+        <p className="text-xs text-slate-400 mt-1">Vui lòng chờ trong giây lát</p>
+      </div>
+    );
+  }
 
   if (isError) return (
     <div className="flex flex-col justify-center items-center h-screen text-center p-6 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
-      <div className="text-rose-500 mb-4 font-bold text-lg">{error?.message || "Không thể tải danh sách môn học. Đang dùng dữ liệu ngoại tuyến."}</div>
+      <div className="text-rose-500 mb-4 font-bold text-lg">{error?.message || "Không thể tải danh sách môn học từ Google Apps Script."}</div>
       <button 
         onClick={() => refetch()}
         className="px-6 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl shadow-md transition-colors"
@@ -73,7 +83,7 @@ function AppDataWrapper({ children }) {
     </div>
   );
 
-  return children(manifest || DEFAULT_SAMPLE_MANIFEST);
+  return children(manifest);
 }
 
 // Wrapper cho QuizPage để fetch dữ liệu từ form

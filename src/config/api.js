@@ -5,7 +5,7 @@
  * mà chưa cấu hình Environment Variables trên hosting.
  */
 
-const DEFAULT_QUIZ_URL = 'https://script.google.com/macros/s/AKfycbwl4PVbJ_-3VRyYvNwH9nTvTW74GguAxHKhGvoLVtRyHrPC6IoYZaIv8cp8ztftkbz5/exec';
+const DEFAULT_QUIZ_URL = 'https://script.google.com/macros/s/AKfycbyOy_VJu88x2PadlUvGy-Ajg8mODrAOsas6LrtOuESJQtk-y3elzu6u5VkwOiJ9xZva/exec';
 const DEFAULT_AUTH_URL = 'https://script.google.com/macros/s/AKfycbwHCWAEmUOpB_zKZjUE7NztmIQgIXd_Tz5uIX-3OX2uVeqcvgSSuWAm8YCFIlhY2097/exec';
 
 export const API_CONFIG = {
