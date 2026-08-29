@@ -1,5 +1,5 @@
 
-import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useParams } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const KnowledgeGraphPage = lazy(() => import('./pages/KnowledgeGraphPage'));
@@ -14,6 +14,8 @@ const LabValuesPage = lazy(() => import('./pages/LabValuesPage'));
 const LibraryPage = lazy(() => import('./pages/LibraryPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
+const ThankYouPage = lazy(() => import('./pages/ThankYouPage'));
+import AuthModalGuard from './components/Auth/AuthModalGuard';
 import AuthGuard from './components/Auth/AuthGuard';
 import AppErrorBoundary from './components/Common/AppErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
@@ -131,31 +133,33 @@ export default function App() {
             <Router>
               <Suspense fallback={<div className="flex flex-col justify-center items-center h-screen bg-white dark:bg-[#060a14]"><div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <Routes>
-                  {/* Trang Đăng nhập xuất hiện đầu tiên nếu chưa đăng nhập */}
+                  {/* Trang Đăng nhập */}
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                  <Route path="/thank-you" element={<ThankYouPage />} />
 
-                  {/* Tất cả các trang ứng dụng được bảo vệ bởi AuthGuard */}
+                  {/* Layout chính — duyệt tự do, không cần đăng nhập */}
                   <Route
                     element={
-                      <AuthGuard>
-                        <AppDataWrapper>
-                          {(manifest) => <MainLayout manifest={manifest} />}
-                        </AppDataWrapper>
-                      </AuthGuard>
+                      <AppDataWrapper>
+                        {(manifest) => <MainLayout manifest={manifest} />}
+                      </AppDataWrapper>
                     }
                   >
+                    {/* TRANG CÔNG KHAI — xem tự do */}
                     <Route path="/" element={<HomePage />} />
                     <Route path="/graph" element={<KnowledgeGraphPage />} />
-                    <Route path="/category/:id" element={<CategoryPage />} />
-                    <Route path="/subject/:id" element={<DeckSelectionPage />} />
-                    <Route path="/library" element={<LibraryPage />} />
                     <Route path="/lab-values" element={<LabValuesPage />} />
-                    <Route path="/mistakes" element={<MistakesNotebookPage />} />
-                    <Route path="/profile" element={<ProfilePage />} />
+
+                    {/* TRANG CẦN ĐĂNG NHẬP — hiện popup nếu chưa login */}
+                    <Route path="/category/:id" element={<AuthModalGuard message="Đăng nhập để xem chuyên khoa và bắt đầu luyện đề."><CategoryPage /></AuthModalGuard>} />
+                    <Route path="/subject/:id" element={<AuthModalGuard message="Đăng nhập để xem bộ đề và bắt đầu làm bài."><DeckSelectionPage /></AuthModalGuard>} />
+                    <Route path="/library" element={<AuthModalGuard message="Đăng nhập để truy cập Kho Sách & Slide Y Khoa."><LibraryPage /></AuthModalGuard>} />
+                    <Route path="/mistakes" element={<AuthModalGuard message="Đăng nhập để xem Sổ tay câu sai cá nhân."><MistakesNotebookPage /></AuthModalGuard>} />
+                    <Route path="/profile" element={<AuthModalGuard message="Đăng nhập để xem Hồ sơ cá nhân."><ProfilePage /></AuthModalGuard>} />
                   </Route>
 
-                  {/* Phòng thi Quiz (Toàn màn hình với Left Toolbar chuyên dụng) */}
+                  {/* Phòng thi Quiz (Toàn màn hình) — bắt buộc đăng nhập */}
                   <Route
                     path="/quiz/:deckPath"
                     element={
@@ -167,7 +171,7 @@ export default function App() {
                     }
                   />
 
-                  {/* Bắt tất cả các đường dẫn sai chuyển về trang chủ */}
+                  {/* 404 */}
                   <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </Suspense>

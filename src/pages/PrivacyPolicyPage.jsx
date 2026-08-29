@@ -99,8 +99,8 @@ export default function PrivacyPolicyPage() {
                 Nếu bạn có bất kỳ câu hỏi hoặc phản hồi nào về Chính sách bảo mật này, xin vui lòng liên hệ với chúng tôi:
               </p>
               <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl mt-4 border border-slate-200 dark:border-white/5">
-                <p className="text-slate-700 dark:text-slate-200 font-medium">Email: minhcute9511@gmail.com</p>
-                <p className="text-slate-700 dark:text-slate-200 font-medium mt-1">SĐT: 0796.989.703 (Zalo hỗ trợ)</p>
+                <p className="text-slate-700 dark:text-slate-200 font-medium">Email: diamondquiz22.7@gmail.com</p>
+                <p className="text-slate-700 dark:text-slate-200 font-medium mt-1">SĐT: 0383.123.165 (Zalo hỗ trợ)</p>
               </div>
             </section>
           </div>

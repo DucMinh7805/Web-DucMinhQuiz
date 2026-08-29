@@ -1,3 +1,5 @@
+const IMAGES_FOLDER_NAME = "MedQuiz_Form_Images";
+
 function normalizeName(str) {
   if (!str) return '';
   return String(str)
@@ -35,14 +37,75 @@ function findSheetByAliases(ss, aliases) {
   return null;
 }
 
+/**
+ * Lấy hoặc tự động tạo thư mục lưu trữ ảnh vĩnh viễn trên Google Drive của người dùng
+ */
+function getOrCreateImagesFolder() {
+  const folders = DriveApp.getFoldersByName(IMAGES_FOLDER_NAME);
+  if (folders.hasNext()) {
+    const folder = folders.next();
+    try {
+      folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch(e) {}
+    return folder;
+  }
+  const newFolder = DriveApp.createFolder(IMAGES_FOLDER_NAME);
+  newFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return newFolder;
+}
+
+/**
+ * Tải ảnh nhị phân từ Google Form và lưu trữ vĩnh viễn trên Google Drive
+ */
+function saveFormImageToDrive(rawImgUrl, formId, qIndex, folder) {
+  if (!rawImgUrl || typeof rawImgUrl !== 'string') return '';
+
+  const fileName = `IMG_${formId}_Q${qIndex}.jpg`;
+
+  // Tái sử dụng nếu file đã tồn tại trong thư mục Drive
+  const existingFiles = folder.getFilesByName(fileName);
+  if (existingFiles.hasNext()) {
+    const existingFile = existingFiles.next();
+    return `https://drive.google.com/thumbnail?id=${existingFile.getId()}&sz=w1200`;
+  }
+
+  try {
+    const response = UrlFetchApp.fetch(rawImgUrl, {
+      muteHttpExceptions: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+
+    if (response.getResponseCode() === 200) {
+      const blob = response.getBlob().setName(fileName);
+      const newFile = folder.createFile(blob);
+      newFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      return `https://drive.google.com/thumbnail?id=${newFile.getId()}&sz=w1200`;
+    }
+  } catch (err) {
+    Logger.log(`[Drive Upload] Lỗi tải ảnh Q${qIndex} từ Form ${formId}: ${err.message}`);
+  }
+
+  return rawImgUrl;
+}
+
 function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
   const form = FormApp.openByUrl(formUrl);
   const formId = form.getId();
   const items = form.getItems();
   const questions = [];
 
-  // 1. Cào danh sách hình ảnh trực tiếp từ Google Form HTML (Bắt 100% ảnh đính kèm trong từng câu hỏi)
+  let imgFolder = null;
+  try {
+    imgFolder = getOrCreateImagesFolder();
+  } catch (e) {
+    Logger.log("Không thể tạo folder Drive: " + e.message);
+  }
+
+  // 1. Cào danh sách hình ảnh & đáp án grading trực tiếp từ Google Form HTML
   const imageMapByIndex = {};
+  const answerMapByIndex = {};
   let globalFormImage = defaultDeckImageUrl || "";
 
   try {
@@ -74,15 +137,26 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
             const it = formItems[i];
             let foundImg = "";
             if (it[9] && Array.isArray(it[9]) && it[9][0] && it[9][0][0]) {
-              const imgId = it[9][0][0];
-              foundImg = 'https://lh3.googleusercontent.com/d/' + imgId + '=w1200';
+              foundImg = it[9][0][0];
+              if (!foundImg.startsWith('http')) {
+                foundImg = 'https://lh3.googleusercontent.com/d/' + foundImg + '=w1200';
+              }
+            } else if (it[6] && typeof it[6] === 'string' && it[6].startsWith('http')) {
+              foundImg = it[6];
             }
 
             const itType = it[3];
-            // Nếu là câu hỏi (0: text, 1: paragraph, 2: multiple_choice, 4: checkbox)
+            // 0: text, 1: paragraph, 2: multiple_choice, 4: checkbox
             if (itType === 0 || itType === 1 || itType === 2 || itType === 4) {
               if (foundImg) {
                 imageMapByIndex[qIdx] = foundImg;
+              }
+              // Tìm đáp án đúng nếu có trong grading payload của Google Quiz
+              if (it[4] && it[4][0] && it[4][0][4]) {
+                const gradingArr = it[4][0][4];
+                if (Array.isArray(gradingArr) && gradingArr.length > 0) {
+                  answerMapByIndex[qIdx] = gradingArr.map(g => String(g[0] || '').trim()).filter(Boolean).join('|');
+                }
               }
               qIdx++;
             } else if (foundImg) {
@@ -102,7 +176,6 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
   items.forEach((item, index) => {
     const itemType = item.getType();
 
-    // Xử lý ImageItem độc lập (nếu có)
     if (itemType === FormApp.ItemType.IMAGE) {
       try {
         const imageItem = item.asImageItem();
@@ -120,7 +193,6 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
     let helpText = item.getHelpText() ? item.getHelpText().trim() : "";
     let titleText = item.getTitle() ? item.getTitle().trim() : "";
 
-    // Tìm link ảnh nếu người soạn đề dán trong phần mô tả câu hỏi
     const inlineUrlMatch = (helpText + " " + titleText).match(/https?:\/\/[^\s"'<>]+/);
     if (inlineUrlMatch) {
       let foundUrl = inlineUrlMatch[0];
@@ -133,14 +205,20 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
       itemImageUrl = foundUrl;
     }
 
+    // A. TRẮC NGHIỆM ĐƠN
     if (itemType === FormApp.ItemType.MULTIPLE_CHOICE) {
       const mcItem = item.asMultipleChoiceItem();
       const choices = mcItem.getChoices();
       const correctChoice = choices.find(choice => choice.isCorrectAnswer && choice.isCorrectAnswer());
       
       const optionsList = choices.map(choice => choice.getValue().trim());
-      const answerVal = correctChoice ? correctChoice.getValue().trim() : (optionsList[0] || "");
+      const answerVal = correctChoice ? correctChoice.getValue().trim() : (answerMapByIndex[questionIndex] || optionsList[0] || "");
       const feedback = mcItem.getFeedbackForCorrect() || mcItem.getFeedbackForIncorrect();
+
+      // Convert ảnh sang Google Drive vĩnh viễn
+      if (itemImageUrl && imgFolder) {
+        itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder);
+      }
 
       questions.push({
         id: `${formId}-${questionIndex + 1}`,
@@ -153,7 +231,9 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
         explanation: feedback ? feedback.getText() : ""
       });
       questionIndex++;
-    } else if (itemType === FormApp.ItemType.CHECKBOX) {
+    } 
+    // B. NHIỀU ĐÁP ÁN (CHECKBOX)
+    else if (itemType === FormApp.ItemType.CHECKBOX) {
       const cbItem = item.asCheckboxItem();
       const choices = cbItem.getChoices();
       const correctChoices = choices.filter(choice => choice.isCorrectAnswer && choice.isCorrectAnswer());
@@ -161,8 +241,12 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
       const optionsList = choices.map(choice => choice.getValue().trim());
       const answerVal = correctChoices.length > 0 
         ? correctChoices.map(c => c.getValue().trim()).join('|')
-        : (optionsList[0] || "");
+        : (answerMapByIndex[questionIndex] || optionsList[0] || "");
       const feedback = cbItem.getFeedbackForCorrect() || cbItem.getFeedbackForIncorrect();
+
+      if (itemImageUrl && imgFolder) {
+        itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder);
+      }
 
       questions.push({
         id: `${formId}-${questionIndex + 1}`,
@@ -175,10 +259,24 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
         explanation: feedback ? feedback.getText() : ""
       });
       questionIndex++;
-    } else if (itemType === FormApp.ItemType.TEXT || itemType === FormApp.ItemType.PARAGRAPH_TEXT) {
+    } 
+    // C. TỰ LUẬN NGẮN / ĐIỀN TỪ (SHORT ANSWER)
+    else if (itemType === FormApp.ItemType.TEXT || itemType === FormApp.ItemType.PARAGRAPH_TEXT) {
       const textItem = itemType === FormApp.ItemType.TEXT ? item.asTextItem() : item.asParagraphTextItem();
-      const feedback = textItem.getGeneralFeedback();
-      
+      let feedback = "";
+      try {
+        if (textItem.getGeneralFeedback) {
+          const fb = textItem.getGeneralFeedback();
+          if (fb) feedback = fb.getText();
+        }
+      } catch (e) {}
+
+      const answerVal = answerMapByIndex[questionIndex] || "";
+
+      if (itemImageUrl && imgFolder) {
+        itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder);
+      }
+
       questions.push({
         id: `${formId}-${questionIndex + 1}`,
         type: 'short_answer',
@@ -186,8 +284,8 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
         vignette: helpText,
         imageUrl: itemImageUrl,
         options: "",
-        answer: "",
-        explanation: feedback ? feedback.getText() : ""
+        answer: answerVal,
+        explanation: feedback
       });
       questionIndex++;
     }
@@ -195,7 +293,3 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
 
   return questions;
 }
-
-// -------------------------------------------------------------------------
-// WEB APP ENDPOINT
-// -------------------------------------------------------------------------
