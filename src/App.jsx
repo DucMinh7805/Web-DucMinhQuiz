@@ -45,19 +45,7 @@ function AppDataWrapper({ children }) {
       }
       return data;
     },
-    initialData: () => {
-      const localData = localStorage.getItem('medquiz_manifest');
-      if (localData) {
-        try {
-          const parsed = JSON.parse(localData);
-          if (parsed && Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
-            return parsed;
-          }
-        } catch {}
-      }
-      return undefined; // Cho phép hiển thị Loading khi chưa có cache
-    },
-    staleTime: 1000 * 60 * 5, // 5 phút cache
+    staleTime: 1000 * 30, // 30 giây cache
     retry: 2,
   });
 
