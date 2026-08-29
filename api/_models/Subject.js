@@ -1,37 +1,57 @@
 import mongoose from 'mongoose';
 
 const subjectSchema = new mongoose.Schema({
-  code: { 
+  id: { 
     type: String, 
     required: true, 
     unique: true, 
-    uppercase: true, 
     trim: true 
-  }, // VD: "GP_Y1", "NOI_TIM_MACH"
+  }, // VD: "NOI_TIM_MACH", "GIAI_PHAU"
+  code: { 
+    type: String, 
+    required: true, 
+    trim: true 
+  }, // VD: "NOITIM", "GP"
   name: { 
     type: String, 
     required: true, 
     trim: true 
-  }, // VD: "Giải Phẫu Học"
-  stages: [{ 
+  }, // VD: "Nội tim mạch", "Giải Phẫu Học"
+  categoryId: { 
     type: String, 
-    enum: ['y1_y3', 'y4_y6', 'sau_dai_hoc', 'noi_tru'], 
-    required: true 
-  }], // 1 môn có thể thuộc nhiều giai đoạn
+    default: 'co_so_nganh', 
+    trim: true 
+  }, // VD: "nen_tang", "co_so_nganh", "noi_khoa", "ngoai_khoa", "san_khoa", "chuyen_khoa"
+  categoryName: { 
+    type: String, 
+    default: 'Cơ sở ngành', 
+    trim: true 
+  }, // VD: "Nền tảng Y khoa", "Cơ sở ngành", "Nội khoa", "Ngoại khoa", "Sản khoa", "Chuyên khoa"
   category: { 
     type: String, 
-    enum: ['co_so', 'co_so_nganh', 'noi_khoa', 'ngoai_khoa', 'san_nhi', 'chuyen_khoa'],
-    required: true 
+    default: 'co_so_nganh',
+    trim: true 
   },
-  coverImageUrl: { type: String, default: '' },
+  stages: [{ 
+    type: String, 
+    default: ['y1_y3', 'y4_y6'] 
+  }],
+  description: { type: String, default: '' },
+  icon: { type: String, default: '' },
   iconName: { type: String, default: 'Stethoscope' },
   colorTheme: { type: String, default: '#0d9488' },
+  coverImageUrl: { type: String, default: '' },
+  coverUrl: { type: String, default: '' },
+  source: { type: String, default: '' },
+  sourceLink: { type: String, default: '' },
+  sourceAuthor: { type: String, default: '' },
+  sourceUnit: { type: String, default: '' },
   orderIndex: { type: Number, default: 0 },
   isPublished: { type: Boolean, default: true }
 }, { timestamps: true });
 
+subjectSchema.index({ categoryId: 1, isPublished: 1 });
 subjectSchema.index({ stages: 1, isPublished: 1 });
-subjectSchema.index({ category: 1, isPublished: 1 });
 
 export const Subject = mongoose.models.Subject || mongoose.model('Subject', subjectSchema);
 export default Subject;
