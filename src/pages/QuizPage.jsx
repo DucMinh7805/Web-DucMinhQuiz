@@ -84,6 +84,10 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
   // Timer for exam mode
   const [timeLeft, setTimeLeft] = useState(0);
 
+  // Touch gesture refs for Mobile / Tablet
+  const touchStartXRef = useRef(null);
+  const touchStartYRef = useRef(null);
+
   // Modals & Final state
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [quizFinished, setQuizFinished] = useState(false);
@@ -196,9 +200,6 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
   };
 
   // Vuốt chạm cảm ứng trái/phải trên màn hình Mobile & Tablet
-  const touchStartXRef = useRef(null);
-  const touchStartYRef = useRef(null);
-
   const handleTouchStart = (e) => {
     touchStartXRef.current = e.touches[0].clientX;
     touchStartYRef.current = e.touches[0].clientY;
