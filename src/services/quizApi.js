@@ -14,10 +14,10 @@ export async function fetchManifest() {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout cho cold start
 
   try {
-    const res = await fetch(`${API_CONFIG.QUIZ_DATABASE_URL}?action=getManifest`, { 
+    const res = await fetch(`${API_CONFIG.QUIZ_DATABASE_URL}?action=getManifest&_t=${Date.now()}`, { 
       redirect: "follow",
       credentials: "omit",
       signal: controller.signal

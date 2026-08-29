@@ -170,7 +170,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
           const elapsed = (new Date().getTime() - startTime) / 1000;
           if (elapsed > 260) {
             timedOutEarly = true;
-            break;
+            continue; // Chuyển sang continue để vẫn nạp tên đề vào giao diện, chỉ bỏ qua việc cào dữ liệu Google Form
           }
           
           try {
@@ -204,12 +204,22 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
         const deckPath = `${subId}/${deckId}`;
         
         if (newAllDecksData[deckPath]) {
-          let count = deckData[i][3] || 0;
           try {
             const parsed = JSON.parse(newAllDecksData[deckPath]);
-            if (Array.isArray(parsed)) count = parsed.length;
-          } catch(e) {}
-          statusValues.push([`✅ Đã lên app (${count} câu)`]);
+            if (Array.isArray(parsed)) {
+              if (parsed.length > 0) {
+                statusValues.push([`✅ Đã lên app (${parsed.length} câu)`]);
+              } else {
+                statusValues.push([`⚠️ Form chưa có câu hỏi`]);
+              }
+            } else if (parsed && parsed.error) {
+              statusValues.push([`❌ Lỗi (Vui lòng đồng bộ lại)`]);
+            } else {
+              statusValues.push([`⏳ Chưa nạp`]);
+            }
+          } catch(e) {
+            statusValues.push([`❌ Lỗi dữ liệu`]);
+          }
         } else {
           statusValues.push(["⏳ Chưa nạp"]);
         }
