@@ -106,7 +106,7 @@ export default function DeckSelectionPage() {
       return true;
     }
     // Khớp từ tên đề
-    return String(d.name || '').toLowerCase().includes(activeTag.toLowerCase());
+    return String(d.title || d.name || '').toLowerCase().includes(activeTag.toLowerCase());
   });
 
   return (
@@ -228,8 +228,9 @@ export default function DeckSelectionPage() {
               progressPercent = Math.round((progress.score / progress.total) * 100);
             }
 
-            // Chuẩn hóa tên đề: loại bỏ tiền tố thừa "Đề 1 - " nếu có, chỉ lấy tên sạch từ Sheet
-            const cleanTitle = String(deck.name || '').replace(/^(?:đề|de)\s*\d+[\s\-:–—]+/i, '').trim() || deck.name;
+            // Chuẩn hóa tên đề: đọc cả deck.title và deck.name, loại bỏ tiền tố thừa nếu có
+            const rawTitle = deck.title || deck.name || `Đề ${index + 1}`;
+            const cleanTitle = String(rawTitle).replace(/^(?:đề|de)\s*\d+[\s\-:–—]+/i, '').trim() || rawTitle;
 
             return (
               <motion.div

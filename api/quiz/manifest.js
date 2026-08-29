@@ -29,6 +29,7 @@ export default async function handler(req, res) {
       decksBySubjectId[sId].push({
         id: deck._id,
         title: deck.title,
+        name: deck.title,
         path: deck.path,
         stage: deck.stage,
         tags: deck.tags || [],
