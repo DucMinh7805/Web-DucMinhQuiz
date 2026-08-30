@@ -33,7 +33,25 @@ export default function MistakesNotebookPage() {
   // Trạng thái cho Flashcard Review Mode
   const [isReviewMode, setIsReviewMode] = useState(false);
 
-  const mistakes = user?.mistakes || emptyArray;
+  // Lọc bỏ các câu sai của môn học đã hết hạn quá 7 ngày
+  const mistakes = useMemo(() => {
+    const rawMistakes = user?.mistakes || emptyArray;
+    const subjectExpirations = user?.subjectExpirations || {};
+    const now = Date.now();
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+    return rawMistakes.filter(m => {
+      if (!m.subjectId) return true;
+      const expiry = subjectExpirations[m.subjectId];
+      if (!expiry) return true; // Môn miễn phí hoặc chưa set hạn
+      const expiryTime = new Date(expiry).getTime();
+      // Nếu đã hết hạn quá 7 ngày -> ẩn khỏi sổ tay
+      if (now > expiryTime + SEVEN_DAYS_MS) {
+        return false;
+      }
+      return true;
+    });
+  }, [user?.mistakes, user?.subjectExpirations]);
 
   // Lọc ra các câu cần ôn tập hôm nay
   const dueMistakes = useMemo(() => {
@@ -105,11 +123,11 @@ export default function MistakesNotebookPage() {
                   <Bookmark className="w-5 h-5" />
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                  Sổ Tay Câu Sai (Weakness Bank)
+                  Sổ Tay Câu Sai
                 </h1>
               </div>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
-                Lưu trữ các lỗ hổng kiến thức và tự động tính toán chu kỳ ôn tập Spaced Repetition (SM-2)
+                Lưu trữ các lỗ hổng kiến thức và tự động tính toán chu kỳ ôn tập Spaced Repetition
               </p>
             </div>
           </div>

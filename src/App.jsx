@@ -53,7 +53,7 @@ function AppDataWrapper({ children }) {
     return (
       <div className="flex flex-col justify-center items-center h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
         <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-base font-bold text-teal-600 dark:text-teal-400">Đang đồng bộ dữ liệu Y Khoa từ Google Sheet...</p>
+        <p className="text-base font-bold text-teal-600 dark:text-teal-400">Đang tải dữ liệu câu hỏi, Sinh viên đợi xíu nha...</p>
         <p className="text-xs text-slate-400 mt-1">Vui lòng chờ trong giây lát</p>
       </div>
     );

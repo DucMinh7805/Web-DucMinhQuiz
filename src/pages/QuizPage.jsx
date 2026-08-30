@@ -32,6 +32,8 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
 
   // Chế độ thi: Nhận từ query param ?mode=exam hoặc ?mode=tutor (mặc định 'tutor')
   const initialMode = searchParams.get('mode') === 'exam' ? 'exam' : 'tutor';
+  const isShuffleEnabled = searchParams.get('shuffle') !== 'false';
+  const questionLimit = searchParams.get('limit') || 'full';
   const [mode, setMode] = useState(initialMode);
 
   // Tìm Tên Môn Học & Tên Đề Thi bằng Tiếng Việt từ Manifest
@@ -81,7 +83,8 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
   const [eliminations, setEliminations] = useState({});
   const [shuffledOptionsList, setShuffledOptionsList] = useState([]);
   
-  // Timer for exam mode
+  // Timer & Real time tracking
+  const startTimeRef = useRef(Date.now());
   const [timeLeft, setTimeLeft] = useState(0);
 
   // Touch gesture refs for Mobile / Tablet
@@ -93,17 +96,26 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
   const [quizFinished, setQuizFinished] = useState(false);
   const [score, setScore] = useState(0);
 
-  // Initialize questions
+  // Initialize questions with Shuffle & Limit settings
   useEffect(() => {
     if (rawQuestions && rawQuestions.length > 0) {
-      setActiveQuestions(rawQuestions);
-      const initialOptions = rawQuestions.map(q => 
+      let pool = [...rawQuestions];
+      if (isShuffleEnabled) {
+        pool = shuffleArray(pool);
+      }
+      if (questionLimit === '30' && pool.length > 30) {
+        pool = pool.slice(0, 30);
+      }
+
+      setActiveQuestions(pool);
+      const initialOptions = pool.map(q => 
         q.parsedOptions ? shuffleArray([...q.parsedOptions]) : []
       );
       setShuffledOptionsList(initialOptions);
-      setTimeLeft(rawQuestions.length * 90); // 1.5 phút/câu
+      setTimeLeft(pool.length * 90); // 1.5 phút/câu
+      startTimeRef.current = Date.now();
     }
-  }, [rawQuestions]);
+  }, [rawQuestions, isShuffleEnabled, questionLimit]);
 
   // Exam Countdown Timer
   useEffect(() => {
@@ -226,6 +238,7 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
   const handleSubmitQuiz = () => {
     setIsSubmitModalOpen(false);
 
+    const timeSpentSeconds = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000));
     let correctCount = 0;
     const mistakesToSave = [];
 
@@ -251,8 +264,9 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
           subjectId,
           deckId,
           question: q.question,
-          options: q.parsedOptions || [],
+          options: q.parsedOptions || (q.options ? (Array.isArray(q.options) ? q.options : String(q.options).split('|')) : []),
           userAnswer: userAns,
+          answer: q.answer,
           correctAnswer: q.answer,
           explanation: q.explanation || '',
           timestamp: new Date().toISOString()
@@ -268,7 +282,8 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
       deckId,
       correctCount,
       activeQuestions.length,
-      mistakesToSave
+      mistakesToSave,
+      timeSpentSeconds
     );
   };
 

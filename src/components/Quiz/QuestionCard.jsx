@@ -140,40 +140,10 @@ export default function QuestionCard({
     onSelectOption(multiSelected);
   };
 
-  // Phân tích tách phần Ca lâm sàng (Vignette) và Câu hỏi chốt (Lead-in)
-  const { vignette, leadIn, hasVignette } = useMemo(() => {
-    if (!question || !question.question) return { vignette: '', leadIn: '', hasVignette: false };
-    
-    const fullText = question.question.trim();
-    
-    if (fullText.includes('\n') && fullText.length > 100) {
-      const parts = fullText.split('\n');
-      const lastLine = parts[parts.length - 1].trim();
-      if (lastLine.endsWith('?') || lastLine.endsWith(':') || lastLine.length < 200) {
-        const vignetteBody = parts.slice(0, -1).join('\n').trim();
-        return {
-          vignette: vignetteBody,
-          leadIn: lastLine,
-          hasVignette: true
-        };
-      }
-    }
-
-    const colonIndex = fullText.lastIndexOf(':');
-    if (colonIndex > 60 && fullText.length > 150) {
-      return {
-        vignette: fullText.substring(0, colonIndex + 1).trim(),
-        leadIn: fullText.substring(colonIndex + 1).trim() || 'Chọn đáp án đúng nhất:',
-        hasVignette: true
-      };
-    }
-
-    return {
-      vignette: '',
-      leadIn: fullText,
-      hasVignette: false
-    };
-  }, [question]);
+  // Nội dung câu hỏi và Dữ kiện đi kèm
+  const leadIn = question?.question ? String(question.question).trim() : '';
+  const vignetteContent = question?.vignette ? String(question.vignette).trim() : '';
+  const hasVignette = Boolean(vignetteContent || question?.imageUrl || question?.image);
 
   return (
     <div 
@@ -194,7 +164,7 @@ export default function QuestionCard({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8 items-start">
             
             {/* ================================================================= */}
-            {/* CỘT TRÁI (LG: 7 COLUMNS): CA LÂM SÀNG + CÂU HỎI + CÁC LỰA CHỌN A,B,C,D */}
+            {/* CỘT TRÁI (LG: 7 COLUMNS): DỮ KIỆN + CÂU HỎI + CÁC LỰA CHỌN A,B,C,D */}
             {/* ================================================================= */}
             <div className="lg:col-span-7 space-y-4">
               
@@ -211,13 +181,6 @@ export default function QuestionCard({
                       Nhiều Đáp Án Đúng
                     </span>
                   )}
-
-                  {hasVignette && (
-                    <span className="text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 px-2.5 py-1 rounded-lg flex items-center border border-teal-200/60 dark:border-teal-800/40">
-                      <Stethoscope className="w-3.5 h-3.5 mr-1" />
-                      Ca Lâm Sàng
-                    </span>
-                  )}
                 </div>
 
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
@@ -225,16 +188,16 @@ export default function QuestionCard({
                 </span>
               </div>
 
-              {/* Ca lâm sàng (Vignette) & Hình ảnh */}
-              {(hasVignette || question.vignette || question.imageUrl || question.image) && (
+              {/* Dữ kiện câu hỏi & Hình ảnh (Nếu có) */}
+              {hasVignette && (
                 <QuestionVignette 
-                  vignette={vignette || question.vignette} 
-                  imageUrl={question.imageUrl || question.image} 
+                  vignette={vignetteContent} 
+                  imageUrl={question?.imageUrl || question?.image} 
                 />
               )}
 
-              {/* Câu hỏi chốt (Lead-in) */}
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-snug pt-1">
+              {/* Nội dung câu hỏi đầy đủ (giữ nguyên không bị cắt dòng) */}
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-relaxed pt-1 whitespace-pre-line">
                 {leadIn}
               </h3>
 

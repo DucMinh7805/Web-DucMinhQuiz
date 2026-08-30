@@ -11,6 +11,8 @@ function onOpen() {
       .addItem('📚 5. Đồng bộ Tài Liệu (Tab 4)', 'syncSourcesOnly')
       .addSeparator()
       .addItem('🔄 6. Cập Nhật Toàn Bộ (Làm mới tất cả)', 'syncAll')
+      .addSeparator()
+      .addItem('🗑️ 7. Xóa Đề Thi Đang Chọn (Bôi đen dòng)', 'deleteSelectedDecks')
       .addToUi();
 }
 

@@ -31,10 +31,24 @@ export default function MistakesFlashcardReview({
   }
 
   const current = dueMistakes[0];
+  const [selectedOption, setSelectedOption] = useState(null);
+
+  const rawOptions = current?.options || current?.parsedOptions || [];
+  const optionsList = Array.isArray(rawOptions) 
+    ? rawOptions 
+    : (typeof rawOptions === 'string' && rawOptions.trim() ? rawOptions.split('|').map(s => s.trim()).filter(Boolean) : []);
+
+  const correctAnswerStr = String(current?.correctAnswer || current?.answer || '').trim();
+
+  const handleSelect = (opt) => {
+    setSelectedOption(opt);
+    setShowAnswer(true);
+  };
 
   const handleRate = (quality) => {
     onRateMistake(quality);
     setShowAnswer(false);
+    setSelectedOption(null);
   };
 
   return (
@@ -45,7 +59,7 @@ export default function MistakesFlashcardReview({
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={onClose}
-            className="p-2 bg-white dark:bg-[#0c1222] rounded-xl shadow-sm border border-slate-200 dark:border-white/10 text-slate-500 hover:text-slate-900 dark:hover:text-white"
+            className="p-2 bg-white dark:bg-[#0c1222] rounded-xl shadow-sm border border-slate-200 dark:border-white/10 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -54,49 +68,95 @@ export default function MistakesFlashcardReview({
           </div>
         </div>
 
-        {/* Flashcard */}
+        {/* Flashcard Workstation */}
         <div className="flex-1 flex flex-col">
           <motion.div 
             key={current.id + (showAnswer ? '-ans' : '-q')}
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white dark:bg-[#0c1222] flex-1 rounded-3xl shadow-xl border border-slate-200 dark:border-white/10 p-6 sm:p-10 flex flex-col overflow-y-auto"
+            className="bg-white dark:bg-[#0c1222] flex-1 rounded-3xl shadow-xl border border-slate-200 dark:border-white/10 p-6 sm:p-8 flex flex-col overflow-y-auto"
           >
-            <span className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider mb-4 block">
-              {formatSubjectName(current.subjectId)}
-            </span>
-            <h2 className="text-lg sm:text-2xl font-black text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-line flex-1">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
+                {formatSubjectName(current.subjectId)}
+              </span>
+              <span className="text-[11px] font-semibold text-slate-400">
+                {optionsList.length > 0 ? 'Chọn đáp án để kiểm tra' : 'Thẻ ghi nhớ'}
+              </span>
+            </div>
+
+            <h2 className="text-base sm:text-xl font-bold text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-line mb-6">
               {current.question}
             </h2>
 
+            {/* Danh sách các lựa chọn để học viên bấm test trực tiếp */}
+            {optionsList.length > 0 && (
+              <div className="space-y-2.5 mb-6">
+                {optionsList.map((opt, idx) => {
+                  const optLetter = String.fromCharCode(65 + idx);
+                  const isSelected = selectedOption === opt;
+                  const isCorrect = correctAnswerStr.toLowerCase().includes(opt.toLowerCase()) || (correctAnswerStr === opt);
+
+                  let btnStyle = "border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 hover:border-teal-500/50";
+                  if (showAnswer) {
+                    if (isCorrect) {
+                      btnStyle = "border-emerald-500 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 font-bold ring-1 ring-emerald-500/30";
+                    } else if (isSelected) {
+                      btnStyle = "border-rose-500 bg-rose-500/10 text-rose-800 dark:text-rose-300 ring-1 ring-rose-500/30";
+                    } else {
+                      btnStyle = "border-slate-200/50 dark:border-white/5 opacity-50";
+                    }
+                  }
+
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      disabled={showAnswer}
+                      onClick={() => handleSelect(opt)}
+                      className={`w-full text-left p-3.5 sm:p-4 rounded-2xl border-2 transition-all flex items-start space-x-3 text-xs sm:text-sm font-medium ${btnStyle}`}
+                    >
+                      <span className="w-6 h-6 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-300 font-bold flex items-center justify-center shrink-0 text-xs mt-0.5">
+                        {optLetter}
+                      </span>
+                      <span className="flex-1 leading-relaxed">{opt}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Chi tiết đáp án & Giải thích khi được mở */}
             {showAnswer ? (
               <motion.div 
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-8 space-y-4"
+                className="space-y-3 pt-2 border-t border-slate-100 dark:border-white/10"
               >
-                <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40">
-                  <p className="text-sm font-bold text-emerald-800 dark:text-emerald-400 mb-1">Đáp án đúng:</p>
-                  <p className="text-base font-semibold text-slate-800 dark:text-slate-200">{current.answer}</p>
+                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm font-semibold">
+                  <p className="font-bold mb-0.5 text-emerald-700 dark:text-emerald-400">Đáp án chuẩn xác:</p>
+                  <p className="text-sm font-extrabold">{correctAnswerStr || 'Chưa cập nhật'}</p>
                 </div>
                 {current.explanation && (
-                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 text-sm text-slate-700 dark:text-slate-300">
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-white/10 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                     <p className="font-bold text-teal-600 dark:text-teal-400 flex items-center mb-1">
                       <Sparkles className="w-4 h-4 mr-1" /> Giải thích cơ chế:
                     </p>
-                    {current.explanation}
+                    <p>{current.explanation}</p>
                   </div>
                 )}
               </motion.div>
             ) : (
-              <div className="mt-8 flex justify-center">
-                <button 
-                  onClick={() => setShowAnswer(true)}
-                  className="px-8 py-3 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 font-bold rounded-2xl transition-colors w-full sm:w-auto border border-slate-200/50 dark:border-white/5"
-                >
-                  Hiện đáp án
-                </button>
-              </div>
+              optionsList.length === 0 && (
+                <div className="mt-8 flex justify-center">
+                  <button 
+                    onClick={() => setShowAnswer(true)}
+                    className="px-8 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white font-bold rounded-2xl shadow-md shadow-teal-500/20 transition-all w-full sm:w-auto text-sm"
+                  >
+                    Hiện đáp án &amp; giải thích
+                  </button>
+                </div>
+              )
             )}
           </motion.div>
 

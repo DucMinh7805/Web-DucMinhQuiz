@@ -18,7 +18,7 @@ export default function QuestionVignette({ vignette, imageUrl }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
               <FileText className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-              <span>Bệnh Án & Tiền Sử Lâm Sàng</span>
+              <span>Dữ kiện câu hỏi:</span>
             </div>
             <button
               type="button"

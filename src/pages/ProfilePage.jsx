@@ -1,13 +1,53 @@
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { motion } from 'motion/react';
-import { User, Calendar, BookOpen, Award, CheckCircle2, Bookmark, ArrowRight } from 'lucide-react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  User, Calendar, BookOpen, Award, CheckCircle2, Bookmark, 
+  ArrowRight, Camera, X, Check, Clock, Upload, Link as LinkIcon
+} from 'lucide-react';
+import { Navigate, useNavigate, useOutletContext } from 'react-router-dom';
 import usePageTitle from '../hooks/usePageTitle';
+
+function getSubjectDisplayName(subjectId, manifest) {
+  if (!subjectId) return 'Y Khoa';
+  if (manifest?.subjects) {
+    const found = manifest.subjects.find(s => 
+      s.id === subjectId || 
+      s.code === subjectId || 
+      String(s.id).toLowerCase() === String(subjectId).toLowerCase()
+    );
+    if (found && found.name) return found.name;
+  }
+  return String(subjectId)
+    .replace(/_/g, ' ')
+    .replace(/-/g, ' ')
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function getDeckDisplayName(subjectId, deckId, manifest) {
+  if (!deckId) return 'Đề ôn tập';
+  if (manifest?.subjects) {
+    for (const sub of manifest.subjects) {
+      if (sub.id === subjectId && Array.isArray(sub.decks)) {
+        const found = sub.decks.find(d => d.id === deckId || d.path === deckId || d.path?.replace('/', '-') === deckId);
+        if (found && (found.name || found.title)) return found.name || found.title;
+      }
+    }
+  }
+  return String(deckId).replace(/_/g, ' ').replace(/-/g, ' ');
+}
 
 export default function ProfilePage() {
   usePageTitle('Hồ sơ cá nhân');
-  const { user } = useAuth();
+  const { user, login } = useAuth();
+  const manifest = useOutletContext();
   const navigate = useNavigate();
+
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [customAvatarUrl, setCustomAvatarUrl] = useState('');
 
   // Bắt buộc đăng nhập
   if (!user) {
@@ -27,7 +67,6 @@ export default function ProfilePage() {
       let subjTotal = 0;
       Object.keys(user.progress[subjectId]).forEach(deckId => {
         const p = user.progress[subjectId][deckId];
-        // Xử lý dữ liệu bị lỗi do hàm cũ
         const scoreVal = typeof p.score === 'number' ? p.score : (p.correctCount || 0);
         const totalVal = typeof p.total === 'number' ? p.total : (p.totalCount || 0);
 
@@ -59,126 +98,206 @@ export default function ProfilePage() {
   const accuracy = totalQuestions > 0 ? Math.round((totalScore / totalQuestions) * 100) : 0;
   const mistakesCount = user?.mistakes?.length || 0;
 
+  const handleSelectAvatar = (url) => {
+    if (!url) return;
+    const updatedUser = { ...user, avatar: url };
+    login(updatedUser);
+    setIsAvatarModalOpen(false);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        handleSelectAvatar(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
-    <div className="w-full px-4 sm:px-8 lg:px-12 py-6 space-y-8">
+    <div className="w-full px-3 sm:px-8 lg:px-12 py-5 space-y-6 sm:space-y-8 max-w-6xl mx-auto">
       
-      {/* Header Hồ Sơ */}
+      {/* Header Hồ Sơ (Avatar căn chính giữa khung banner phía trên) */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-3xl shadow-sm border border-slate-200/80 dark:border-white/10 overflow-hidden"
       >
-        <div className="h-32 sm:h-40 bg-gradient-to-r from-teal-600 via-teal-500 to-cyan-600"></div>
-        <div className="px-6 sm:px-10 pb-8 relative">
-          <div className="flex flex-col sm:flex-row items-center sm:items-end -mt-16 sm:-mt-20 mb-6 sm:mb-2 space-y-4 sm:space-y-0 sm:space-x-6">
-            <div className="h-32 w-32 rounded-full border-4 border-white dark:border-[#0c1222] bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center shadow-lg overflow-hidden relative">
-              <User className="h-16 w-16 text-teal-600 dark:text-teal-400" />
+        <div className="h-28 sm:h-40 bg-gradient-to-r from-teal-600 via-teal-500 to-cyan-600 relative" />
+
+        <div className="px-4 sm:px-10 pb-6 sm:pb-8 relative">
+          
+          {/* Avatar căn chính giữa phía trên */}
+          <div className="flex flex-col items-center justify-center -mt-14 sm:-mt-20 mb-3 text-center">
+            <div className="relative group">
+              <div className="h-24 w-24 sm:h-36 sm:w-36 rounded-full border-4 border-white dark:border-[#0c1222] bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center shadow-xl overflow-hidden relative">
+                {user.avatar ? (
+                  <img 
+                    src={user.avatar} 
+                    alt={user.name} 
+                    className="w-full h-full object-cover" 
+                  />
+                ) : (
+                  <User className="h-12 w-12 sm:h-18 sm:w-18 text-teal-600 dark:text-teal-400" />
+                )}
+              </div>
+
+              {/* Nút Đổi Ảnh Đại Diện */}
+              <button
+                type="button"
+                onClick={() => setIsAvatarModalOpen(true)}
+                className="absolute bottom-0 right-0 sm:bottom-1 sm:right-1 p-2 sm:p-2.5 rounded-full bg-teal-500 hover:bg-teal-600 text-white shadow-lg border-2 border-white dark:border-[#0c1222] transition-transform active:scale-95 cursor-pointer"
+                title="Đổi ảnh đại diện"
+              >
+                <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
             </div>
-            <div className="text-center sm:text-left pb-2">
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{user.name}</h1>
-              <p className="text-sm sm:text-base text-teal-600 dark:text-teal-400 font-bold mt-0.5">{user.role}</p>
-            </div>
+
+            {/* Tên người dùng */}
+            <h1 className="text-lg sm:text-3xl font-black text-slate-900 dark:text-white mt-2.5">
+              {user.name}
+            </h1>
+            {user.phone && (
+              <p className="text-[11px] sm:text-sm text-slate-400 font-semibold mt-0.5">
+                {user.phone}
+              </p>
+            )}
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 mt-8 pt-8 border-t border-slate-100 dark:border-white/5">
-            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300">
-              <div className="bg-slate-100 dark:bg-white/5 p-2.5 rounded-xl text-indigo-500 border border-slate-200/60 dark:border-white/5">
-                <Calendar className="h-5 w-5" />
+          {/* 4 Thẻ Thống Kê Tổng Quan (Tối ưu nút gọn gàng trên mobile) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-slate-100 dark:border-white/5">
+            
+            {/* Thẻ 1: Lần đăng nhập gần nhất */}
+            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3 sm:p-3.5 bg-slate-50/70 dark:bg-white/5 rounded-2xl border border-slate-200/60 dark:border-white/5">
+              <div className="p-2 sm:p-2.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0">
+                <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Đăng nhập</p>
-                <p className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5">
-                  {user.loginTime ? new Date(user.loginTime).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Hôm nay'}
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 truncate">
+                  Lần đăng nhập gần nhất
+                </p>
+                <p className="font-extrabold text-slate-800 dark:text-slate-200 text-xs sm:text-sm mt-0.5 truncate">
+                  {user.loginTime ? new Date(user.loginTime).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Hôm nay'}
                 </p>
               </div>
             </div>
             
-            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300">
-              <div className="bg-teal-50 dark:bg-teal-950/40 p-2.5 rounded-xl text-teal-600 dark:text-teal-400 border border-teal-500/20">
-                <BookOpen className="h-5 w-5" />
+            {/* Thẻ 2: Đã hoàn thành */}
+            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3 sm:p-3.5 bg-teal-50/50 dark:bg-teal-950/20 rounded-2xl border border-teal-500/20">
+              <div className="p-2 sm:p-2.5 rounded-xl bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/20 shrink-0">
+                <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Đã hoàn thành</p>
-                <p className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5">{totalQuizzes} bài thi</p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300">
-              <div className="bg-emerald-50 dark:bg-emerald-950/40 p-2.5 rounded-xl text-emerald-500 border border-emerald-500/20">
-                <Award className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tỉ lệ chính xác</p>
-                <p className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5">{accuracy}%</p>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 truncate">
+                  Đã hoàn thành
+                </p>
+                <p className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm mt-0.5 truncate">
+                  {totalQuizzes} đề <span className="text-slate-400 font-normal">|</span> {totalQuestions} câu
+                </p>
               </div>
             </div>
 
+            {/* Thẻ 3: Tỉ lệ chính xác */}
+            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3 sm:p-3.5 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-500/20">
+              <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shrink-0">
+                <Award className="h-4 w-4 sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 truncate">
+                  Tỉ lệ chính xác
+                </p>
+                <p className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm mt-0.5">
+                  {accuracy}%
+                </p>
+              </div>
+            </div>
+
+            {/* Thẻ 4: Sổ tay câu sai */}
             <div 
               onClick={() => navigate('/mistakes')}
-              className="flex items-center justify-between p-3 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 rounded-2xl cursor-pointer hover:bg-rose-100/70 dark:hover:bg-rose-900/40 transition-all group"
+              className="flex items-center justify-between p-3 sm:p-3.5 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 rounded-2xl cursor-pointer hover:bg-rose-100/70 dark:hover:bg-rose-900/40 transition-all group"
             >
-              <div className="flex items-center space-x-2.5">
-                <div className="p-2 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl">
-                  <Bookmark className="h-4 w-4" />
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="p-2 sm:p-2.5 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl shrink-0">
+                  <Bookmark className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400">Sổ tay câu sai</p>
-                  <p className="font-black text-rose-700 dark:text-rose-300 text-sm">{mistakesCount} câu</p>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400 truncate">
+                    Sổ tay câu sai
+                  </p>
+                  <p className="font-black text-rose-700 dark:text-rose-300 text-xs sm:text-sm">
+                    {mistakesCount} câu
+                  </p>
                 </div>
               </div>
-              <ArrowRight className="w-4 h-4 text-rose-400 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="w-4 h-4 text-rose-400 group-hover:translate-x-1 transition-transform shrink-0 ml-1" />
             </div>
           </div>
         </div>
       </motion.div>
 
-      {/* Thống kê Năng lực (Analytics theo Môn học) */}
+      {/* Thống kê Năng lực Học tập (Hỗ trợ cuộn mượt khi có nhiều môn) */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="mb-8"
+        className="space-y-4"
       >
-        <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center">
-          <BookOpen className="mr-2 h-5 w-5 text-teal-600 dark:text-teal-400" />
-          Thống kê Năng lực (Coverage & Accuracy)
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base sm:text-xl font-black text-slate-900 dark:text-white flex items-center">
+            <BookOpen className="mr-2 h-5 w-5 text-teal-600 dark:text-teal-400" />
+            Thống kê Năng lực Học tập
+          </h2>
+          {subjectStats.length > 3 && (
+            <span className="text-xs text-slate-400 font-semibold">
+              {subjectStats.length} chuyên khoa
+            </span>
+          )}
+        </div>
 
         {subjectStats.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {subjectStats.map((stat, index) => (
-              <div key={index} className="bg-white/80 dark:bg-[#0c1222]/90 rounded-3xl p-5 border border-slate-200/80 dark:border-white/10 shadow-sm hover:border-teal-500/40 dark:hover:border-teal-400/40 transition-all">
-                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4">{stat.subjectId}</h3>
-                
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-xs font-bold mb-1">
-                      <span className="text-slate-500 dark:text-slate-400">Độ phủ (Câu đã làm)</span>
-                      <span className="text-teal-600 dark:text-teal-400">{stat.questionsDone} câu</span>
-                    </div>
-                    {/* Thanh tiến độ giả lập độ phủ */}
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
-                      <div className="bg-teal-500 h-2 rounded-full" style={{ width: `${Math.min(stat.questionsDone / 2, 100)}%` }}></div>
-                    </div>
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[460px] overflow-y-auto custom-scrollbar pr-1">
+            {subjectStats.map((stat, index) => {
+              const displayName = getSubjectDisplayName(stat.subjectId, manifest);
 
-                  <div>
-                    <div className="flex justify-between text-xs font-bold mb-1">
-                      <span className="text-slate-500 dark:text-slate-400">Độ chính xác (Hiểu bài)</span>
-                      <span className={stat.accuracy >= 80 ? 'text-emerald-600 dark:text-emerald-400' : stat.accuracy >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}>
-                        {stat.accuracy}%
-                      </span>
+              return (
+                <div key={index} className="bg-white/80 dark:bg-[#0c1222]/90 rounded-3xl p-5 border border-slate-200/80 dark:border-white/10 shadow-sm hover:border-teal-500/40 dark:hover:border-teal-400/40 transition-all space-y-4">
+                  <h3 className="font-black text-slate-900 dark:text-white text-sm sm:text-base leading-snug line-clamp-2">
+                    {displayName}
+                  </h3>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-xs font-bold mb-1">
+                        <span className="text-slate-500 dark:text-slate-400">Độ phủ kiến thức</span>
+                        <span className="text-teal-600 dark:text-teal-400">{stat.questionsDone} câu đã làm</span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                        <div className="bg-teal-500 h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min(stat.questionsDone / 2, 100)}%` }}></div>
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full ${stat.accuracy >= 80 ? 'bg-emerald-500' : stat.accuracy >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`} 
-                        style={{ width: `${stat.accuracy}%` }}
-                      ></div>
+
+                    <div>
+                      <div className="flex justify-between text-xs font-bold mb-1">
+                        <span className="text-slate-500 dark:text-slate-400">Độ chính xác</span>
+                        <span className={stat.accuracy >= 80 ? 'text-emerald-600 dark:text-emerald-400' : stat.accuracy >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}>
+                          {stat.accuracy}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-500 ${stat.accuracy >= 80 ? 'bg-emerald-500' : stat.accuracy >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`} 
+                          style={{ width: `${stat.accuracy}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="bg-white/80 dark:bg-[#0c1222]/90 rounded-3xl shadow-sm border border-slate-200 dark:border-white/10 p-8 text-center flex flex-col items-center">
@@ -190,13 +309,14 @@ export default function ProfilePage() {
         )}
       </motion.div>
 
-      {/* Lịch sử làm bài (Detailed History) */}
+      {/* Lịch sử làm bài chi tiết (Tên đề in nghiêng mờ, gộp thời gian + ngày cùng 1 dòng) */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
+        className="space-y-4"
       >
-        <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center">
+        <h2 className="text-base sm:text-xl font-black text-slate-900 dark:text-white flex items-center">
           <CheckCircle2 className="mr-2 h-5 w-5 text-teal-600 dark:text-teal-400" />
           Lịch sử ôn tập chi tiết
         </h2>
@@ -204,12 +324,12 @@ export default function ProfilePage() {
         {progressList.length > 0 ? (
           <div className="bg-white/80 dark:bg-[#0c1222]/90 rounded-3xl shadow-sm border border-slate-200/80 dark:border-white/10 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse min-w-[550px]">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-white/5 border-b border-slate-200/80 dark:border-white/10 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
-                    <th className="p-4 sm:p-5">Môn học & Bộ đề</th>
-                    <th className="p-4 sm:p-5">Điểm số</th>
-                    <th className="p-4 sm:p-5 hidden sm:table-cell">Thời gian</th>
+                    <th className="p-4 sm:p-5">Môn học &amp; Đề thi</th>
+                    <th className="p-4 sm:p-5 text-center sm:text-left">Điểm số</th>
+                    <th className="p-4 sm:p-5">Thời gian &amp; Ngày hoàn thành</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -219,19 +339,44 @@ export default function ProfilePage() {
                     if (percent < 50) scoreColor = 'text-rose-700 bg-rose-50 border-rose-200 dark:text-rose-400 dark:bg-rose-900/20 dark:border-rose-800/30';
                     else if (percent < 80) scoreColor = 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-900/20 dark:border-amber-800/30';
 
+                    const displayName = getSubjectDisplayName(prog.subjectId, manifest);
+                    const deckDisplayName = getDeckDisplayName(prog.subjectId, prog.deckId, manifest);
+                    const timeSpentFormatted = prog.timeSpentSeconds 
+                      ? `${Math.floor(prog.timeSpentSeconds / 60)}p ${prog.timeSpentSeconds % 60}s`
+                      : 'Hoàn thành';
+                    const dateFormatted = new Date(prog.date || prog.completedAt).toLocaleDateString('vi-VN', { 
+                      hour: '2-digit', 
+                      minute: '2-digit',
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric'
+                    });
+
                     return (
                       <tr key={index} className="hover:bg-slate-50/70 dark:hover:bg-white/5 transition-colors">
                         <td className="p-4 sm:p-5">
-                          <p className="font-bold text-slate-800 dark:text-slate-200 text-sm sm:text-base">{prog.subjectId}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{prog.deckId}</p>
+                          <p className="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">
+                            {displayName}
+                          </p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 italic mt-1">
+                            * {deckDisplayName}
+                          </p>
                         </td>
                         <td className="p-4 sm:p-5">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs sm:text-sm font-extrabold border ${scoreColor}`}>
+                          <span className={`inline-flex items-center px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black border shadow-xs ${scoreColor}`}>
                             {prog.score} / {prog.total} ({percent}%)
                           </span>
                         </td>
-                        <td className="p-4 sm:p-5 hidden sm:table-cell text-slate-500 dark:text-slate-400 text-xs font-medium">
-                          {new Date(prog.date).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                        <td className="p-4 sm:p-5 text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-extrabold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-2 py-0.5 rounded-lg border border-teal-500/20">
+                              {timeSpentFormatted}
+                            </span>
+                            <span className="text-slate-400">&bull;</span>
+                            <span className="text-slate-500 dark:text-slate-400">
+                              {dateFormatted}
+                            </span>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -252,6 +397,75 @@ export default function ProfilePage() {
           </div>
         )}
       </motion.div>
+
+      {/* ========================================================================= */}
+      {/* MODAL ĐỔI ẢNH ĐẠI DIỆN TỰ TẢI                                             */}
+      {/* ========================================================================= */}
+      {isAvatarModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setIsAvatarModalOpen(false)}
+        >
+          <div 
+            className="bg-white dark:bg-[#0c1222] rounded-3xl p-6 sm:p-8 max-w-md w-full border border-slate-200 dark:border-white/10 shadow-2xl space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                Tải ảnh đại diện cá nhân
+              </h3>
+              <button
+                onClick={() => setIsAvatarModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Tải ảnh từ máy tính / điện thoại */}
+            <div className="space-y-2">
+              <label className="flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed border-teal-500/40 hover:border-teal-500 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer transition-all bg-teal-50/30 dark:bg-teal-950/20 hover:bg-teal-50/60 group">
+                <div className="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <span className="text-sm font-extrabold text-slate-900 dark:text-white">Chọn ảnh từ thiết bị</span>
+                <span className="text-[11px] text-slate-400 mt-1">Hỗ trợ JPG, PNG, WEBP (Tối đa 5MB)</span>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleFileUpload} 
+                  className="hidden" 
+                />
+              </label>
+            </div>
+
+            {/* Hoặc dán link ảnh trực tiếp */}
+            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/10">
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Hoặc dán liên kết ảnh:
+              </p>
+              <div className="flex space-x-2">
+                <input 
+                  type="url"
+                  placeholder="https://example.com/my-photo.jpg"
+                  value={customAvatarUrl}
+                  onChange={(e) => setCustomAvatarUrl(e.target.value)}
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs text-slate-800 dark:text-white outline-none focus:border-teal-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSelectAvatar(customAvatarUrl)}
+                  disabled={!customAvatarUrl.trim()}
+                  className="px-4 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-600 disabled:opacity-50 text-white font-bold text-xs shrink-0 transition-colors"
+                >
+                  Lưu
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

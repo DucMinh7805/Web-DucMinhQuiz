@@ -127,6 +127,14 @@ function SubjectCardItem({ sub, idx, onHoverSubject, navigate }) {
     >
       {/* 1. KHUNG ẢNH BÌA MÔN HỌC (Aspect 16:10 ~70% chiều cao thẻ) */}
       <div className="w-full aspect-[16/10] relative overflow-hidden rounded-t-2xl sm:rounded-t-[23px] shrink-0 bg-slate-950">
+        {/* Badge Giá / PRO nếu có */}
+        {sub.price && sub.price !== '0' && sub.price !== 0 && (
+          <div className="absolute top-2.5 right-2.5 z-10 px-2.5 py-0.5 rounded-xl bg-amber-500/95 backdrop-blur-md text-white text-[10px] font-black shadow-md flex items-center space-x-1 border border-amber-300/40">
+            <Sparkles className="w-3 h-3" />
+            <span>{typeof sub.price === 'number' ? `${sub.price.toLocaleString('vi-VN')} đ` : sub.price}</span>
+          </div>
+        )}
+
         {hasValidImage ? (
           <img 
             src={rawCoverUrl} 

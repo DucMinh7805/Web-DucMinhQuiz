@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { 
   ChevronLeft, FileText, Clock, PlayCircle, BarChart, 
-  BookOpen, Sparkles, X, CheckCircle2, ArrowRight
+  BookOpen, Sparkles, X, CheckCircle2, ArrowRight, Lock, Key
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
@@ -10,13 +10,14 @@ import { getDirectImageUrl } from '../utils/imageHelper';
 import usePageTitle from '../hooks/usePageTitle';
 
 import Breadcrumb from '../components/Common/Breadcrumb';
+import UnlockSubjectModal from '../components/Modals/UnlockSubjectModal';
 
 export default function DeckSelectionPage() {
   usePageTitle('Chọn bộ đề');
   const { id } = useParams();
   const navigate = useNavigate();
   const manifest = useOutletContext();
-  const { user } = useAuth();
+  const { user, isSubjectUnlocked } = useAuth();
 
   const normalizeKey = str => String(str || '')
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -35,6 +36,17 @@ export default function DeckSelectionPage() {
   
   const [activeTag, setActiveTag] = useState('all');
   const [selectedDeckForModal, setSelectedDeckForModal] = useState(null);
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+  const [sessionConfig, setSessionConfig] = useState({
+    mode: 'tutor',
+    shuffle: true,
+    limit: '30'
+  });
+
+  const isUnlocked = useMemo(() => {
+    if (!isSubjectUnlocked) return true;
+    return isSubjectUnlocked(subject?.id, subject?.price);
+  }, [isSubjectUnlocked, subject]);
 
   const decks = Array.isArray(subject?.decks) ? subject.decks : [];
 
@@ -289,16 +301,31 @@ export default function DeckSelectionPage() {
                   </div>
                 </div>
                 
-                {/* 1 Nút Duy Nhất: Vào Làm Bài (Bấm mở Modal chọn Luyện tập / Thi thử) */}
+                {/* Nút Vào Làm Bài: Tinh gọn, basic */}
                 <div className="shrink-0 flex items-center">
                   {deck.path ? (
                     <button 
                       type="button"
-                      onClick={() => setSelectedDeckForModal(deck)}
-                      className="w-full sm:w-auto px-5 py-2.5 sm:px-6 sm:py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-md shadow-teal-500/20 hover:scale-[1.03] active:scale-95 transition-all cursor-pointer"
+                      onClick={() => {
+                        if (!isUnlocked) {
+                          setIsUnlockModalOpen(true);
+                          return;
+                        }
+                        setSelectedDeckForModal(deck);
+                        setSessionConfig({
+                          mode: 'tutor',
+                          shuffle: true,
+                          limit: deck.questionCount > 30 ? '30' : 'full'
+                        });
+                      }}
+                      className={`w-full sm:w-auto px-6 py-2.5 sm:px-7 sm:py-3 rounded-2xl text-white font-black text-xs sm:text-sm shadow-md hover:scale-[1.02] active:scale-95 transition-all cursor-pointer text-center flex items-center justify-center space-x-1.5 ${
+                        !isUnlocked
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-500/20'
+                          : 'bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 shadow-teal-500/20'
+                      }`}
                     >
-                      <PlayCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                      <span>Vào làm bài</span>
+                      {!isUnlocked && <Lock className="w-3.5 h-3.5 mr-1" />}
+                      <span>{!isUnlocked ? 'Mở khóa PRO' : 'Làm bài'}</span>
                     </button>
                   ) : (
                     <button disabled className="w-full sm:w-auto px-6 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-2xl font-bold text-xs cursor-not-allowed">
@@ -314,105 +341,182 @@ export default function DeckSelectionPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL POPUP CHỌN CHẾ ĐỘ THI (LUYỆN TẬP / THI THỬ)                         */}
+      {/* 4. MODAL THIẾT LẬP BUỔI THI (UI/UX PRO MAX - RỘNG RÃI & CÔNG TẮC SWITCH) */}
       {/* ========================================================================= */}
       {selectedDeckForModal && (
         <div 
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
           onClick={() => setSelectedDeckForModal(null)}
         >
           <div 
-            className="bg-white/95 dark:bg-[#0c1222]/95 backdrop-blur-2xl rounded-3xl p-6 sm:p-8 max-w-md w-full border border-slate-200/80 dark:border-white/10 shadow-2xl space-y-6"
+            className="bg-white/95 dark:bg-[#0c1222]/95 backdrop-blur-2xl rounded-3xl p-6 sm:p-8 max-w-2xl sm:max-w-3xl w-full border border-slate-200/80 dark:border-white/10 shadow-2xl space-y-6"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header Modal */}
-            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-white/10">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-teal-600 dark:text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded-md border border-teal-500/20">
-                  {subject.name}
-                </span>
-                <h3 className="font-black text-slate-900 dark:text-white text-lg sm:text-xl mt-1">
-                  {selectedDeckForModal.name}
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-white/10">
+              <div className="min-w-0 pr-4">
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white truncate">
+                  {selectedDeckForModal.name || selectedDeckForModal.id}
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Bộ đề gồm <strong>{selectedDeckForModal.questionCount || 0} câu hỏi</strong> trắc nghiệm
-                </p>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedDeckForModal(null)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10"
+                className="p-2 rounded-2xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* 2 Lựa chọn Chế độ làm bài */}
-            <div className="space-y-3">
-              {/* Lựa chọn 1: Chế độ Luyện tập */}
-              <button
-                type="button"
-                onClick={() => {
-                  const targetPath = selectedDeckForModal.path;
-                  setSelectedDeckForModal(null);
-                  navigate(`/quiz/${encodeURIComponent(targetPath)}?mode=tutor`);
-                }}
-                className="w-full text-left p-4 rounded-2xl border-2 border-teal-500/30 hover:border-teal-500 bg-teal-500/5 dark:bg-teal-500/10 hover:bg-teal-500/15 transition-all group relative overflow-hidden"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-xl bg-teal-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-teal-500/30">
-                      <BookOpen className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="font-black text-sm text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 flex items-center">
-                        <span>Chế độ Luyện tập</span>
-                        <span className="ml-2 text-[10px] font-black bg-teal-500/20 text-teal-700 dark:text-teal-300 px-1.5 py-0.2 rounded-md">Tự học</span>
-                      </h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Xem đáp án &amp; giải thích cơ chế ngay sau mỗi câu. Không tính giờ.
-                      </p>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-teal-500 group-hover:translate-x-1 transition-transform shrink-0 mt-1" />
+            {/* 3 Công Tắc Chuyển Đổi (Toggle Switch Layout - Kích Thước Bằng Nhau Tuyệt Đối) */}
+            <div className="space-y-4">
+              
+              {/* Công tắc 1: Chế độ làm bài (Luyện tập ⟷ Thi thử) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">Chế độ</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {sessionConfig.mode === 'tutor' 
+                      ? 'Tự học: Xem đáp án & giải thích sau từng câu' 
+                      : 'Thi thử: Tính giờ (1.5 phút/câu), xem điểm khi nộp bài'}
+                  </p>
                 </div>
-              </button>
 
-              {/* Lựa chọn 2: Chế độ Thi thử */}
-              <button
-                type="button"
-                onClick={() => {
-                  const targetPath = selectedDeckForModal.path;
-                  setSelectedDeckForModal(null);
-                  navigate(`/quiz/${encodeURIComponent(targetPath)}?mode=exam`);
-                }}
-                className="w-full text-left p-4 rounded-2xl border-2 border-indigo-500/30 hover:border-indigo-500 bg-indigo-500/5 dark:bg-indigo-500/10 hover:bg-indigo-500/15 transition-all group relative overflow-hidden"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-500/30">
-                      <Clock className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="font-black text-sm text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 flex items-center">
-                        <span>Chế độ Thi thử</span>
-                        <span className="ml-2 text-[10px] font-black bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.2 rounded-md">Tính giờ</span>
-                      </h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Đếm ngược {Math.round((selectedDeckForModal.questionCount || 0) * 1.5)} phút. Nộp bài mới hiển thị điểm.
-                      </p>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-indigo-500 group-hover:translate-x-1 transition-transform shrink-0 mt-1" />
+                {/* Capsule Switch (Chuẩn kích thước w-60 h-11) */}
+                <div className="inline-flex p-1 w-60 h-11 rounded-2xl bg-slate-200/70 dark:bg-black/30 border border-slate-300/40 dark:border-white/10 shrink-0 self-start sm:self-auto items-center">
+                  <button
+                    type="button"
+                    onClick={() => setSessionConfig(prev => ({ ...prev, mode: 'tutor' }))}
+                    className={`w-1/2 h-full flex items-center justify-center rounded-xl text-xs font-black transition-all ${
+                      sessionConfig.mode === 'tutor'
+                        ? 'bg-white dark:bg-teal-500 text-teal-700 dark:text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Luyện tập
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSessionConfig(prev => ({ ...prev, mode: 'exam' }))}
+                    className={`w-1/2 h-full flex items-center justify-center rounded-xl text-xs font-black transition-all ${
+                      sessionConfig.mode === 'exam'
+                        ? 'bg-white dark:bg-teal-500 text-teal-700 dark:text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Thi thử
+                  </button>
                 </div>
-              </button>
+              </div>
+
+              {/* Công tắc 2: Đảo câu hỏi (Thứ tự gốc ⟷ Đảo câu hỏi) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">Thứ tự câu hỏi</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {sessionConfig.shuffle ? 'Đang bật đảo ngẫu nhiên câu hỏi' : 'Giữ nguyên theo thứ tự ban đầu của đề'}
+                  </p>
+                </div>
+
+                {/* Capsule Switch (Chuẩn kích thước w-60 h-11) */}
+                <div className="inline-flex p-1 w-60 h-11 rounded-2xl bg-slate-200/70 dark:bg-black/30 border border-slate-300/40 dark:border-white/10 shrink-0 self-start sm:self-auto items-center">
+                  <button
+                    type="button"
+                    onClick={() => setSessionConfig(prev => ({ ...prev, shuffle: false }))}
+                    className={`w-1/2 h-full flex items-center justify-center rounded-xl text-xs font-black transition-all ${
+                      !sessionConfig.shuffle
+                        ? 'bg-white dark:bg-teal-500 text-teal-700 dark:text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Thứ tự gốc
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSessionConfig(prev => ({ ...prev, shuffle: true }))}
+                    className={`w-1/2 h-full flex items-center justify-center rounded-xl text-xs font-black transition-all ${
+                      sessionConfig.shuffle
+                        ? 'bg-white dark:bg-teal-500 text-teal-700 dark:text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Đảo câu hỏi
+                  </button>
+                </div>
+              </div>
+
+              {/* Công tắc 3: Số lượng câu hỏi (30 câu ⟷ Toàn bộ) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">Số lượng câu</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {sessionConfig.limit === '30' 
+                      ? 'Làm nhanh 30 câu hỏi ngẫu nhiên' 
+                      : `Toàn bộ ${selectedDeckForModal.questionCount || 0} câu trong đề`}
+                  </p>
+                </div>
+
+                {/* Capsule Switch (Chuẩn kích thước w-60 h-11) */}
+                <div className="inline-flex p-1 w-60 h-11 rounded-2xl bg-slate-200/70 dark:bg-black/30 border border-slate-300/40 dark:border-white/10 shrink-0 self-start sm:self-auto items-center">
+                  <button
+                    type="button"
+                    onClick={() => setSessionConfig(prev => ({ ...prev, limit: '30' }))}
+                    className={`w-1/2 h-full flex items-center justify-center rounded-xl text-xs font-black transition-all ${
+                      sessionConfig.limit === '30'
+                        ? 'bg-white dark:bg-teal-500 text-teal-700 dark:text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    30 câu
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSessionConfig(prev => ({ ...prev, limit: 'full' }))}
+                    className={`w-1/2 h-full flex items-center justify-center rounded-xl text-xs font-black transition-all ${
+                      sessionConfig.limit === 'full'
+                        ? 'bg-white dark:bg-teal-500 text-teal-700 dark:text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Toàn bộ đề
+                  </button>
+                </div>
+              </div>
+
             </div>
 
-            <p className="text-[11px] text-center text-slate-400">
-              💡 Bạn có thể chọn bất kỳ chế độ nào tùy theo mục đích ôn tập hôm nay.
-            </p>
+            {/* Nút Bắt Đầu Làm Bài Lớn Nổi Bật */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const targetPath = selectedDeckForModal.path;
+                  const params = new URLSearchParams({
+                    mode: sessionConfig.mode,
+                    shuffle: sessionConfig.shuffle ? 'true' : 'false',
+                    limit: sessionConfig.limit
+                  });
+                  setSelectedDeckForModal(null);
+                  navigate(`/quiz/${encodeURIComponent(targetPath)}?${params.toString()}`);
+                }}
+                className="w-full py-4 rounded-2xl bg-gradient-to-r from-teal-500 via-teal-600 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-black text-sm sm:text-base shadow-xl shadow-teal-500/25 hover:scale-[1.01] active:scale-95 transition-all text-center cursor-pointer"
+              >
+                Bắt đầu làm bài
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* 5. MODAL MỞ KHÓA MÔN HỌC (BANKING & MÃ KÍCH HOẠT PRO)                     */}
+      {/* ========================================================================= */}
+      <UnlockSubjectModal
+        isOpen={isUnlockModalOpen}
+        onClose={() => setIsUnlockModalOpen(false)}
+        item={subject}
+        onSuccess={() => setIsUnlockModalOpen(false)}
+      />
     </div>
   );
 }

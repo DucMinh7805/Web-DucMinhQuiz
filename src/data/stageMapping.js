@@ -23,18 +23,18 @@ export const STAGE_CONFIG = {
   },
   [STAGES.PRECLINICAL]: {
     id: 'preclinical',
-    label: 'Tiền lâm sàng (Y1 - Y3)',
-    shortLabel: 'Tiền lâm sàng',
-    years: 'Y1 - Y3',
-    description: 'Kiến thức y học cơ sở & đại cương: Giải phẫu, Sinh lý, Hóa sinh, Dược lý, Mô phôi, Lý sinh, Chính trị...',
+    label: 'Tiền lâm sàng (Y1 - Y2)',
+    shortLabel: 'Y1 - Y2',
+    years: 'Y1 - Y2',
+    description: 'Kiến thức Y học cơ sở & đại cương: Giải phẫu, Sinh lý, Hóa sinh, Dược lý, Mô phôi, Lý sinh, Chính trị...',
     badgeClass: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
     color: '#8b5cf6'
   },
   [STAGES.CLINICAL]: {
     id: 'clinical',
-    label: 'Lâm sàng (Y4 - Y6)',
+    label: 'Lâm sàng (Y3 - Y6)',
     shortLabel: 'Lâm sàng',
-    years: 'Y4 - Y6',
+    years: 'Y3 - Y6',
     description: 'Kiến thức bệnh học & điều trị: Nội, Ngoại, Sản, Nhi, Cấp cứu, Chẩn đoán hình ảnh...',
     badgeClass: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20',
     color: '#06b6d4'
@@ -117,17 +117,27 @@ export function resolveSubjectStages(subject) {
 
   // 1. Đã có mảng stages từ API
   if (Array.isArray(subject.stages) && subject.stages.length > 0) {
-    const valid = subject.stages.filter(s => Object.values(STAGES).includes(s));
-    if (valid.length > 0) return valid;
+    const valid = subject.stages.map(s => {
+      const low = String(s).toLowerCase().replace(/[-_]/g, '');
+      if (low.includes('y1') || low.includes('y2') || low.includes('preclinical') || low.includes('coso')) return STAGES.PRECLINICAL;
+      if (low.includes('clinical') || low.includes('lamsang') || low.includes('y3') || low.includes('y4') || low.includes('y5') || low.includes('y6')) return STAGES.CLINICAL;
+      return Object.values(STAGES).includes(s) ? s : null;
+    }).filter(Boolean);
+    if (valid.length > 0) return Array.from(new Set(valid));
   }
 
-  // 2. Có chuỗi stage từ Sheet (ví dụ "preclinical,clinical")
+  // 2. Có chuỗi stage từ Sheet (ví dụ "y1_y2,clinical" hoặc "Tiền lâm sàng")
   if (typeof subject.stage === 'string' && subject.stage.trim()) {
     const parsed = subject.stage
       .split(',')
-      .map(s => s.trim().toLowerCase())
-      .filter(s => Object.values(STAGES).includes(s));
-    if (parsed.length > 0) return parsed;
+      .map(s => {
+        const low = s.trim().toLowerCase().replace(/[-_]/g, '');
+        if (low.includes('y1') || low.includes('y2') || low.includes('preclinical') || low.includes('tienlam')) return STAGES.PRECLINICAL;
+        if (low.includes('clinical') || low.includes('lamsang') || low.includes('y3') || low.includes('y4') || low.includes('y5') || low.includes('y6')) return STAGES.CLINICAL;
+        return Object.values(STAGES).includes(s.trim().toLowerCase()) ? s.trim().toLowerCase() : null;
+      })
+      .filter(Boolean);
+    if (parsed.length > 0) return Array.from(new Set(parsed));
   }
 
   // 3. Tra cứu theo subject.id trong Seed Mapping

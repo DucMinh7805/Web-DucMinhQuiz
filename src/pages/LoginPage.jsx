@@ -144,7 +144,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-[#070b19] via-[#0d1530] to-[#170e2c] text-white p-4 sm:p-6 lg:p-10 font-sans antialiased selection:bg-teal-400/30">
+    <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-[#070b19] via-[#0d1530] to-[#170e2c] text-white p-4 sm:p-8 lg:p-12 font-sans antialiased selection:bg-teal-400/30">
       
       {/* 1. NỀN FLUID LIQUID BLOBS & 3D FLOATING SPHERES RỰC RỠ */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
@@ -157,14 +157,14 @@ export default function LoginPage() {
         <div className="absolute bottom-20 left-[10%] w-20 h-20 rounded-full bg-gradient-to-br from-indigo-400 via-purple-600 to-slate-950 shadow-[inset_-6px_-6px_12px_rgba(0,0,0,0.6),0_10px_25px_rgba(99,102,241,0.25)] opacity-70" />
       </div>
 
-      {/* 2. KHUNG KÍNH 2 CỘT CỐ ĐỊNH (FIXED 2-COLUMN SPLIT CONTAINER) */}
-      <div className="w-full max-w-4xl relative z-10">
+      {/* 2. KHUNG KÍNH 2 CỘT CỐ ĐỊNH (FIXED 2-COLUMN SPLIT CONTAINER - RỘNG RÃI) */}
+      <div className="w-full max-w-5xl relative z-10">
         <div className="rounded-[36px] bg-slate-950/60 backdrop-blur-2xl border border-white/15 shadow-[0_25px_70px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.2)] overflow-hidden">
           
-          <div className="grid grid-cols-1 md:grid-cols-12 min-h-[540px]">
+          <div className="grid grid-cols-1 md:grid-cols-12 min-h-[560px]">
             
             {/* CỘT TRÁI (MD: 7 CỘT): FORM THAO TÁC */}
-            <div className="p-7 sm:p-10 md:col-span-7 flex flex-col justify-between relative">
+            <div className="p-6 sm:p-10 md:col-span-7 flex flex-col justify-between relative">
               <div>
                 
                 {/* Header Logo */}

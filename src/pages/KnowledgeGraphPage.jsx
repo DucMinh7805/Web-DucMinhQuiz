@@ -43,8 +43,8 @@ export default function KnowledgeGraphPage() {
 
   const timelineChips = [
     { id: STAGES.ALL, label: 'Tất cả', count: stats?.totalSubjects || 0 },
-    { id: STAGES.PRECLINICAL, label: 'Tiền lâm sàng (Y1 - Y3)', count: stats?.stageCounts?.preclinical || 0 },
-    { id: STAGES.CLINICAL, label: 'Lâm sàng (Y4 - Y6)', count: stats?.stageCounts?.clinical || 0 }
+    { id: STAGES.PRECLINICAL, label: 'Tiền lâm sàng (Y1 - Y2)', count: stats?.stageCounts?.preclinical || 0 },
+    { id: STAGES.CLINICAL, label: 'Lâm sàng (Y3 - Y6)', count: stats?.stageCounts?.clinical || 0 }
   ];
 
   return (
@@ -57,7 +57,7 @@ export default function KnowledgeGraphPage() {
       {/* =================================================================== */}
       {/* 1. TOP CONTROLS (Thanh Chuyển Chế Độ Nằm Gọn Trên 1 Dòng Mượt Mà)   */}
       {/* =================================================================== */}
-      <div className="pt-3 pb-2 px-3 sm:px-8 flex items-center justify-between gap-2 shrink-0 z-20 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <div className="pt-3 pb-3 px-3 sm:px-8 flex items-center justify-between gap-2 shrink-0 z-20 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden bg-slate-50/80 dark:bg-[#060a14]/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-white/5">
         
         {/* Capsule Dock Chuyển Chế Độ (Bung xả, êm ái, bo tròn mềm) */}
         <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
@@ -167,9 +167,9 @@ export default function KnowledgeGraphPage() {
           </div>
         )}
 
-        {/* VIEW 2: CÂY THƯ MỤC CHUYÊN KHOA */}
+        {/* VIEW 2: CÂY THƯ MỤC CHUYÊN KHOA 2 CỘT (35% TRÁI - 65% PHẢI) */}
         {viewMode === 'tree' && (
-          <div className="w-full h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 max-w-4xl mx-auto">
+          <div className="w-full h-full overflow-y-auto custom-scrollbar p-3 sm:p-8 max-w-[1800px] mx-auto">
             <WindowsFileTree 
               manifest={{ subjects: filteredSubjects }} 
               searchTerm={searchQuery} 

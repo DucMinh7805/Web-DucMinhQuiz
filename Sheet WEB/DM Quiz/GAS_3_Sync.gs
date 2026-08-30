@@ -246,7 +246,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
 }
 
 // -------------------------------------------------------------------------
-// TASK 3: HÌNH ẢNH
+// TASK 3: HÌNH ẢNH (Đồng bộ chuẩn xác, xóa ảnh cũ nếu link rỗng & hỗ trợ nền)
 // -------------------------------------------------------------------------
 function syncImagesOnly() {
   const { manifest, allDecksData, dbSheet, ss } = getDB();
@@ -254,12 +254,18 @@ function syncImagesOnly() {
   if (!picSheet) throw new Error("Không tìm thấy Tab HinhAnh");
   
   const subMap = {};
-  manifest.subjects.forEach(s => { subMap[normalizeName(s.name)] = s; });
+  // 1. Reset ảnh và màu nền của toàn bộ môn học để đồng bộ 100% theo trạng thái thực tế của Sheet
+  manifest.subjects.forEach(s => { 
+    s.icon = ""; 
+    s.coverUrl = "";
+    subMap[normalizeName(s.name)] = s; 
+  });
   
   const picData = picSheet.getDataRange().getValues();
   for (let i = 1; i < picData.length; i++) {
     const subName = String(picData[i][0] || '').trim();
     let iconUrl = String(picData[i][1] || '').trim();
+    let bgColor = String(picData[i][2] || '').trim(); // Cột C: Màu nền / Style thẻ
     
     if (subName && iconUrl) {
       if (iconUrl.includes('drive.google.com') || iconUrl.includes('docs.google.com')) {
@@ -271,13 +277,77 @@ function syncImagesOnly() {
       const subKey = normalizeName(subName);
       if (subMap[subKey]) {
         subMap[subKey].icon = iconUrl;
+        subMap[subKey].coverUrl = iconUrl;
+        if (bgColor) {
+          subMap[subKey].colorTheme = bgColor;
+        }
       }
     }
   }
   
   manifest.subjects = Object.values(subMap);
   saveDB(dbSheet, manifest, allDecksData);
-  SpreadsheetApp.getActiveSpreadsheet().toast('Đã đồng bộ Hình Ảnh!', 'Thành công');
+  SpreadsheetApp.getActiveSpreadsheet().toast('Đã đồng bộ Hình Ảnh và làm mới bộ nhớ!', 'Thành công');
+}
+
+// -------------------------------------------------------------------------
+// TASK: XÓA ĐỀ THI LINH HOẠT (Chạy trên Sheet)
+// -------------------------------------------------------------------------
+function deleteSelectedDecks() {
+  const ui = SpreadsheetApp.getUi();
+  const sheet = SpreadsheetApp.getActiveSheet();
+  if (!sheet.getName().toLowerCase().includes("up")) {
+    return ui.alert('Lỗi', 'Vui lòng mở tab UpDe và bôi đen các dòng đề thi bạn muốn xóa.', ui.ButtonSet.OK);
+  }
+  
+  const range = sheet.getActiveRange();
+  const startRow = range.getRow();
+  const numRows = range.getNumRows();
+  
+  if (startRow <= 1) {
+    return ui.alert('Lỗi', 'Vui lòng chọn các dòng đề thi từ dòng 2 trở đi.', ui.ButtonSet.OK);
+  }
+  
+  const confirm = ui.alert('Xác nhận xóa', `Bạn có chắc chắn muốn xóa ${numRows} bộ đề đang được chọn khỏi hệ thống Database không?`, ui.ButtonSet.YES_NO);
+  if (confirm !== ui.Button.YES) return;
+  
+  const { manifest, allDecksData, dbSheet, ss } = getDB();
+  const selectedValues = sheet.getRange(startRow, 1, numRows, Math.max(sheet.getLastColumn(), 6)).getValues();
+  let deletedCount = 0;
+  
+  for (let r = 0; r < numRows; r++) {
+    const subName = String(selectedValues[r][0] || '').trim();
+    const deckName = String(selectedValues[r][1] || '').trim();
+    
+    if (subName && deckName) {
+      const subKey = normalizeName(subName);
+      const subId = generateSlug(subKey);
+      const deckId = generateSlug(deckName, `DE_${startRow + r}`);
+      const deckPath = `${subId}/${deckId}`;
+      
+      // Xóa khỏi allDecksData
+      if (allDecksData[deckPath]) {
+        delete allDecksData[deckPath];
+        deletedCount++;
+      }
+      
+      // Xóa khỏi manifest.subjects
+      manifest.subjects.forEach(sub => {
+        if (Array.isArray(sub.decks)) {
+          sub.decks = sub.decks.filter(d => d.path !== deckPath && d.name !== deckName);
+        }
+      });
+    }
+  }
+  
+  saveDB(dbSheet, manifest, allDecksData);
+  
+  // Đánh dấu trạng thái "🗑️ Đã xóa" lên Cột E
+  for (let r = 0; r < numRows; r++) {
+    sheet.getRange(startRow + r, 5).setValue("🗑️ Đã xóa khỏi Database");
+  }
+  
+  ui.alert('Thành công', `Đã xóa thành công ${deletedCount} đề thi khỏi bộ nhớ Database!`, ui.ButtonSet.OK);
 }
 
 // -------------------------------------------------------------------------

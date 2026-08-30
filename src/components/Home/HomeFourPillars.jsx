@@ -136,7 +136,7 @@ export default function HomeFourPillars({ pillarsData }) {
                       key={sub.id}
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/decks/${sub.id}`);
+                        navigate(`/subject/${sub.id}`);
                       }}
                       className="text-[10px] sm:text-[11px] text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-white/5 hover:bg-teal-500 dark:hover:bg-teal-500 hover:text-white dark:hover:text-white px-2 py-0.5 rounded-lg border border-slate-200/60 dark:border-white/5 truncate max-w-[130px] transition-all cursor-pointer"
                       title={`Vào luyện thi ngay môn ${sub.name}`}

@@ -31,7 +31,7 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
-  const updateProgress = (subjectId, deckId, score, total, wrongQuestions = []) => {
+  const updateProgress = (subjectId, deckId, score, total, wrongQuestions = [], timeSpentSeconds = 0) => {
     if (!user) return;
     
     const updatedUser = { ...user };
@@ -41,7 +41,9 @@ export function AuthProvider({ children }) {
     updatedUser.progress[subjectId][deckId] = {
       score,
       total,
-      date: new Date().toISOString()
+      timeSpentSeconds: timeSpentSeconds || 0,
+      date: new Date().toISOString(),
+      completedAt: new Date().toISOString()
     };
 
     // Lưu vào Sổ tay câu sai (Mistakes Notebook)
@@ -139,6 +141,37 @@ export function AuthProvider({ children }) {
     setUser(updatedUser);
   };
 
+  // Mở khóa môn học / tài liệu (Mặc định hạn 60 ngày)
+  const unlockSubject = (subjectId, durationDays = 60) => {
+    if (!user) return false;
+    const updatedUser = { ...user };
+    if (!updatedUser.unlockedSubjects) updatedUser.unlockedSubjects = [];
+    if (!updatedUser.unlockedSubjects.includes(subjectId)) {
+      updatedUser.unlockedSubjects.push(subjectId);
+    }
+    if (!updatedUser.subjectExpirations) updatedUser.subjectExpirations = {};
+    updatedUser.subjectExpirations[subjectId] = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+    
+    localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
+    setUser(updatedUser);
+    return true;
+  };
+
+  // Kiểm tra môn học đã được mở khóa hay chưa
+  const isSubjectUnlocked = (subjectId, price) => {
+    // Nếu môn miễn phí (price = 0 hoặc không có) -> Luôn mở khóa
+    if (!price || price === 0 || price === '0' || price === 'Miễn phí') return true;
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    if (user.unlockedSubjects?.includes(subjectId)) {
+      // Kiểm tra hạn sử dụng
+      const expiry = user.subjectExpirations?.[subjectId];
+      if (!expiry) return true;
+      return new Date(expiry).getTime() > Date.now();
+    }
+    return false;
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -148,7 +181,9 @@ export function AuthProvider({ children }) {
       updateProgress,
       removeMistake,
       clearMistakes,
-      reviewMistake
+      reviewMistake,
+      unlockSubject,
+      isSubjectUnlocked
     }}>
       {children}
     </AuthContext.Provider>
@@ -158,3 +193,4 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
+
