@@ -9,10 +9,11 @@ function onOpen() {
       .addItem('📗 3. Đồng bộ Chuyên Khoa (Tab 1)', 'syncChuyenKhoa')
       .addItem('🖼️ 4. Đồng bộ Hình Ảnh (Tab 3)', 'syncImagesOnly')
       .addItem('📚 5. Đồng bộ Tài Liệu (Tab 4)', 'syncSourcesOnly')
+      .addItem('💰 6. Đồng bộ Giá Môn Học (Tab Giá/GiaMonHoc)', 'syncPricingOnly')
       .addSeparator()
-      .addItem('🔄 6. Cập Nhật Toàn Bộ (Làm mới tất cả)', 'syncAll')
+      .addItem('🔄 7. Cập Nhật Toàn Bộ (Làm mới tất cả)', 'syncAll')
       .addSeparator()
-      .addItem('🗑️ 7. Xóa Đề Thi Đang Chọn (Bôi đen dòng)', 'deleteSelectedDecks')
+      .addItem('🗑️ 8. Xóa Đề Thi Đang Chọn (Bôi đen dòng)', 'deleteSelectedDecks')
       .addToUi();
 }
 

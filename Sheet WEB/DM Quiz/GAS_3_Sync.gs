@@ -409,14 +409,74 @@ function syncSourcesOnly() {
 }
 
 // -------------------------------------------------------------------------
-// TASK 5: SYNC ALL
+// TASK 6: ĐỒNG BỘ GIÁ MÔN HỌC (Tab GiaMonHoc / Giá Bán)
+// -------------------------------------------------------------------------
+function syncPricingOnly(showToast = true) {
+  const { manifest, allDecksData, dbSheet, ss } = getDB();
+  const priceSheet = findSheetByAliases(ss, [
+    "GiaMonHoc", "Giá Môn Học", "Gia", "Giá", "GiaBan", "Giá Bán", 
+    "SetGia", "Set Giá", "BangGia", "Bảng Giá", "Price", "Pricing"
+  ]);
+  if (!priceSheet) {
+    if (showToast) SpreadsheetApp.getUi().alert('Thông báo', 'Không tìm thấy Tab Giá Môn Học.\nHãy đặt tên Tab là "GiaMonHoc" hoặc "Giá Bán" với 3 cột: [Tên Môn | Giá Bán | Ghi Chú]', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+  
+  const subMap = {};
+  // Mặc định reset giá về 0 (Miễn phí) cho toàn bộ môn trước khi nạp giá mới
+  manifest.subjects.forEach(s => { 
+    s.price = 0;
+    s.isPro = false;
+    subMap[normalizeName(s.name)] = s; 
+  });
+  
+  const priceData = priceSheet.getDataRange().getValues();
+  let updatedCount = 0;
+  
+  for (let i = 1; i < priceData.length; i++) {
+    const subName = String(priceData[i][0] || '').trim();
+    const rawPrice = priceData[i][1];
+    const note = String(priceData[i][2] || '').trim();
+    
+    if (subName) {
+      const subKey = normalizeName(subName);
+      if (subMap[subKey]) {
+        let priceNum = 0;
+        if (typeof rawPrice === 'number') {
+          priceNum = rawPrice;
+        } else if (typeof rawPrice === 'string') {
+          const cleaned = rawPrice.replace(/[^0-9]/g, '');
+          priceNum = cleaned ? parseInt(cleaned, 10) : 0;
+        }
+        
+        if (priceNum > 0) {
+          subMap[subKey].price = priceNum;
+          subMap[subKey].priceFormatted = priceNum.toLocaleString('vi-VN') + ' đ';
+          subMap[subKey].isPro = true;
+          if (note) subMap[subKey].priceNote = note;
+          updatedCount++;
+        }
+      }
+    }
+  }
+  
+  manifest.subjects = Object.values(subMap);
+  saveDB(dbSheet, manifest, allDecksData);
+  if (showToast) {
+    SpreadsheetApp.getActiveSpreadsheet().toast(`Đã cập nhật giá bán cho ${updatedCount} môn học!`, 'Thành công');
+  }
+}
+
+// -------------------------------------------------------------------------
+// TASK 5: SYNC ALL (Làm mới toàn bộ hệ thống)
 // -------------------------------------------------------------------------
 function syncAll() {
   syncChuyenKhoa(false);
   runUpDeSync(false, null, false);
   syncImagesOnly();
   syncSourcesOnly();
-  SpreadsheetApp.getUi().alert('Thành công', 'Đã làm mới toàn bộ Dữ Liệu!', SpreadsheetApp.getUi().ButtonSet.OK);
+  syncPricingOnly(false);
+  SpreadsheetApp.getUi().alert('Thành công', 'Đã làm mới toàn bộ Dữ Liệu (Chuyên khoa, Đề thi, Hình ảnh, Tài liệu & Giá môn học)!', SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
 
