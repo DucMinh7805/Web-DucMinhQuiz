@@ -7,7 +7,7 @@ import { getDirectImageUrl } from '../../utils/imageHelper';
  * - Sử dụng CSS Mask Image để triệt tiêu 100% mép viền/đường kẻ
  * - Mờ dần từ sắc nét sang trong suốt hoàn toàn
  */
-export default function BookCard({ book, onAskAi }) {
+export default function BookCard({ book, onAskAi, onUnlock, isUnlocked }) {
   const defaultCoverGradient = book.department?.includes('Ngoại')
     ? 'from-indigo-600 via-purple-700 to-slate-900'
     : book.department?.includes('Cơ sở')
@@ -15,6 +15,8 @@ export default function BookCard({ book, onAskAi }) {
     : 'from-teal-600 via-emerald-700 to-slate-900';
 
   const directCover = getDirectImageUrl(book.coverUrl);
+  const numericPrice = typeof book.price === 'number' ? book.price : parseInt(String(book.price || '0').replace(/[^0-9]/g, ''), 10) || 0;
+  const hasPrice = numericPrice > 0;
 
   return (
     <motion.div
@@ -26,6 +28,13 @@ export default function BookCard({ book, onAskAi }) {
     >
       {/* Glow Hover Ambient */}
       <div className="absolute -top-16 -right-16 w-36 h-36 rounded-full bg-teal-500/15 blur-3xl group-hover:scale-150 transition-transform duration-500 pointer-events-none" />
+
+      {/* Badge Giá Bán Sách / PRO nếu có */}
+      {hasPrice ? (
+        <div className="absolute top-2.5 right-2.5 z-20 px-2.5 py-0.5 rounded-xl bg-amber-500 text-white text-[10px] font-black shadow-md border border-amber-300/40 tracking-tight">
+          {`${numericPrice.toLocaleString('vi-VN')} đ`}
+        </div>
+      ) : null}
 
       <div>
         {/* ================================================================= */}
@@ -84,10 +93,18 @@ export default function BookCard({ book, onAskAi }) {
       </div>
 
       {/* ================================================================= */}
-      {/* 3. NÚT ĐỌC SÁCH & HỎI AI                                          */}
+      {/* 3. NÚT ĐỌC SÁCH / MỞ KHÓA & HỎI AI                                */}
       {/* ================================================================= */}
       <div className="mt-3 sm:mt-5 pt-2 sm:pt-3 border-t border-slate-100 dark:border-white/10 flex items-center space-x-1.5 sm:space-x-2 relative z-10">
-        {book.link && book.link.startsWith('http') ? (
+        {hasPrice && !isUnlocked ? (
+          <button
+            type="button"
+            onClick={() => onUnlock && onUnlock(book)}
+            className="flex-1 py-1.5 sm:py-2.5 px-2 sm:px-3 rounded-lg sm:rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[11px] sm:text-xs flex items-center justify-center shadow-sm transition-all"
+          >
+            <span>Mở Khóa</span>
+          </button>
+        ) : book.link && book.link.startsWith('http') ? (
           <a
             href={book.link}
             target="_blank"

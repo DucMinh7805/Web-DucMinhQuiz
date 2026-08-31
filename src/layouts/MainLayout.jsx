@@ -292,8 +292,12 @@ export default function MainLayout({ manifest }) {
                 className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} min-w-0 flex-1`} 
                 title={isCollapsed ? user.name : undefined}
               >
-                <div className="w-8 h-8 rounded-xl bg-teal-500/15 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 font-extrabold text-xs flex items-center justify-center shrink-0 border border-teal-500/20">
-                  {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                <div className="w-8 h-8 rounded-xl bg-teal-500/15 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 font-extrabold text-xs flex items-center justify-center shrink-0 border border-teal-500/20 overflow-hidden shadow-xs">
+                  {user.avatar ? (
+                    <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                  ) : (
+                    user.name ? user.name.charAt(0).toUpperCase() : 'U'
+                  )}
                 </div>
                 {!isCollapsed && (
                   <div className="min-w-0 flex-1">

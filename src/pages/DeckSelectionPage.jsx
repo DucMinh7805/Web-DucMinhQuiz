@@ -188,6 +188,27 @@ export default function DeckSelectionPage() {
                 Đề thi đang cập nhật
               </div>
             )}
+
+            {/* Trạng thái Mở khóa PRO & Đếm ngược ngày còn lại */}
+            {subject.price && subject.price !== 0 && subject.price !== '0' && isUnlocked && (
+              <div className="flex items-center bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-xl font-bold text-xs sm:text-sm">
+                <CheckCircle2 className="w-4 h-4 mr-1.5 text-emerald-600 dark:text-emerald-400" />
+                <span>
+                  Đã mở khóa PRO {user?.subjectExpirations?.[subject.id] ? `• Còn ${Math.max(0, Math.ceil((new Date(user.subjectExpirations[subject.id]).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))} ngày` : ''}
+                </span>
+              </div>
+            )}
+
+            {subject.price && subject.price !== 0 && subject.price !== '0' && !isUnlocked && (
+              <button
+                type="button"
+                onClick={() => setIsUnlockModalOpen(true)}
+                className="flex items-center bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-1.5 rounded-xl font-black shadow-sm transition-colors text-xs sm:text-sm"
+              >
+                <Sparkles className="w-4 h-4 mr-1.5" />
+                <span>Mở khóa PRO ({typeof subject.price === 'number' ? `${subject.price.toLocaleString('vi-VN')} đ` : subject.price})</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   User, Calendar, BookOpen, Award, CheckCircle2, Bookmark, 
-  ArrowRight, Camera, X, Check, Clock, Upload, Link as LinkIcon
+  ArrowRight, Camera, X, Check, Clock, Upload, Link as LinkIcon,
+  Sparkles
 } from 'lucide-react';
 import { Navigate, useNavigate, useOutletContext } from 'react-router-dom';
 import usePageTitle from '../hooks/usePageTitle';
@@ -87,6 +88,10 @@ export default function ProfilePage() {
       subjectStatsMap[subjectId] = {
         subjectId,
         questionsDone: subjTotal,
+        correctCount: subjScore,
+        wrongCount: Math.max(0, subjTotal - subjScore),
+        correctPercent: subjTotal > 0 ? Math.round((subjScore / subjTotal) * 100) : 0,
+        wrongPercent: subjTotal > 0 ? Math.round(((subjTotal - subjScore) / subjTotal) * 100) : 0,
         accuracy: subjTotal > 0 ? Math.round((subjScore / subjTotal) * 100) : 0
       };
     });
@@ -167,46 +172,46 @@ export default function ProfilePage() {
             )}
           </div>
           
-          {/* 4 Thẻ Thống Kê Tổng Quan (Tối ưu nút gọn gàng trên mobile) */}
+          {/* 4 Thẻ Thống Kê Tổng Quan (Rộng rãi, không bị cắt chữ) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-slate-100 dark:border-white/5">
             
-            {/* Thẻ 1: Lần đăng nhập gần nhất */}
-            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3 sm:p-3.5 bg-slate-50/70 dark:bg-white/5 rounded-2xl border border-slate-200/60 dark:border-white/5">
+            {/* Thẻ 1: Đăng nhập gần nhất */}
+            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3.5 bg-slate-50/70 dark:bg-white/5 rounded-2xl border border-slate-200/60 dark:border-white/5">
               <div className="p-2 sm:p-2.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0">
                 <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 truncate">
-                  Lần đăng nhập gần nhất
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                  Đăng nhập gần nhất
                 </p>
-                <p className="font-extrabold text-slate-800 dark:text-slate-200 text-xs sm:text-sm mt-0.5 truncate">
-                  {user.loginTime ? new Date(user.loginTime).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Hôm nay'}
+                <p className="font-extrabold text-slate-800 dark:text-slate-200 text-xs sm:text-sm mt-0.5 whitespace-nowrap">
+                  {user.loginTime ? new Date(user.loginTime).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Hôm nay'}
                 </p>
               </div>
             </div>
             
             {/* Thẻ 2: Đã hoàn thành */}
-            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3 sm:p-3.5 bg-teal-50/50 dark:bg-teal-950/20 rounded-2xl border border-teal-500/20">
+            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3.5 bg-teal-50/50 dark:bg-teal-950/20 rounded-2xl border border-teal-500/20">
               <div className="p-2 sm:p-2.5 rounded-xl bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/20 shrink-0">
                 <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 truncate">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 whitespace-nowrap">
                   Đã hoàn thành
                 </p>
-                <p className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm mt-0.5 truncate">
+                <p className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm mt-0.5 whitespace-nowrap">
                   {totalQuizzes} đề <span className="text-slate-400 font-normal">|</span> {totalQuestions} câu
                 </p>
               </div>
             </div>
 
             {/* Thẻ 3: Tỉ lệ chính xác */}
-            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3 sm:p-3.5 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-500/20">
+            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3.5 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-500/20">
               <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shrink-0">
                 <Award className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 truncate">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                   Tỉ lệ chính xác
                 </p>
                 <p className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm mt-0.5">
@@ -218,14 +223,14 @@ export default function ProfilePage() {
             {/* Thẻ 4: Sổ tay câu sai */}
             <div 
               onClick={() => navigate('/mistakes')}
-              className="flex items-center justify-between p-3 sm:p-3.5 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 rounded-2xl cursor-pointer hover:bg-rose-100/70 dark:hover:bg-rose-900/40 transition-all group"
+              className="flex items-center justify-between p-3.5 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 rounded-2xl cursor-pointer hover:bg-rose-100/70 dark:hover:bg-rose-900/40 transition-all group"
             >
               <div className="flex items-center space-x-3 min-w-0">
                 <div className="p-2 sm:p-2.5 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl shrink-0">
                   <Bookmark className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400 truncate">
+                  <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400 whitespace-nowrap">
                     Sổ tay câu sai
                   </p>
                   <p className="font-black text-rose-700 dark:text-rose-300 text-xs sm:text-sm">
@@ -239,7 +244,7 @@ export default function ProfilePage() {
         </div>
       </motion.div>
 
-      {/* Thống kê Năng lực Học tập (Hỗ trợ cuộn mượt khi có nhiều môn) */}
+      {/* Thống kê Năng lực Học tập (Thanh Tiến Độ Mảnh Mai Siêu Tinh Tế) */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -259,41 +264,50 @@ export default function ProfilePage() {
         </div>
 
         {subjectStats.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[460px] overflow-y-auto custom-scrollbar pr-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[460px] overflow-y-auto custom-scrollbar pr-1">
             {subjectStats.map((stat, index) => {
               const displayName = getSubjectDisplayName(stat.subjectId, manifest);
 
               return (
-                <div key={index} className="bg-white/80 dark:bg-[#0c1222]/90 rounded-3xl p-5 border border-slate-200/80 dark:border-white/10 shadow-sm hover:border-teal-500/40 dark:hover:border-teal-400/40 transition-all space-y-4">
-                  <h3 className="font-black text-slate-900 dark:text-white text-sm sm:text-base leading-snug line-clamp-2">
-                    {displayName}
-                  </h3>
+                <div key={index} className="bg-white/80 dark:bg-[#0c1222]/90 rounded-2xl p-4 border border-slate-200/80 dark:border-white/10 shadow-xs hover:border-teal-500/40 dark:hover:border-teal-400/40 transition-all space-y-2.5">
+                  {/* Hàng 1: Tên Môn + Tổng số câu */}
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm leading-snug line-clamp-1">
+                      {displayName}
+                    </h3>
+                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 shrink-0">
+                      {stat.questionsDone} câu
+                    </span>
+                  </div>
                   
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span className="text-slate-500 dark:text-slate-400">Độ phủ kiến thức</span>
-                        <span className="text-teal-600 dark:text-teal-400">{stat.questionsDone} câu đã làm</span>
-                      </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                        <div className="bg-teal-500 h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min(stat.questionsDone / 2, 100)}%` }}></div>
-                      </div>
-                    </div>
+                  {/* Thanh Tiến Độ Mảnh Mai h-1.5 (Tone màu dịu nhẹ, tập trung vào tên môn) */}
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden flex">
+                    {stat.correctPercent > 0 && (
+                      <div 
+                        className="bg-emerald-400/80 dark:bg-emerald-500/70 h-1.5 transition-all duration-500" 
+                        style={{ width: `${stat.correctPercent}%` }}
+                        title={`Đúng: ${stat.correctCount} câu (${stat.correctPercent}%)`}
+                      />
+                    )}
+                    {stat.wrongPercent > 0 && (
+                      <div 
+                        className="bg-rose-400/60 dark:bg-rose-500/50 h-1.5 transition-all duration-500" 
+                        style={{ width: `${stat.wrongPercent}%` }}
+                        title={`Sai: ${stat.wrongCount} câu (${stat.wrongPercent}%)`}
+                      />
+                    )}
+                  </div>
 
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span className="text-slate-500 dark:text-slate-400">Độ chính xác</span>
-                        <span className={stat.accuracy >= 80 ? 'text-emerald-600 dark:text-emerald-400' : stat.accuracy >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}>
-                          {stat.accuracy}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                        <div 
-                          className={`h-2 rounded-full transition-all duration-500 ${stat.accuracy >= 80 ? 'bg-emerald-500' : stat.accuracy >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`} 
-                          style={{ width: `${stat.accuracy}%` }}
-                        />
-                      </div>
-                    </div>
+                  {/* Hàng 2: Chi tiết Đúng / Sai (Màu nhẹ nhàng) */}
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    <span className="flex items-center text-emerald-600/90 dark:text-emerald-400/90">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/80 inline-block mr-1.5" />
+                      Đúng: {stat.correctCount} ({stat.correctPercent}%)
+                    </span>
+                    <span className="flex items-center text-rose-500/80 dark:text-rose-400/80">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400/60 inline-block mr-1.5" />
+                      Sai: {stat.wrongCount} ({stat.wrongPercent}%)
+                    </span>
                   </div>
                 </div>
               );
@@ -309,7 +323,55 @@ export default function ProfilePage() {
         )}
       </motion.div>
 
-      {/* Lịch sử làm bài chi tiết (Tên đề in nghiêng mờ, gộp thời gian + ngày cùng 1 dòng) */}
+      {/* Danh sách Môn học PRO đã mở khóa & Hạn sử dụng */}
+      {user.unlockedSubjects && user.unlockedSubjects.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="space-y-4"
+        >
+          <h2 className="text-base sm:text-xl font-black text-slate-900 dark:text-white flex items-center">
+            <Sparkles className="mr-2 h-5 w-5 text-amber-500" />
+            Môn học PRO đã mở khóa
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {user.unlockedSubjects.map((subId, idx) => {
+              const displayName = getSubjectDisplayName(subId, manifest);
+              const expiry = user.subjectExpirations?.[subId];
+              const remainingDays = expiry ? Math.max(0, Math.ceil((new Date(expiry).getTime() - Date.now()) / (24 * 60 * 60 * 1000))) : 60;
+              const isExpired = remainingDays === 0;
+
+              return (
+                <div 
+                  key={idx} 
+                  onClick={() => navigate(`/subject/${subId}`)}
+                  className="bg-white/80 dark:bg-[#0c1222]/90 rounded-2xl p-4 border border-amber-500/20 dark:border-amber-500/20 shadow-xs hover:border-amber-500/50 transition-all cursor-pointer flex items-center justify-between group"
+                >
+                  <div className="min-w-0 pr-2">
+                    <p className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm truncate group-hover:text-teal-600 transition-colors">
+                      {displayName}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {expiry ? `Hết hạn: ${new Date(expiry).toLocaleDateString('vi-VN')}` : 'Gói 60 ngày'}
+                    </p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-xl text-[11px] font-black shrink-0 ${
+                    isExpired 
+                      ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 border border-rose-200' 
+                      : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 border border-emerald-500/20'
+                  }`}>
+                    {isExpired ? 'Đã hết hạn' : `Còn ${remainingDays} ngày`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Lịch sử làm bài chi tiết (Mobile/iPad: Chỉ hiện Tên Đề; Desktop: Hiện cả Tên Môn + Đề) */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -324,10 +386,10 @@ export default function ProfilePage() {
         {progressList.length > 0 ? (
           <div className="bg-white/80 dark:bg-[#0c1222]/90 rounded-3xl shadow-sm border border-slate-200/80 dark:border-white/10 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[550px]">
+              <table className="w-full text-left border-collapse min-w-[500px]">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-white/5 border-b border-slate-200/80 dark:border-white/10 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
-                    <th className="p-4 sm:p-5">Môn học &amp; Đề thi</th>
+                    <th className="p-4 sm:p-5">Đề thi</th>
                     <th className="p-4 sm:p-5 text-center sm:text-left">Điểm số</th>
                     <th className="p-4 sm:p-5">Thời gian &amp; Ngày hoàn thành</th>
                   </tr>
@@ -355,12 +417,22 @@ export default function ProfilePage() {
                     return (
                       <tr key={index} className="hover:bg-slate-50/70 dark:hover:bg-white/5 transition-colors">
                         <td className="p-4 sm:p-5">
-                          <p className="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">
-                            {displayName}
-                          </p>
-                          <p className="text-xs text-slate-400 dark:text-slate-500 italic mt-1">
-                            * {deckDisplayName}
-                          </p>
+                          {/* Desktop: Hiển thị cả Môn và Đề (Không còn dấu *) */}
+                          <div className="hidden sm:block">
+                            <p className="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">
+                              {displayName}
+                            </p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500 italic mt-1">
+                              {deckDisplayName}
+                            </p>
+                          </div>
+
+                          {/* Mobile / iPad: Chỉ hiển thị Tên Đề */}
+                          <div className="sm:hidden">
+                            <p className="font-extrabold text-slate-900 dark:text-white text-xs leading-snug">
+                              {deckDisplayName}
+                            </p>
+                          </div>
                         </td>
                         <td className="p-4 sm:p-5">
                           <span className={`inline-flex items-center px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black border shadow-xs ${scoreColor}`}>

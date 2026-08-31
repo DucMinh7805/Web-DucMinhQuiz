@@ -27,4 +27,6 @@ dist-ssr
 google-key.json
 .env
 .migration_cache.json
+ma Qr.jpg
+*.private.*
 

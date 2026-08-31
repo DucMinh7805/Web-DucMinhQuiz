@@ -9,7 +9,7 @@ function onOpen() {
       .addItem('📗 3. Đồng bộ Chuyên Khoa (Tab 1)', 'syncChuyenKhoa')
       .addItem('🖼️ 4. Đồng bộ Hình Ảnh (Tab 3)', 'syncImagesOnly')
       .addItem('📚 5. Đồng bộ Tài Liệu (Tab 4)', 'syncSourcesOnly')
-      .addItem('💰 6. Đồng bộ Giá Môn Học (Tab Giá/GiaMonHoc)', 'syncPricingOnly')
+      .addItem('💰 6. Đồng bộ Giá Môn Học (Tab GiaMonHoc)', 'syncPricingOnly')
       .addSeparator()
       .addItem('🔄 7. Cập Nhật Toàn Bộ (Làm mới tất cả)', 'syncAll')
       .addSeparator()

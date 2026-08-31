@@ -5,7 +5,8 @@ import {
   Bot, Send, X, FolderOpen
 } from 'lucide-react';
 import BookCard from '../components/Library/BookCard';
-
+import UnlockSubjectModal from '../components/Modals/UnlockSubjectModal';
+import { useAuth } from '../context/AuthContext';
 import { useOutletContext } from 'react-router-dom';
 import usePageTitle from '../hooks/usePageTitle';
 
@@ -20,12 +21,14 @@ const EMPTY_SUBJECTS = [];
 
 export default function LibraryPage() {
   usePageTitle('Kho Sách & Slide');
+  const { isSubjectUnlocked } = useAuth();
   const manifest = useOutletContext();
   const books = manifest?.books || EMPTY_BOOKS;
   const subjects = manifest?.subjects || EMPTY_SUBJECTS;
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [selectedBookForAi, setSelectedBookForAi] = useState(null);
+  const [selectedBookForUnlock, setSelectedBookForUnlock] = useState(null);
   const [aiQuestion, setAiQuestion] = useState('');
   const [aiChatHistory, setAiChatHistory] = useState([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -157,16 +160,22 @@ export default function LibraryPage() {
         {/* 3. Books Grid or Empty State */}
         {filteredBooks.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-5">
-            {filteredBooks.map((book) => (
-              <BookCard
-                key={book.id}
-                book={book}
-                onAskAi={(b) => {
-                  setSelectedBookForAi(b);
-                  setAiChatHistory([]);
-                }}
-              />
-            ))}
+            {filteredBooks.map((book) => {
+              const isUnlocked = isSubjectUnlocked ? isSubjectUnlocked(book.id, book.price) : true;
+
+              return (
+                <BookCard
+                  key={book.id}
+                  book={book}
+                  isUnlocked={isUnlocked}
+                  onUnlock={(b) => setSelectedBookForUnlock(b)}
+                  onAskAi={(b) => {
+                    setSelectedBookForAi(b);
+                    setAiChatHistory([]);
+                  }}
+                />
+              );
+            })}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center p-12 rounded-3xl bg-white/60 dark:bg-[#0b1120]/60 border border-slate-200/80 dark:border-white/10 text-center space-y-3">
@@ -281,6 +290,14 @@ export default function LibraryPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 5. Modal Mở Khóa Tài Liệu PRO */}
+      <UnlockSubjectModal
+        isOpen={!!selectedBookForUnlock}
+        onClose={() => setSelectedBookForUnlock(null)}
+        item={selectedBookForUnlock}
+        onSuccess={() => setSelectedBookForUnlock(null)}
+      />
     </div>
   );
 }

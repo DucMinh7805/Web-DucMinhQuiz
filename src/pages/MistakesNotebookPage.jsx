@@ -82,20 +82,36 @@ export default function MistakesNotebookPage() {
     });
   }, [mistakes, selectedSubject, searchTerm]);
 
+  // Danh sách câu hỏi đưa vào phiên ôn tập Flashcard (Theo môn đang chọn hoặc toàn bộ)
+  const reviewQueue = useMemo(() => {
+    if (selectedSubject === 'all') {
+      return dueMistakes.length > 0 ? dueMistakes : filteredMistakes;
+    }
+    const subjectMistakes = mistakes.filter(m => m.subjectId === selectedSubject);
+    return subjectMistakes;
+  }, [selectedSubject, dueMistakes, filteredMistakes, mistakes]);
+
   // Hàm xử lý khi chọn đánh giá chất lượng nhớ (SM-2)
   const handleRateMistake = (quality) => {
-    const currentMistake = dueMistakes[0];
+    const currentMistake = reviewQueue[0];
     if (!currentMistake) return;
-    reviewMistake(currentMistake.id || currentMistake.questionId, quality);
+    const qId = currentMistake.id || currentMistake.questionId;
+    if (quality >= 5) {
+      // Đã thuộc -> Xóa ngay khỏi sổ tay
+      removeMistake(qId);
+    } else {
+      reviewMistake(qId, quality);
+    }
   };
 
   // NẾU ĐANG TRONG CHẾ ĐỘ ÔN TẬP FLASHCARD
   if (isReviewMode) {
     return (
       <MistakesFlashcardReview
-        dueMistakes={dueMistakes}
+        dueMistakes={reviewQueue}
         onClose={() => setIsReviewMode(false)}
         onRateMistake={handleRateMistake}
+        onRemoveMistake={(qId) => removeMistake(qId)}
         formatSubjectName={formatSubjectName}
       />
     );
@@ -133,13 +149,15 @@ export default function MistakesNotebookPage() {
           </div>
 
           <div className="flex items-center space-x-2.5">
-            {dueMistakes.length > 0 && (
+            {reviewQueue.length > 0 && (
               <button
                 onClick={() => setIsReviewMode(true)}
                 className="flex items-center text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 px-5 py-2.5 rounded-2xl shadow-md shadow-teal-500/25 transition-all w-fit"
               >
                 <BrainCircuit className="w-4 h-4 mr-2" />
-                Ôn ngay {dueMistakes.length} câu hôm nay
+                {selectedSubject !== 'all' 
+                  ? `Ôn tập ${formatSubjectName(selectedSubject)} (${reviewQueue.length} câu)`
+                  : `Ôn tập ${reviewQueue.length} câu`}
               </button>
             )}
             

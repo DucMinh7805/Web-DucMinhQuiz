@@ -6,6 +6,7 @@ export default function MistakesFlashcardReview({
   dueMistakes = [],
   onClose,
   onRateMistake,
+  onRemoveMistake,
   formatSubjectName
 }) {
   const [showAnswer, setShowAnswer] = useState(false);
@@ -47,6 +48,14 @@ export default function MistakesFlashcardReview({
 
   const handleRate = (quality) => {
     onRateMistake(quality);
+    setShowAnswer(false);
+    setSelectedOption(null);
+  };
+
+  const handleQuickMaster = () => {
+    if (onRemoveMistake && current) {
+      onRemoveMistake(current.id || current.questionId);
+    }
     setShowAnswer(false);
     setSelectedOption(null);
   };
@@ -133,9 +142,19 @@ export default function MistakesFlashcardReview({
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-3 pt-2 border-t border-slate-100 dark:border-white/10"
               >
-                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm font-semibold">
-                  <p className="font-bold mb-0.5 text-emerald-700 dark:text-emerald-400">Đáp án chuẩn xác:</p>
-                  <p className="text-sm font-extrabold">{correctAnswerStr || 'Chưa cập nhật'}</p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm">
+                  <div>
+                    <p className="font-bold mb-0.5 text-emerald-700 dark:text-emerald-400">Đáp án chuẩn xác:</p>
+                    <p className="text-sm font-extrabold">{correctAnswerStr || 'Chưa cập nhật'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleQuickMaster}
+                    className="self-start sm:self-center px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs shadow-sm transition-all flex items-center shrink-0"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                    Đã thuộc (Xóa khỏi sổ)
+                  </button>
                 </div>
                 {current.explanation && (
                   <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-white/10 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
@@ -173,15 +192,15 @@ export default function MistakesFlashcardReview({
               </button>
               <button onClick={() => handleRate(3)} className="flex flex-col items-center justify-center p-3 rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-100 transition-colors border border-amber-200 dark:border-amber-800/50">
                 <span className="font-black text-sm sm:text-base">Khó</span>
-                <span className="text-[10px] opacity-70 mt-1 font-semibold">Vừa đủ nhớ</span>
+                <span className="text-[10px] opacity-70 mt-1 font-semibold">1 ngày</span>
               </button>
               <button onClick={() => handleRate(4)} className="flex flex-col items-center justify-center p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 transition-colors border border-emerald-200 dark:border-emerald-800/50">
                 <span className="font-black text-sm sm:text-base">Tốt</span>
-                <span className="text-[10px] opacity-70 mt-1 font-semibold">Nhớ rõ</span>
+                <span className="text-[10px] opacity-70 mt-1 font-semibold">6 ngày</span>
               </button>
               <button onClick={() => handleRate(5)} className="flex flex-col items-center justify-center p-3 rounded-2xl bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 hover:bg-teal-100 transition-colors border border-teal-200 dark:border-teal-800/50">
-                <span className="font-black text-sm sm:text-base">Dễ</span>
-                <span className="text-[10px] opacity-70 mt-1 font-semibold">Nhớ rất lâu</span>
+                <span className="font-black text-sm sm:text-base">Đã thuộc</span>
+                <span className="text-[10px] opacity-70 mt-1 font-semibold">Xóa khỏi sổ</span>
               </button>
             </motion.div>
           )}

@@ -382,6 +382,16 @@ function syncSourcesOnly() {
       const subKey = normalizeName(subName);
       const matchedSub = subMap[subKey];
       
+      // Đọc giá bán tài liệu (nếu có ở Cột F hoặc Cột G trong Tab TaiLieu)
+      let rawBookPrice = row[5] || row[6];
+      let bookPriceNum = 0;
+      if (typeof rawBookPrice === 'number') {
+        bookPriceNum = rawBookPrice;
+      } else if (typeof rawBookPrice === 'string') {
+        const cleaned = rawBookPrice.replace(/[^0-9]/g, '');
+        bookPriceNum = cleaned ? parseInt(cleaned, 10) : 0;
+      }
+
       booksList.push({
         id: generateSlug(sourceName, `BOOK_${i}`),
         title: sourceName,
@@ -390,7 +400,10 @@ function syncSourcesOnly() {
         code: matchedSub ? matchedSub.code : 'MED',
         link: sourceLink,
         author: authorUnit,
-        coverUrl: coverImg
+        coverUrl: coverImg,
+        price: bookPriceNum,
+        priceFormatted: bookPriceNum > 0 ? (bookPriceNum.toLocaleString('vi-VN') + ' đ') : '',
+        isPro: bookPriceNum > 0
       });
 
       if (matchedSub) {
@@ -409,7 +422,7 @@ function syncSourcesOnly() {
 }
 
 // -------------------------------------------------------------------------
-// TASK 6: ĐỒNG BỘ GIÁ MÔN HỌC (Tab GiaMonHoc / Giá Bán)
+// TASK 6: ĐỒNG BỘ GIÁ MÔN HỌC & TÀI LIỆU (Tab GiaMonHoc / Giá Bán)
 // -------------------------------------------------------------------------
 function syncPricingOnly(showToast = true) {
   const { manifest, allDecksData, dbSheet, ss } = getDB();
@@ -418,7 +431,7 @@ function syncPricingOnly(showToast = true) {
     "SetGia", "Set Giá", "BangGia", "Bảng Giá", "Price", "Pricing"
   ]);
   if (!priceSheet) {
-    if (showToast) SpreadsheetApp.getUi().alert('Thông báo', 'Không tìm thấy Tab Giá Môn Học.\nHãy đặt tên Tab là "GiaMonHoc" hoặc "Giá Bán" với 3 cột: [Tên Môn | Giá Bán | Ghi Chú]', SpreadsheetApp.getUi().ButtonSet.OK);
+    if (showToast) SpreadsheetApp.getUi().alert('Thông báo', 'Không tìm thấy Tab Giá.\nHãy đặt tên Tab là "GiaMonHoc" hoặc "Giá Bán" với 3 cột: [Tên Môn/Tài Liệu | Giá Bán | Ghi Chú]', SpreadsheetApp.getUi().ButtonSet.OK);
     return;
   }
   
@@ -430,40 +443,98 @@ function syncPricingOnly(showToast = true) {
     subMap[normalizeName(s.name)] = s; 
   });
   
+  if (Array.isArray(manifest.books)) {
+    manifest.books.forEach(b => {
+      b.price = 0;
+      b.isPro = false;
+    });
+  }
+  
   const priceData = priceSheet.getDataRange().getValues();
   let updatedCount = 0;
   
+  const statusUpdates = [];
+
   for (let i = 1; i < priceData.length; i++) {
-    const subName = String(priceData[i][0] || '').trim();
-    const rawPrice = priceData[i][1];
-    const note = String(priceData[i][2] || '').trim();
+    const row = priceData[i];
+    const monName = String(row[0] || '').trim();  // Cột A: Tên Môn
+    const bookName = String(row[1] || '').trim(); // Cột B: Tên Sách
     
-    if (subName) {
-      const subKey = normalizeName(subName);
-      if (subMap[subKey]) {
-        let priceNum = 0;
-        if (typeof rawPrice === 'number') {
-          priceNum = rawPrice;
-        } else if (typeof rawPrice === 'string') {
-          const cleaned = rawPrice.replace(/[^0-9]/g, '');
-          priceNum = cleaned ? parseInt(cleaned, 10) : 0;
-        }
-        
+    // Giá bán: kiểm tra Cột C (row[2]), fallback Cột B (row[1]) nếu dùng bảng 3 cột cũ
+    const rawPrice = (row[2] !== undefined && row[2] !== '') ? row[2] : (typeof row[1] === 'number' || /^\d+/.test(String(row[1] || '')) ? row[1] : 0);
+    const note = String(row[3] || '').trim();
+    
+    let priceNum = 0;
+    if (typeof rawPrice === 'number') {
+      priceNum = rawPrice;
+    } else if (typeof rawPrice === 'string') {
+      const cleaned = rawPrice.replace(/[^0-9]/g, '');
+      priceNum = cleaned ? parseInt(cleaned, 10) : 0;
+    }
+    
+    let rowStatus = '';
+
+    // 1. Khớp theo Tên Môn Học (Cột A)
+    if (monName) {
+      const monKey = normalizeName(monName);
+      if (subMap[monKey]) {
         if (priceNum > 0) {
-          subMap[subKey].price = priceNum;
-          subMap[subKey].priceFormatted = priceNum.toLocaleString('vi-VN') + ' đ';
-          subMap[subKey].isPro = true;
-          if (note) subMap[subKey].priceNote = note;
+          subMap[monKey].price = priceNum;
+          subMap[monKey].priceFormatted = priceNum.toLocaleString('vi-VN') + ' đ';
+          subMap[monKey].isPro = true;
+          if (note) subMap[monKey].priceNote = note;
           updatedCount++;
+          rowStatus = `✅ Môn PRO (${priceNum.toLocaleString('vi-VN')} đ)`;
+        } else {
+          rowStatus = 'Miễn phí';
         }
+      } else {
+        rowStatus = '⚠️ Chưa khớp môn';
       }
     }
+
+    // 2. Khớp theo Tên Sách / Giáo Trình (Cột B)
+    if (bookName && Array.isArray(manifest.books)) {
+      const bookKey = normalizeName(bookName);
+      let matched = false;
+      manifest.books.forEach(b => {
+        if (normalizeName(b.title) === bookKey || normalizeName(b.subjectName) === bookKey) {
+          if (priceNum > 0) {
+            b.price = priceNum;
+            b.priceFormatted = priceNum.toLocaleString('vi-VN') + ' đ';
+            b.isPro = true;
+            updatedCount++;
+            rowStatus = `✅ Sách PRO (${priceNum.toLocaleString('vi-VN')} đ)`;
+          } else {
+            rowStatus = 'Miễn phí';
+          }
+          matched = true;
+        }
+      });
+      if (!matched && !rowStatus) {
+        rowStatus = '⚠️ Chưa khớp sách';
+      }
+    }
+
+    statusUpdates.push([rowStatus || (monName || bookName ? 'Miễn phí' : '')]);
   }
   
+  // Tự động ghi trạng thái vào Cột E (Trạng thái) trên Google Sheet
+  try {
+    if (statusUpdates.length > 0) {
+      if (priceSheet.getMaxColumns() < 5) {
+        priceSheet.insertColumnsAfter(priceSheet.getMaxColumns(), 5 - priceSheet.getMaxColumns());
+      }
+      priceSheet.getRange(2, 5, statusUpdates.length, 1).setValues(statusUpdates);
+    }
+  } catch (e) {
+    Logger.log('Không thể ghi cột trạng thái: ' + e);
+  }
+
   manifest.subjects = Object.values(subMap);
   saveDB(dbSheet, manifest, allDecksData);
   if (showToast) {
-    SpreadsheetApp.getActiveSpreadsheet().toast(`Đã cập nhật giá bán cho ${updatedCount} môn học!`, 'Thành công');
+    SpreadsheetApp.getActiveSpreadsheet().toast(`Đã cập nhật giá bán và trạng thái cho ${updatedCount} mục!`, 'Thành công');
   }
 }
 
