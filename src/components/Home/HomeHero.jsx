@@ -100,7 +100,7 @@ export default function HomeHero({ subjectsCount = 0, totalDecks = 0, totalQuest
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           >
             <img
-              src="/Diamond Quiz.png"
+              src="/diamond_quiz.png"
               alt="Diamond Quiz"
               className="w-32 sm:w-44 lg:w-52 max-w-[240px] object-contain drop-shadow-[0_10px_20px_rgba(13,148,136,0.3)] transition-transform select-none"
             />

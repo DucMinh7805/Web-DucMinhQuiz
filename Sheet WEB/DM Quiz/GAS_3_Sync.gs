@@ -410,7 +410,9 @@ function syncSourcesOnly() {
         matchedSub.source = sourceName;
         matchedSub.sourceLink = sourceLink;
         matchedSub.sourceAuthor = authorUnit;
-        matchedSub.coverUrl = coverImg;
+        if (coverImg) {
+          matchedSub.coverUrl = coverImg;
+        }
       }
     }
   }
