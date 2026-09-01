@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
-import { 
-  ChevronLeft, FileText, Clock, PlayCircle, BarChart, 
-  BookOpen, Sparkles, X, CheckCircle2, ArrowRight, Lock, Key
+import {
+  ChevronLeft, Clock, BarChart,
+  Sparkles, X, CheckCircle2, Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
@@ -48,7 +48,10 @@ export default function DeckSelectionPage() {
     return isSubjectUnlocked(subject?.id, subject?.price);
   }, [isSubjectUnlocked, subject]);
 
-  const decks = Array.isArray(subject?.decks) ? subject.decks : [];
+  const decks = useMemo(
+    () => (Array.isArray(subject?.decks) ? subject.decks : []),
+    [subject]
+  );
 
   // 1. Trích xuất tất cả các Tag từ cột F (tab Upde)
   const { availableTags, totalQuestions } = useMemo(() => {
@@ -194,7 +197,7 @@ export default function DeckSelectionPage() {
               <div className="flex items-center bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-xl font-bold text-xs sm:text-sm">
                 <CheckCircle2 className="w-4 h-4 mr-1.5 text-emerald-600 dark:text-emerald-400" />
                 <span>
-                  Đã mở khóa PRO {user?.subjectExpirations?.[subject.id] ? `• Còn ${Math.max(0, Math.ceil((new Date(user.subjectExpirations[subject.id]).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))} ngày` : ''}
+                  Đã mở khóa PRO {user?.subjectExpirations?.[`subject:${subject.id}`] ? `• Còn ${Math.max(0, Math.ceil((new Date(user.subjectExpirations[`subject:${subject.id}`]).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))} ngày` : ''}
                 </span>
               </div>
             )}
@@ -536,6 +539,7 @@ export default function DeckSelectionPage() {
         isOpen={isUnlockModalOpen}
         onClose={() => setIsUnlockModalOpen(false)}
         item={subject}
+        itemType="subject"
         onSuccess={() => setIsUnlockModalOpen(false)}
       />
     </div>

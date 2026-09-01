@@ -13,6 +13,8 @@ function syncChuyenKhoa(showToast = true) {
   
   for (let i = 1; i < subData.length; i++) {
     const row = subData[i];
+    const normalizedStatus = normalizeName(row[7]); // Cột H: Trạng Thái
+    if (normalizedStatus === 'xoa' || normalizedStatus.indexOf('da xoa') >= 0) continue;
     let category = String(row[0] || '').trim();
     if (!category && lastCategory) category = lastCategory;
     if (category) lastCategory = category;
@@ -38,6 +40,11 @@ function syncChuyenKhoa(showToast = true) {
         sourceAuthor: oldSub.sourceAuthor || "",
         sourceUnit: oldSub.sourceUnit || "",
         coverUrl: oldSub.coverUrl || "",
+        colorTheme: oldSub.colorTheme || "",
+        price: oldSub.price || 0,
+        priceFormatted: oldSub.priceFormatted || "",
+        priceNote: oldSub.priceNote || "",
+        isPro: Boolean(oldSub.isPro),
         decks: oldSub.decks || []
       };
     }
@@ -45,6 +52,10 @@ function syncChuyenKhoa(showToast = true) {
   
   manifest.subjects = Object.values(newSubjectsMap);
   saveDB(dbSheet, manifest, allDecksData);
+  if (showToast && typeof pushContentSyncToWeb_ === 'function') {
+    const webSync = pushContentSyncToWeb_({ operation: 'syncManifest', manifest: manifest });
+    if (!webSync.success) SpreadsheetApp.getActiveSpreadsheet().toast(webSync.message, 'Sheet đã cập nhật');
+  }
   if (showToast) SpreadsheetApp.getActiveSpreadsheet().toast('Đã đồng bộ Chuyên Khoa!', 'Thành công');
   return { manifest, allDecksData, dbSheet, ss, newSubjectsMap };
 }
@@ -96,7 +107,7 @@ function syncActiveDeck() {
   syncSelectedDecks();
 }
 
-function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
+function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb = true) {
   // targetUrls: có thể là Set các link Form được bôi đen hoặc null (nếu đồng bộ tất cả)
   const { manifest, allDecksData, dbSheet, ss, newSubjectsMap } = syncChuyenKhoa(false);
   const deckSheet = findSheetByAliases(ss, ["UpDe", "Up De", "Up Môn", "UpMon", "Decks"]);
@@ -104,6 +115,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
 
   const newAllDecksData = Object.assign({}, allDecksData);
   let fetched = 0, reused = 0;
+  const changedDeckPaths = [];
   const deckData = deckSheet.getDataRange().getValues();
   
   // Làm sạch danh sách decks trong manifest để nạp lại chuẩn
@@ -132,6 +144,12 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
         const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(t => t) : [];
         const currentStatus = String(row[4] || '').trim(); // Cột E là Trạng Thái
         const deckImgUrl = String(row[6] || '').trim(); // Cột G (Tùy chọn) là Link ảnh mô hình / sơ đồ giải phẫu
+
+        // Dòng đã xóa không được tự động xuất hiện lại khi chạy Đồng bộ Tất cả.
+        const normalizedStatus = normalizeName(currentStatus);
+        if (normalizedStatus === 'xoa' || normalizedStatus.indexOf('da xoa') >= 0) {
+          continue;
+        }
         
         newSubjectsMap[subKey].decks.push({
           id: deckId,
@@ -153,6 +171,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
               ss.toast(`Đang nạp (${fetched + 1}/${targetUrls.size}): ${deckName}...`, '⚡ Đang xử lý', 10);
               const questions = extractQuestionsFromForm(formUrl, deckImgUrl);
               newAllDecksData[deckPath] = JSON.stringify(questions);
+              changedDeckPaths.push(deckPath);
               fetched++;
             } catch(err) {
               newAllDecksData[deckPath] = JSON.stringify({ error: err.message });
@@ -176,6 +195,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
           try {
             const questions = extractQuestionsFromForm(formUrl, deckImgUrl);
             newAllDecksData[deckPath] = JSON.stringify(questions);
+            changedDeckPaths.push(deckPath);
             fetched++;
           } catch(err) {
             newAllDecksData[deckPath] = JSON.stringify({ error: err.message });
@@ -188,6 +208,21 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
   manifest.subjects = Object.values(newSubjectsMap);
   saveDB(dbSheet, manifest, newAllDecksData);
 
+  const webSyncWarnings = [];
+  if (notifyWeb && typeof pushContentSyncToWeb_ === 'function') {
+    const manifestSync = pushContentSyncToWeb_({ operation: 'syncManifest', manifest: manifest });
+    if (!manifestSync.success) webSyncWarnings.push(manifestSync.message);
+    changedDeckPaths.forEach(path => {
+      const deckSync = pushContentSyncToWeb_({
+        operation: 'upsertDeck',
+        manifest: manifest,
+        deckPath: path,
+        questions: parseDeckQuestions_(newAllDecksData[path])
+      });
+      if (!deckSync.success) webSyncWarnings.push(path + ': ' + deckSync.message);
+    });
+  }
+
   // 3. Tự động ghi chú Trạng Thái lên Cột E của Tab UpDe
   try {
     if (deckSheet.getRange(1, 5).getValue() !== "Trạng Thái") {
@@ -197,7 +232,13 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
     for (let i = 1; i < deckData.length; i++) {
       const subName = String(deckData[i][0] || '').trim();
       const deckName = String(deckData[i][1] || '').trim();
+      const existingStatus = String(deckData[i][4] || '').trim();
       if (subName && deckName) {
+        const normalizedStatus = normalizeName(existingStatus);
+        if (normalizedStatus === 'xoa' || normalizedStatus.indexOf('da xoa') >= 0) {
+          statusValues.push([existingStatus || '🗑️ Đã xóa khỏi Database']);
+          continue;
+        }
         const subKey = normalizeName(subName);
         const subId = newSubjectsMap[subKey] ? newSubjectsMap[subKey].id : generateSlug(subKey);
         const deckId = generateSlug(deckName, `DE_${i}`);
@@ -243,12 +284,14 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true) {
       SpreadsheetApp.getUi().alert('Thành công', `Đồng bộ Đề Thi hoàn tất! (Cào mới: ${fetched}, Đã có sẵn: ${reused})\n(Tất cả đề đã được đánh dấu ✅ ở Cột E)`, SpreadsheetApp.getUi().ButtonSet.OK);
     }
   }
+  if (webSyncWarnings.length) SpreadsheetApp.getActiveSpreadsheet().toast('Sheet đã lưu; MongoDB chưa đồng bộ: ' + webSyncWarnings[0], 'Cần kiểm tra');
+  return { manifest, allDecksData: newAllDecksData, changedDeckPaths, webSyncWarnings };
 }
 
 // -------------------------------------------------------------------------
 // TASK 3: HÌNH ẢNH (Đồng bộ chuẩn xác, xóa ảnh cũ nếu link rỗng & hỗ trợ nền)
 // -------------------------------------------------------------------------
-function syncImagesOnly() {
+function syncImagesOnly(showToast = true) {
   const { manifest, allDecksData, dbSheet, ss } = getDB();
   const picSheet = findSheetByAliases(ss, ["HinhAnh", "Hình ảnh", "Picture", "Anh", "Ảnh"]);
   if (!picSheet) throw new Error("Không tìm thấy Tab HinhAnh");
@@ -258,6 +301,7 @@ function syncImagesOnly() {
   manifest.subjects.forEach(s => { 
     s.icon = ""; 
     s.coverUrl = "";
+    s.colorTheme = "";
     subMap[normalizeName(s.name)] = s; 
   });
   
@@ -287,7 +331,8 @@ function syncImagesOnly() {
   
   manifest.subjects = Object.values(subMap);
   saveDB(dbSheet, manifest, allDecksData);
-  SpreadsheetApp.getActiveSpreadsheet().toast('Đã đồng bộ Hình Ảnh và làm mới bộ nhớ!', 'Thành công');
+  if (showToast && typeof pushContentSyncToWeb_ === 'function') pushContentSyncToWeb_({ operation: 'syncManifest', manifest: manifest });
+  if (showToast) SpreadsheetApp.getActiveSpreadsheet().toast('Đã đồng bộ Hình Ảnh và làm mới bộ nhớ!', 'Thành công');
 }
 
 // -------------------------------------------------------------------------
@@ -314,46 +359,124 @@ function deleteSelectedDecks() {
   const { manifest, allDecksData, dbSheet, ss } = getDB();
   const selectedValues = sheet.getRange(startRow, 1, numRows, Math.max(sheet.getLastColumn(), 6)).getValues();
   let deletedCount = 0;
+  const statusUpdates = [];
+  const deletedPaths = [];
+
   
   for (let r = 0; r < numRows; r++) {
     const subName = String(selectedValues[r][0] || '').trim();
     const deckName = String(selectedValues[r][1] || '').trim();
     
-    if (subName && deckName) {
-      const subKey = normalizeName(subName);
-      const subId = generateSlug(subKey);
-      const deckId = generateSlug(deckName, `DE_${startRow + r}`);
-      const deckPath = `${subId}/${deckId}`;
-      
-      // Xóa khỏi allDecksData
-      if (allDecksData[deckPath]) {
-        delete allDecksData[deckPath];
-        deletedCount++;
-      }
-      
-      // Xóa khỏi manifest.subjects
-      manifest.subjects.forEach(sub => {
-        if (Array.isArray(sub.decks)) {
-          sub.decks = sub.decks.filter(d => d.path !== deckPath && d.name !== deckName);
-        }
-      });
+    if (!subName || !deckName) {
+      statusUpdates.push(["⚠️ Thiếu tên môn hoặc tên đề"]);
+      continue;
+    }
+
+    const subKey = normalizeName(subName);
+    const matchingSubjects = manifest.subjects.filter(sub =>
+      normalizeName(sub.name) === subKey || normalizeName(sub.id) === subKey
+    );
+
+    if (matchingSubjects.length === 0) {
+      statusUpdates.push(["❌ Không tìm thấy môn trong Database"]);
+      continue;
+    }
+
+    if (matchingSubjects.length > 1) {
+      statusUpdates.push(["❌ Môn bị trùng tên/mã - cần kiểm tra thủ công"]);
+      continue;
+    }
+
+    const subject = matchingSubjects[0];
+
+    const normalizedDeckName = normalizeName(deckName);
+    const matchingDecks = (subject.decks || []).filter(deck =>
+      normalizeName(deck.name || deck.title) === normalizedDeckName
+    );
+
+    if (matchingDecks.length === 0) {
+      statusUpdates.push(["❌ Không tìm thấy đề trong đúng môn"]);
+      continue;
+    }
+
+    if (matchingDecks.length > 1) {
+      statusUpdates.push(["❌ Trùng tên đề trong cùng môn - cần kiểm tra thủ công"]);
+      continue;
+    }
+
+    const targetDeck = matchingDecks[0];
+    const targetPath = String(targetDeck.path || '').trim();
+    const targetId = String(targetDeck.id || '').trim();
+    const deckPath = targetPath || (targetId ? `${subject.id}/${targetId}` : '');
+    if (!deckPath) {
+      statusUpdates.push(["❌ Đề không có deckPath hoặc ID hợp lệ"]);
+      continue;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(allDecksData, deckPath)) {
+      delete allDecksData[deckPath];
+    }
+
+    // Chỉ dùng một định danh mạnh: ưu tiên path; chỉ fallback sang ID nếu dữ liệu
+    // cũ không có path. Không kết hợp điều kiện với ID rỗng vì có thể xóa nhầm.
+    subject.decks = (subject.decks || []).filter(deck => {
+      if (targetPath) return String(deck.path || '').trim() !== targetPath;
+      return String(deck.id || '').trim() !== targetId;
+    });
+    deletedCount++;
+    deletedPaths.push(deckPath);
+    statusUpdates.push(["🗑️ Đã xóa khỏi Database"]);
+  }
+
+  if (deletedCount > 0) {
+    try {
+      createContentBackupSet_('XoaDe', [dbSheet, sheet], { type: 'deck', deckPaths: deletedPaths });
+    } catch (backupError) {
+      return ui.alert(
+        'Chưa xóa',
+        'Không thể tạo bản sao lưu an toàn nên thao tác đã dừng. Lỗi: ' + backupError.message,
+        ui.ButtonSet.OK
+      );
+    }
+
+    saveDB(dbSheet, manifest, allDecksData);
+    if (typeof pushContentSyncToWeb_ === 'function') {
+      deletedPaths.forEach(path => pushContentSyncToWeb_({ operation: 'deleteDeck', deckPath: path, manifest: manifest }));
     }
   }
-  
-  saveDB(dbSheet, manifest, allDecksData);
-  
-  // Đánh dấu trạng thái "🗑️ Đã xóa" lên Cột E
-  for (let r = 0; r < numRows; r++) {
-    sheet.getRange(startRow + r, 5).setValue("🗑️ Đã xóa khỏi Database");
+
+  sheet.getRange(startRow, 5, statusUpdates.length, 1).setValues(statusUpdates);
+  ui.alert(
+    deletedCount > 0 ? 'Hoàn tất' : 'Không có đề nào bị xóa',
+    `Đã xóa ${deletedCount}/${numRows} đề được chọn. Xem Cột E để biết trạng thái từng dòng.`,
+    ui.ButtonSet.OK
+  );
+}
+
+function restoreLastDeckDeleteBackup() {
+  const ui = SpreadsheetApp.getUi();
+  const editor = ui.prompt('Mã biên tập', 'Nhập mã biên tập để khôi phục.', ui.ButtonSet.OK_CANCEL);
+  if (editor.getSelectedButton() !== ui.Button.OK) return;
+  const deletion = ui.prompt('Mã xóa', 'Nhập mã xóa riêng để khôi phục.', ui.ButtonSet.OK_CANCEL);
+  if (deletion.getSelectedButton() !== ui.Button.OK) return;
+  const confirm = ui.alert('Xác nhận khôi phục', 'Khôi phục cả Database_JSON và dòng nguồn của lần xóa gần nhất?', ui.ButtonSet.YES_NO);
+  if (confirm !== ui.Button.YES) return;
+  try {
+    const result = adminRestoreLastDeletion({
+      editorPin: editor.getResponseText(),
+      deletePin: deletion.getResponseText(),
+      confirmText: 'KHOI PHUC'
+    });
+    ui.alert('Hoàn tất', result.message, ui.ButtonSet.OK);
+  } catch (error) {
+    ui.alert('Không thể khôi phục', error.message, ui.ButtonSet.OK);
   }
-  
-  ui.alert('Thành công', `Đã xóa thành công ${deletedCount} đề thi khỏi bộ nhớ Database!`, ui.ButtonSet.OK);
 }
 
 // -------------------------------------------------------------------------
 // TASK 4: TÀI LIỆU
 // -------------------------------------------------------------------------
-function syncSourcesOnly() {
+function syncSourcesOnly(showToast = true) {
   const { manifest, allDecksData, dbSheet, ss } = getDB();
   const sourceSheet = findSheetByAliases(ss, ["TaiLieu", "Tài Liệu", "Sources", "Nguon", "Nguồn"]);
   if (!sourceSheet) throw new Error("Không tìm thấy Tab TaiLieu");
@@ -420,11 +543,15 @@ function syncSourcesOnly() {
   manifest.subjects = Object.values(subMap);
   manifest.books = booksList;
   saveDB(dbSheet, manifest, allDecksData);
-  SpreadsheetApp.getActiveSpreadsheet().toast('Đã đồng bộ Tài Liệu!', 'Thành công');
+  if (showToast && typeof pushContentSyncToWeb_ === 'function') pushContentSyncToWeb_({ operation: 'syncManifest', manifest: manifest });
+  if (showToast) SpreadsheetApp.getActiveSpreadsheet().toast('Đã đồng bộ Tài Liệu!', 'Thành công');
 }
 
 // -------------------------------------------------------------------------
 // TASK 6: ĐỒNG BỘ GIÁ MÔN HỌC & TÀI LIỆU (Tab GiaMonHoc / Giá Bán)
+// Schema chuẩn 4 cột:
+// A: Tên Môn | B: Tên Sách/Tài Liệu | C: Giá Bán | D: Ghi Chú
+// Cột E do script ghi trạng thái, không phải dữ liệu đầu vào.
 // -------------------------------------------------------------------------
 function syncPricingOnly(showToast = true) {
   const { manifest, allDecksData, dbSheet, ss } = getDB();
@@ -433,24 +560,16 @@ function syncPricingOnly(showToast = true) {
     "SetGia", "Set Giá", "BangGia", "Bảng Giá", "Price", "Pricing"
   ]);
   if (!priceSheet) {
-    if (showToast) SpreadsheetApp.getUi().alert('Thông báo', 'Không tìm thấy Tab Giá.\nHãy đặt tên Tab là "GiaMonHoc" hoặc "Giá Bán" với 3 cột: [Tên Môn/Tài Liệu | Giá Bán | Ghi Chú]', SpreadsheetApp.getUi().ButtonSet.OK);
+    if (showToast) SpreadsheetApp.getUi().alert('Thông báo', 'Không tìm thấy Tab Giá.\nHãy đặt tên Tab là "GiaMonHoc" hoặc "Giá Bán" với 4 cột: [Tên Môn | Tên Sách/Tài Liệu | Giá Bán | Ghi Chú]', SpreadsheetApp.getUi().ButtonSet.OK);
     return;
   }
-  
+
   const subMap = {};
-  // Mặc định reset giá về 0 (Miễn phí) cho toàn bộ môn trước khi nạp giá mới
+  // Giữ nguyên giá cũ. Chỉ cập nhật mục khớp hợp lệ để một lỗi chính tả trong
+  // Sheet không vô tình biến nội dung PRO thành miễn phí.
   manifest.subjects.forEach(s => { 
-    s.price = 0;
-    s.isPro = false;
     subMap[normalizeName(s.name)] = s; 
   });
-  
-  if (Array.isArray(manifest.books)) {
-    manifest.books.forEach(b => {
-      b.price = 0;
-      b.isPro = false;
-    });
-  }
   
   const priceData = priceSheet.getDataRange().getValues();
   let updatedCount = 0;
@@ -460,36 +579,49 @@ function syncPricingOnly(showToast = true) {
   for (let i = 1; i < priceData.length; i++) {
     const row = priceData[i];
     const monName = String(row[0] || '').trim();  // Cột A: Tên Môn
-    const bookName = String(row[1] || '').trim(); // Cột B: Tên Sách
+    const bookName = String(row[1] || '').trim(); // Cột B: Tên Sách/Tài Liệu
+    const rawPrice = row[2];                      // Cột C: Giá Bán
+    const note = String(row[3] || '').trim();     // Cột D: Ghi Chú
     
-    // Giá bán: kiểm tra Cột C (row[2]), fallback Cột B (row[1]) nếu dùng bảng 3 cột cũ
-    const rawPrice = (row[2] !== undefined && row[2] !== '') ? row[2] : (typeof row[1] === 'number' || /^\d+/.test(String(row[1] || '')) ? row[1] : 0);
-    const note = String(row[3] || '').trim();
-    
-    let priceNum = 0;
-    if (typeof rawPrice === 'number') {
-      priceNum = rawPrice;
-    } else if (typeof rawPrice === 'string') {
-      const cleaned = rawPrice.replace(/[^0-9]/g, '');
-      priceNum = cleaned ? parseInt(cleaned, 10) : 0;
-    }
+    const parsedPrice = parsePricingCell(rawPrice);
+    const priceNum = parsedPrice.value;
     
     let rowStatus = '';
+    const hasTarget = Boolean(monName || bookName);
+    const rawPriceText = String(rawPrice === undefined || rawPrice === null ? '' : rawPrice).trim();
+
+    if (!hasTarget) {
+      statusUpdates.push(['']);
+      continue;
+    }
+
+    if (monName && bookName) {
+      statusUpdates.push(['❌ Chỉ nhập Tên Môn hoặc Tên Sách trên một dòng']);
+      continue;
+    }
+
+    if (rawPriceText === '') {
+      statusUpdates.push(['❌ Thiếu giá bán ở Cột C']);
+      continue;
+    }
+
+    if (!parsedPrice.valid) {
+      statusUpdates.push(['❌ Giá bán không hợp lệ']);
+      continue;
+    }
 
     // 1. Khớp theo Tên Môn Học (Cột A)
     if (monName) {
       const monKey = normalizeName(monName);
       if (subMap[monKey]) {
-        if (priceNum > 0) {
-          subMap[monKey].price = priceNum;
-          subMap[monKey].priceFormatted = priceNum.toLocaleString('vi-VN') + ' đ';
-          subMap[monKey].isPro = true;
-          if (note) subMap[monKey].priceNote = note;
-          updatedCount++;
-          rowStatus = `✅ Môn PRO (${priceNum.toLocaleString('vi-VN')} đ)`;
-        } else {
-          rowStatus = 'Miễn phí';
-        }
+        subMap[monKey].price = priceNum;
+        subMap[monKey].priceFormatted = priceNum > 0 ? priceNum.toLocaleString('vi-VN') + ' đ' : 'Miễn phí';
+        subMap[monKey].isPro = priceNum > 0;
+        subMap[monKey].priceNote = note;
+        updatedCount++;
+        rowStatus = priceNum > 0
+          ? `✅ Môn PRO (${priceNum.toLocaleString('vi-VN')} đ)`
+          : '✅ Môn miễn phí';
       } else {
         rowStatus = '⚠️ Chưa khớp môn';
       }
@@ -498,27 +630,25 @@ function syncPricingOnly(showToast = true) {
     // 2. Khớp theo Tên Sách / Giáo Trình (Cột B)
     if (bookName && Array.isArray(manifest.books)) {
       const bookKey = normalizeName(bookName);
-      let matched = false;
-      manifest.books.forEach(b => {
-        if (normalizeName(b.title) === bookKey || normalizeName(b.subjectName) === bookKey) {
-          if (priceNum > 0) {
-            b.price = priceNum;
-            b.priceFormatted = priceNum.toLocaleString('vi-VN') + ' đ';
-            b.isPro = true;
-            updatedCount++;
-            rowStatus = `✅ Sách PRO (${priceNum.toLocaleString('vi-VN')} đ)`;
-          } else {
-            rowStatus = 'Miễn phí';
-          }
-          matched = true;
-        }
-      });
-      if (!matched && !rowStatus) {
+      const matchedBooks = manifest.books.filter(b => normalizeName(b.title) === bookKey);
+      if (matchedBooks.length === 1) {
+        const matchedBook = matchedBooks[0];
+        matchedBook.price = priceNum;
+        matchedBook.priceFormatted = priceNum > 0 ? priceNum.toLocaleString('vi-VN') + ' đ' : 'Miễn phí';
+        matchedBook.isPro = priceNum > 0;
+        matchedBook.priceNote = note;
+        updatedCount++;
+        rowStatus = priceNum > 0
+          ? `✅ Sách PRO (${priceNum.toLocaleString('vi-VN')} đ)`
+          : '✅ Sách miễn phí';
+      } else if (matchedBooks.length > 1) {
+        rowStatus = '❌ Trùng tên sách - cần đổi tên hoặc dùng ID';
+      } else {
         rowStatus = '⚠️ Chưa khớp sách';
       }
     }
 
-    statusUpdates.push([rowStatus || (monName || bookName ? 'Miễn phí' : '')]);
+    statusUpdates.push([rowStatus || '⚠️ Không tìm thấy mục khớp']);
   }
   
   // Tự động ghi trạng thái vào Cột E (Trạng thái) trên Google Sheet
@@ -535,9 +665,30 @@ function syncPricingOnly(showToast = true) {
 
   manifest.subjects = Object.values(subMap);
   saveDB(dbSheet, manifest, allDecksData);
+  if (showToast && typeof pushContentSyncToWeb_ === 'function') pushContentSyncToWeb_({ operation: 'syncManifest', manifest: manifest });
   if (showToast) {
     SpreadsheetApp.getActiveSpreadsheet().toast(`Đã cập nhật giá bán và trạng thái cho ${updatedCount} mục!`, 'Thành công');
   }
+}
+
+function parsePricingCell(rawPrice) {
+  if (typeof rawPrice === 'number') {
+    return { valid: Number.isFinite(rawPrice) && rawPrice >= 0, value: rawPrice };
+  }
+
+  const text = String(rawPrice === undefined || rawPrice === null ? '' : rawPrice).trim();
+  if (!text) return { valid: false, value: 0 };
+  const normalized = normalizeName(text);
+  if (normalized === 'mien phi' || normalized === 'free' || normalized === '0') {
+    return { valid: true, value: 0 };
+  }
+
+  // Chỉ chấp nhận số, dấu phân cách và hậu tố tiền tệ. Không bóc số từ ghi chú
+  // kiểu "Giảm 20%" vì điều đó có thể biến giá thành 20 đồng.
+  if (!/^[0-9\s.,]+(?:đ|vnd)?$/i.test(text)) return { valid: false, value: 0 };
+  const digits = text.replace(/[^0-9]/g, '');
+  const value = digits ? parseInt(digits, 10) : NaN;
+  return { valid: Number.isFinite(value) && value >= 0, value: Number.isFinite(value) ? value : 0 };
 }
 
 // -------------------------------------------------------------------------
@@ -546,9 +697,10 @@ function syncPricingOnly(showToast = true) {
 function syncAll() {
   syncChuyenKhoa(false);
   runUpDeSync(false, null, false);
-  syncImagesOnly();
-  syncSourcesOnly();
+  syncImagesOnly(false);
+  syncSourcesOnly(false);
   syncPricingOnly(false);
+  if (typeof pushContentSyncToWeb_ === 'function') pushContentSyncToWeb_({ operation: 'syncManifest', manifest: getDB().manifest });
   SpreadsheetApp.getUi().alert('Thành công', 'Đã làm mới toàn bộ Dữ Liệu (Chuyên khoa, Đề thi, Hình ảnh, Tài liệu & Giá môn học)!', SpreadsheetApp.getUi().ButtonSet.OK);
 }
 

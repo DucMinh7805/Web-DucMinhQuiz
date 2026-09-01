@@ -161,7 +161,7 @@ export default function LibraryPage() {
         {filteredBooks.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-5">
             {filteredBooks.map((book) => {
-              const isUnlocked = isSubjectUnlocked ? isSubjectUnlocked(book.id, book.price) : true;
+              const isUnlocked = isSubjectUnlocked ? isSubjectUnlocked(book.id, book.price, 'book') : true;
 
               return (
                 <BookCard
@@ -296,6 +296,7 @@ export default function LibraryPage() {
         isOpen={!!selectedBookForUnlock}
         onClose={() => setSelectedBookForUnlock(null)}
         item={selectedBookForUnlock}
+        itemType="book"
         onSuccess={() => setSelectedBookForUnlock(null)}
       />
     </div>

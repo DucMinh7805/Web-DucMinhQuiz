@@ -38,6 +38,9 @@ function getDB() {
 function saveDB(dbSheet, manifest, allDecksData) {
   dbSheet.clear();
   const rowsToSave = [];
+  // Mỗi lần lưu đều đổi revision để admin và API biết dữ liệu nào đang chạy.
+  manifest.dataRevision = Utilities.getUuid();
+  manifest.updatedAt = new Date().toISOString();
   
   // 1. Cắt nhỏ Manifest nếu vượt quá 45,000 ký tự
   const manifestJson = JSON.stringify(manifest);

@@ -7,7 +7,6 @@ import {
   UserCheck, Stethoscope, Activity, FileText, Sparkles,
   Loader2, ShieldCheck, HelpCircle, X, MessageSquare
 } from 'lucide-react';
-import { API_CONFIG } from '../config/api';
 import { trackEvent } from '../utils/analytics';
 import usePageTitle from '../hooks/usePageTitle';
 
@@ -57,8 +56,9 @@ export default function LoginPage() {
       return;
     }
 
-    if (!password || password.length < 4) {
-      setErrorMessage('Mật khẩu cần tối thiểu 4 ký tự');
+    const minimumPasswordLength = isSignUpMode ? 6 : 4;
+    if (!password || password.length < minimumPasswordLength) {
+      setErrorMessage(`Mật khẩu cần tối thiểu ${minimumPasswordLength} ký tự`);
       return;
     }
 
@@ -73,74 +73,50 @@ export default function LoginPage() {
       }
     }
 
-    const authUrl = API_CONFIG.AUTH_DATABASE_URL;
-    const isLiveAuth = authUrl && !authUrl.includes('SAMPLE_AUTH_URL');
-
-    if (isLiveAuth) {
-      setIsLoading(true);
-      try {
-        const action = isSignUpMode ? 'register' : 'login';
-        // Ép kiểu văn bản thuần túy sang Google Sheet bằng dấu ' để giữ nguyên số 0 ở đầu
-        const phoneParam = isSignUpMode ? (`'${cleanPhone}`) : cleanPhone;
-        const passParam = isSignUpMode ? (`'${password}`) : password;
-
-        const params = new URLSearchParams({
-          action,
-          phone: phoneParam,
-          password: passParam,
+    setIsLoading(true);
+    try {
+      // Trình duyệt chỉ gọi API cùng miền. API mới liên hệ Google Sheet và đặt
+      // cookie HttpOnly; mật khẩu và quyền không còn được tin cậy từ localStorage.
+      const endpoint = isSignUpMode ? '/api/auth/sheet-register' : '/api/auth/sheet-login';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          phone: cleanPhone,
+          password,
           name: fullName.trim(),
           email: email.trim()
-        });
-
-        const res = await fetch(`${authUrl}?${params.toString()}`, { 
-          method: 'GET',
-          redirect: 'follow',
-          credentials: 'omit'
-        });
-        
-        const rawText = await res.text();
-        let data;
-        try {
-          data = JSON.parse(rawText);
-        } catch {
-          throw new Error('Máy chủ Google đang yêu cầu đăng nhập tài khoản Google. Hãy thử mở lại trong tab ẩn danh hoặc đảm bảo quyền Web App là "Bất kỳ ai (Anyone)".');
-        }
-
-        if (!data.success) {
-          throw new Error(data.error || 'Thao tác không thành công');
-        }
-
-        trackEvent(isSignUpMode ? 'register_success' : 'login_success', { phone: cleanPhone });
-
-        login({
-          phone: data.user?.phone || cleanPhone,
-          name: data.user?.name || fullName.trim() || `Học viên ${cleanPhone.slice(-4)}`,
-          email: data.user?.email || email.trim(),
-          role: 'Học viên Y khoa',
-          isAuthenticated: true
-        });
-
-        setIsLoading(false);
-        navigate('/');
-        return;
-      } catch (err) {
-        setIsLoading(false);
-        setErrorMessage(err.message || 'Lỗi kết nối máy chủ xác thực.');
-        trackEvent(isSignUpMode ? 'register_failed' : 'login_failed', { error: err.message });
+        })
+      });
+      const responseText = await res.text();
+      if (res.status === 404) {
+        throw new Error('API đăng nhập chưa có trên bản Vercel đang chạy. Cần đưa source mới lên Git rồi deploy lại.');
+      }
+      let data;
+      try {
+        data = responseText ? JSON.parse(responseText) : null;
+      } catch {
+        throw new Error('API đăng nhập trên Vercel chưa sẵn sàng. Vui lòng redeploy bản mới rồi thử lại.');
+      }
+      if (!data) {
+        throw new Error('API đăng nhập không trả dữ liệu. Vui lòng kiểm tra deployment Vercel mới nhất.');
+      }
+      if (!res.ok || !data.success) throw new Error(data.message || 'Thao tác không thành công.');
+      if (data.requiresLogin || !data.user) {
+        setIsSignUpMode(false);
+        setErrorMessage('Đăng ký thành công. Vui lòng đăng nhập để tiếp tục.');
         return;
       }
+      trackEvent(isSignUpMode ? 'register_success' : 'login_success', { phone: cleanPhone });
+      login({ ...data.user, isAuthenticated: true });
+      navigate('/');
+    } catch (err) {
+      setErrorMessage(err.message || 'Lỗi kết nối máy chủ xác thực.');
+      trackEvent(isSignUpMode ? 'register_failed' : 'login_failed', { error: err.message });
+    } finally {
+      setIsLoading(false);
     }
-
-    // Fallback Offline / Local Mode khi đang phát triển
-    login({
-      phone: cleanPhone,
-      name: fullName.trim() || `Học viên ${cleanPhone.slice(-4)}`,
-      email: email.trim() || `${cleanPhone}@medquiz.vn`,
-      role: 'Học viên Y khoa',
-      isAuthenticated: true
-    });
-    
-    navigate('/');
   };
 
   return (
@@ -171,7 +147,7 @@ export default function LoginPage() {
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center space-x-3">
                     <img 
-                      src="/DucMinh lon.png" 
+                      src="/diamond_quiz.png"
                       alt="DiamondQuiz Logo" 
                       loading="lazy"
                       className="h-11 w-11 object-contain rounded-2xl drop-shadow-md bg-white/5 p-1 border border-white/10"

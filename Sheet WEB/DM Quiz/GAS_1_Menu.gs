@@ -2,18 +2,33 @@ const DB_SHEET_NAME = 'Database_JSON';
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
-  ui.createMenu('🚀 Quản Lý Đề Thi')
-      .addItem('🎯 1. Up đề (Bôi đen để chọn)', 'syncSelectedDecks')
-      .addItem('⚡ 2. Đồng bộ Tất Cả Đề Thi (Tab 2)', 'syncDecksOnly')
+  const quickMenu = ui.createMenu('⚡ Thao tác nhanh')
+      .addItem('Mở Web quản trị nội dung', 'showQuizContentAdminWebApp')
+      .addItem('Up các đề đang bôi đen', 'syncSelectedDecks');
+
+  const syncMenu = ui.createMenu('🔄 Đồng bộ dữ liệu')
+      .addItem('Đồng bộ tất cả đề trong UpDe', 'syncDecksOnly')
+      .addItem('Đồng bộ chuyên khoa/môn', 'syncChuyenKhoa')
+      .addItem('Đồng bộ hình ảnh', 'syncImagesOnly')
+      .addItem('Đồng bộ tài liệu', 'syncSourcesOnly')
+      .addItem('Đồng bộ giá (4 cột)', 'syncPricingOnly')
       .addSeparator()
-      .addItem('📗 3. Đồng bộ Chuyên Khoa (Tab 1)', 'syncChuyenKhoa')
-      .addItem('🖼️ 4. Đồng bộ Hình Ảnh (Tab 3)', 'syncImagesOnly')
-      .addItem('📚 5. Đồng bộ Tài Liệu (Tab 4)', 'syncSourcesOnly')
-      .addItem('💰 6. Đồng bộ Giá Môn Học (Tab GiaMonHoc)', 'syncPricingOnly')
-      .addSeparator()
-      .addItem('🔄 7. Cập Nhật Toàn Bộ (Làm mới tất cả)', 'syncAll')
-      .addSeparator()
-      .addItem('🗑️ 8. Xóa Đề Thi Đang Chọn (Bôi đen dòng)', 'deleteSelectedDecks')
+      .addItem('Làm mới toàn bộ', 'syncAll')
+      .addItem('Đẩy lại danh mục lên website', 'pushCurrentManifestToWeb');
+
+  const safetyMenu = ui.createMenu('🛡️ Xóa và khôi phục')
+      .addItem('Mở Web xóa môn/đề', 'showQuizContentAdminWebApp')
+      .addItem('Xóa đề đang bôi đen (dự phòng)', 'deleteSelectedDecks')
+      .addItem('Khôi phục lần xóa gần nhất', 'restoreLastDeckDeleteBackup');
+
+  const setupMenu = ui.createMenu('⚙️ Cài đặt')
+      .addItem('Cài URL, mã quyền và webhook', 'configureQuizContentAdmin');
+
+  ui.createMenu('🚀 Quản Lý Nội Dung')
+      .addSubMenu(quickMenu)
+      .addSubMenu(syncMenu)
+      .addSubMenu(safetyMenu)
+      .addSubMenu(setupMenu)
       .addToUi();
 }
 

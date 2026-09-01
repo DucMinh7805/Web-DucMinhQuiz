@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:verify": "node scripts/verify-build.mjs",
     "lint": "oxlint",
+    "test:critical": "node scripts/test-critical-logic.mjs",
+    "test:security": "node scripts/test-security-session.mjs",
+    "sync:manifest": "node scripts/sync-manifest-from-gas.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

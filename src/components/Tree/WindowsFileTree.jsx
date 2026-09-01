@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  ChevronRight, ChevronDown, FileText, PlayCircle, BookOpen, 
-  Sparkles, Award, ArrowRight, CheckCircle2, Layers
+  ChevronRight, ChevronDown, FileText, PlayCircle, BookOpen,
+  ArrowRight, Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 

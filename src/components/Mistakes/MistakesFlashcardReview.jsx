@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { X, CheckCircle2, Sparkles } from 'lucide-react';
+import { isOptionCorrect } from '../../utils/answerUtils';
 
 export default function MistakesFlashcardReview({
   dueMistakes = [],
@@ -10,6 +11,14 @@ export default function MistakesFlashcardReview({
   formatSubjectName
 }) {
   const [showAnswer, setShowAnswer] = useState(false);
+  const [selectedOption, setSelectedOption] = useState(null);
+  const current = dueMistakes[0] || null;
+  const currentId = current?.id || current?.questionId || null;
+
+  useEffect(() => {
+    setShowAnswer(false);
+    setSelectedOption(null);
+  }, [currentId]);
 
   if (dueMistakes.length === 0) {
     return (
@@ -30,9 +39,6 @@ export default function MistakesFlashcardReview({
       </div>
     );
   }
-
-  const current = dueMistakes[0];
-  const [selectedOption, setSelectedOption] = useState(null);
 
   const rawOptions = current?.options || current?.parsedOptions || [];
   const optionsList = Array.isArray(rawOptions) 
@@ -104,7 +110,7 @@ export default function MistakesFlashcardReview({
                 {optionsList.map((opt, idx) => {
                   const optLetter = String.fromCharCode(65 + idx);
                   const isSelected = selectedOption === opt;
-                  const isCorrect = correctAnswerStr.toLowerCase().includes(opt.toLowerCase()) || (correctAnswerStr === opt);
+                  const isCorrect = isOptionCorrect(opt, idx, current?.correctAnswer || current?.answer);
 
                   let btnStyle = "border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 hover:border-teal-500/50";
                   if (showAnswer) {

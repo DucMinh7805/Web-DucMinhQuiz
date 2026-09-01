@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, RotateCcw, CheckCircle2, XCircle, 
-  Award, Bookmark, Flag, ZoomIn, X
+  Award, Bookmark, Flag
 } from 'lucide-react';
 import DeepCitationCard from '../components/Quiz/DeepCitationCard';
 import { motion } from 'motion/react';

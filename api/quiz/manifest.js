@@ -2,6 +2,7 @@ import { connectToDatabase } from '../_utils/db.js';
 import { Subject, Deck, Book } from '../_models/index.js';
 
 export default async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
@@ -25,6 +26,15 @@ export default async function handler(req, res) {
     const books = await Book.find({ isPublished: true })
       .sort({ createdAt: 1 })
       .lean();
+
+    // Không đoán bản ghi cũ là miễn phí. Chặn toàn bộ manifest cho đến khi
+    // quy trình đồng bộ giá mới đánh dấu rõ từng môn và tài liệu.
+    if (subjects.some(item => item.pricingSynced !== true) || books.some(item => item.pricingSynced !== true)) {
+      return res.status(503).json({
+        success: false,
+        message: 'Dữ liệu giá chưa được đồng bộ an toàn. Quản trị viên cần chạy lại đồng bộ manifest.'
+      });
+    }
 
     // 4. Map Decks theo SubjectId hoặc Subject code/id
     const decksBySubjectKey = {};
@@ -91,9 +101,14 @@ export default async function handler(req, res) {
         coverImageUrl: subj.coverImageUrl || subj.coverUrl || '',
         coverUrl: subj.coverUrl || subj.coverImageUrl || '',
         source: subj.source || '',
-        sourceLink: subj.sourceLink || '',
+        // Không bao giờ đưa link tài liệu PRO vào manifest công khai.
+        sourceLink: subj.isPro || Number(subj.price) > 0 ? '' : (subj.sourceLink || ''),
         sourceAuthor: subj.sourceAuthor || '',
         sourceUnit: subj.sourceUnit || '',
+        price: Number(subj.price) || 0,
+        priceFormatted: subj.priceFormatted || '',
+        priceNote: subj.priceNote || '',
+        isPro: Boolean(subj.isPro || Number(subj.price) > 0),
         decks: subjectDecks,
         decksCount: subjectDecks.length,
         totalQuestions: subjectDecks.reduce((sum, d) => sum + (d.questionCount || 0), 0)
@@ -106,13 +121,22 @@ export default async function handler(req, res) {
       subjectName: b.subjectName,
       department: b.department,
       code: b.code,
-      link: b.link,
+      // Link thật chỉ được trả bởi /api/library/book-link sau khi kiểm tra quyền.
+      link: '',
       author: b.author,
-      coverUrl: b.coverUrl
+      coverUrl: b.coverUrl,
+      price: Number(b.price) || 0,
+      priceFormatted: b.priceFormatted || '',
+      priceNote: b.priceNote || '',
+      isPro: Boolean(b.isPro || Number(b.price) > 0)
     }));
 
     return res.status(200).json({
       success: true,
+      revision: subjects.reduce((latest, item) => {
+        const time = new Date(item.updatedAt || 0).getTime();
+        return Number.isFinite(time) && time > latest ? time : latest;
+      }, 0),
       subjects: formattedSubjects,
       books: formattedBooks
     });

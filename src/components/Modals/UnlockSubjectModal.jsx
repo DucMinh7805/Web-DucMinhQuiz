@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   X, CheckCircle2, QrCode, Lock, Key, Copy, Check, 
-  Sparkles, ExternalLink, ShieldCheck, CreditCard, AlertTriangle, MessageCircle
+  Sparkles, ExternalLink, ShieldCheck, CreditCard, AlertTriangle, MessageCircle, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -11,12 +11,14 @@ import { useAuth } from '../../context/AuthContext';
  * - Thông tin ngân hàng MBBank chuẩn xác
  * - Hỗ trợ liên hệ kích hoạt qua Zalo (0383123165) và Facebook Page
  */
-export default function UnlockSubjectModal({ isOpen, onClose, item, onSuccess }) {
-  const { unlockSubject } = useAuth();
+export default function UnlockSubjectModal({ isOpen, onClose, item, itemType = 'subject', onSuccess }) {
+  const { user, applyVerifiedEntitlement, refreshAccess } = useAuth();
   const [activationCode, setActivationCode] = useState('');
   const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+  const [isCheckingAccess, setIsCheckingAccess] = useState(false);
 
   if (!isOpen || !item) return null;
 
@@ -47,8 +49,11 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, onSuccess })
     amount: itemPriceFormatted
   };
 
-  // Link VietQR sắc nét
-  const vietQrUrl = `https://api.vietqr.io/image/970422-00070082005-compact.png?amount=${numericPrice}&accountName=NGUYEN%20DUC%20MINH`;
+  const itemKey = `${itemType}:${itemId}`;
+  const transferContent = `DQ ${user?.phone || 'SDT'} ${itemKey}`.slice(0, 50);
+
+  // Nội dung chuyển khoản gắn SĐT + đúng Item Key để admin đối soát không nhầm.
+  const vietQrUrl = `https://api.vietqr.io/image/970422-00070082005-compact.png?amount=${numericPrice}&accountName=NGUYEN%20DUC%20MINH&addInfo=${encodeURIComponent(transferContent)}`;
 
   const handleCopyStk = (text) => {
     navigator.clipboard.writeText(text);
@@ -56,7 +61,7 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, onSuccess })
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleActivate = (e) => {
+  const handleActivate = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     const code = activationCode.trim().toUpperCase();
@@ -66,18 +71,56 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, onSuccess })
       return;
     }
 
-    // Xác thực mã kích hoạt
-    if (code === 'MEDVIP2026' || code === 'DIAMOND2026' || code === 'NOIKHOA99' || code.startsWith('MED') || code.startsWith('DIAMOND') || code.length >= 6) {
-      if (unlockSubject) {
-        unlockSubject(itemId, 60); // Mở khóa 60 ngày
+    if (!user?.phone) {
+      setErrorMsg('Vui lòng đăng nhập trước khi kích hoạt nội dung PRO.');
+      return;
+    }
+
+    setIsActivating(true);
+    try {
+      const response = await fetch('/api/auth/activate-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, itemId, itemType }),
+        credentials: 'include'
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success || !data.user) {
+        throw new Error(data.message || 'Mã kích hoạt không hợp lệ hoặc đã hết hạn.');
+      }
+      if (!applyVerifiedEntitlement?.(data.user)) {
+        throw new Error('Không thể lưu quyền truy cập. Vui lòng đăng nhập lại.');
       }
       setSuccessMsg(true);
       setTimeout(() => {
         if (onSuccess) onSuccess();
         onClose();
       }, 1200);
-    } else {
-      setErrorMsg('Mã kích hoạt không đúng hoặc đã hết hạn. Vui lòng liên hệ Admin qua Zalo hoặc Facebook!');
+    } catch (error) {
+      setErrorMsg(error.message || 'Không thể kiểm tra mã kích hoạt. Vui lòng thử lại.');
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  const handleCheckAccess = async () => {
+    setErrorMsg('');
+    setIsCheckingAccess(true);
+    try {
+      const refreshedUser = await refreshAccess();
+      const hasAccess = (refreshedUser?.entitlements || []).some((entry) => entry?.itemKey === itemKey);
+      if (!hasAccess) {
+        throw new Error('Admin chưa cấp quyền cho nội dung này. Hãy kiểm tra đúng SĐT và liên hệ hỗ trợ nếu đã chuyển khoản.');
+      }
+      setSuccessMsg(true);
+      setTimeout(() => {
+        if (onSuccess) onSuccess();
+        onClose();
+      }, 900);
+    } catch (error) {
+      setErrorMsg(error.message || 'Chưa tìm thấy quyền truy cập mới.');
+    } finally {
+      setIsCheckingAccess(false);
     }
   };
 
@@ -161,6 +204,15 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, onSuccess })
                   <span className="text-slate-400 font-bold">Số tiền:</span>
                   <span className="font-black text-amber-600 dark:text-amber-400 text-base sm:text-lg">{itemPriceFormatted}</span>
                 </div>
+                <div className="p-3 rounded-xl bg-teal-50 dark:bg-teal-950/30 border border-teal-500/20">
+                  <div className="text-[10px] uppercase tracking-wider font-black text-teal-700 dark:text-teal-300">Nội dung chuyển khoản</div>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <code className="text-xs font-black text-slate-800 dark:text-slate-100 break-all">{transferContent}</code>
+                    <button type="button" onClick={() => handleCopyStk(transferContent)} className="p-1.5 rounded-lg hover:bg-teal-100 dark:hover:bg-white/10" title="Sao chép nội dung">
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -191,8 +243,20 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, onSuccess })
           </div>
         </div>
 
-        {/* 2. FORM NHẬP MÃ KÍCH HOẠT (ACTIVATION CODE) */}
-        <form onSubmit={handleActivate} className="space-y-2.5 pt-1">
+        {/* 2. LUỒNG CHÍNH: ADMIN CẤP TRỰC TIẾP THEO TÀI KHOẢN */}
+        <section className="space-y-3 pt-1">
+          <div className="p-4 rounded-2xl bg-teal-50 dark:bg-teal-950/25 border border-teal-500/25">
+            <p className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-100">Sau khi chuyển khoản</p>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Admin đối soát nội dung chuyển khoản và cấp đúng môn/tài liệu cho SĐT của bạn. Sau đó bấm nút dưới đây, không cần nhập mã.</p>
+            <button type="button" onClick={handleCheckAccess} disabled={isCheckingAccess} className="mt-3 w-full px-5 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-black text-xs sm:text-sm shadow-md disabled:opacity-60 flex items-center justify-center gap-2">
+              <RefreshCw className={`w-4 h-4 ${isCheckingAccess ? 'animate-spin' : ''}`} />
+              <span>{isCheckingAccess ? 'Đang kiểm tra quyền...' : 'Kiểm tra quyền vừa được cấp'}</span>
+            </button>
+          </div>
+
+          <details className="rounded-2xl border border-slate-200 dark:border-white/10 p-3">
+            <summary className="cursor-pointer text-xs font-bold text-slate-500">Mã quà tặng / khuyến mãi (tính năng dự phòng)</summary>
+            <form onSubmit={handleActivate} className="space-y-2.5 pt-3">
           <div className="space-y-1.5">
             <label className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-300 flex items-center">
               <Key className="w-4 h-4 mr-1.5 text-teal-500" />
@@ -208,27 +272,26 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, onSuccess })
               />
               <button
                 type="submit"
-                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white font-black text-xs sm:text-sm shadow-md shadow-teal-500/20 shrink-0 transition-transform active:scale-95 flex items-center space-x-1.5"
+                disabled={isActivating}
+                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 disabled:opacity-60 disabled:cursor-wait text-white font-black text-xs sm:text-sm shadow-md shadow-teal-500/20 shrink-0 transition-transform active:scale-95 flex items-center space-x-1.5"
               >
                 <Lock className="w-4 h-4" />
-                <span>Kích hoạt</span>
+                <span>{isActivating ? 'Đang kiểm tra...' : 'Kích hoạt'}</span>
               </button>
             </div>
           </div>
 
-          {errorMsg && (
-            <p className="text-xs font-bold text-rose-500">
-              {errorMsg}
-            </p>
-          )}
+            </form>
+          </details>
 
+          {errorMsg && <p className="text-xs font-bold text-rose-500">{errorMsg}</p>}
           {successMsg && (
             <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm font-extrabold flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>Kích hoạt thành công! Đang chuyển vào phòng học...</span>
+              <span>Đã xác nhận quyền PRO! Đang mở nội dung...</span>
             </div>
           )}
-        </form>
+        </section>
 
         {/* Footer liên hệ hỗ trợ (Zalo & Facebook) */}
         <div className="pt-3 border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">

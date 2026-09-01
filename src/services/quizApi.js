@@ -26,11 +26,11 @@ export async function fetchManifest() {
         };
         try {
           localStorage.setItem('medquiz_manifest', JSON.stringify(cleanManifest));
-        } catch(e) {}
+        } catch {}
         return cleanManifest;
       }
     }
-  } catch (backendErr) {
+  } catch {
     // Backend API chưa chạy hoặc đang ở môi trường static
   }
 
@@ -59,7 +59,7 @@ export async function fetchManifest() {
             };
             try {
               localStorage.setItem('medquiz_manifest', JSON.stringify(cleanManifest));
-            } catch(e) {}
+            } catch {}
             return cleanManifest;
           }
         }
@@ -106,73 +106,13 @@ function _getLocalManifest() {
 export async function fetchDeckQuestions(actualPath, signal) {
   if (!actualPath) throw new Error("Đường dẫn không hợp lệ");
 
-  // 1. Thử tải từ MongoDB Backend API mới
-  try {
-    const apiRes = await fetch(`/api/quiz/questions?deckPath=${encodeURIComponent(actualPath)}&_t=${Date.now()}`, {
-      signal
-    });
-
-    if (apiRes.ok) {
-      const json = await apiRes.json();
-      if (json && json.success && Array.isArray(json.data) && json.data.length > 0) {
-        return json.data;
-      }
-    }
-  } catch (e) {
-    // Tiếp tục fallback
-  }
-
-  // 2. Fallback sang Google Apps Script
-  if (API_CONFIG.QUIZ_DATABASE_URL) {
-    try {
-      const gasRes = await fetch(`${API_CONFIG.QUIZ_DATABASE_URL}?action=getDeck&path=${encodeURIComponent(actualPath)}&_t=${Date.now()}`, { 
-        redirect: "follow",
-        credentials: "omit",
-        signal
-      });
-    
-      if (gasRes.ok) {
-        const rawText = await gasRes.text();
-        if (rawText && (rawText.trim().startsWith('[') || rawText.trim().startsWith('{'))) {
-          const gasData = JSON.parse(rawText);
-          if (Array.isArray(gasData) && gasData.length > 0) {
-            return gasData.map((q, idx) => {
-              let rawImg = q.imageUrl || q.image || q.img || q.anh || q.hinhAnh || '';
-              let questionText = q.question || q.CauHoi || '';
-              let vignetteText = q.vignette || q.MoTa || q.vignetteBody || '';
-              let rawOptions = q.options || q.choices || '';
-              let parsedOpts = [];
-              if (rawOptions) {
-                parsedOpts = Array.isArray(rawOptions) ? rawOptions : String(rawOptions).split('|').map(s => s.trim()).filter(Boolean);
-              }
-
-              let qType = q.type;
-              if (!qType) {
-                if (parsedOpts.length === 0) qType = 'short_answer';
-                else qType = 'single';
-              }
-
-              return {
-                id: q.id || `q_${idx}`,
-                type: qType,
-                ...q,
-                question: questionText,
-                vignette: vignetteText,
-                answer: q.answer || q.DapAn || '',
-                explanation: q.explanation || q.GiaiThich || q.coche || '',
-                source: q.source || q.Nguon || q.reference || '',
-                imageUrl: rawImg,
-                parsedOptions: parsedOpts
-              };
-            });
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("[QuizAPI] Lỗi kết nối Google Apps Script:", e);
-      throw new Error("Không thể tải nội dung bộ đề. Vui lòng kiểm tra kết nối mạng!");
-    }
-  }
-
-  return [];
+  // Không fallback sang GAS công khai: fallback đó sẽ bỏ qua kiểm tra quyền PRO.
+  const apiRes = await fetch(`/api/quiz/questions?deckPath=${encodeURIComponent(actualPath)}&_t=${Date.now()}`, {
+    signal,
+    credentials: 'include'
+  });
+  const json = await apiRes.json().catch(() => ({}));
+  if (!apiRes.ok) throw new Error(json.message || 'Không thể tải bộ đề.');
+  if (json?.success && Array.isArray(json.data)) return json.data;
+  throw new Error('Máy chủ trả về dữ liệu câu hỏi không hợp lệ.');
 }

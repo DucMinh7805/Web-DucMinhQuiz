@@ -7,7 +7,7 @@ export function getDirectImageUrl(url) {
   if (!cleanUrl) return '';
 
   // Bóc tách nếu là markdown image ![alt](url)
-  const mdMatch = cleanUrl.match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/);
+  const mdMatch = cleanUrl.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
   if (mdMatch && mdMatch[1]) {
     cleanUrl = mdMatch[1];
   }
@@ -41,4 +41,3 @@ export function getDirectImageUrl(url) {
 
   return cleanUrl;
 }
-

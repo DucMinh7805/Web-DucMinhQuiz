@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { BookOpen, Sparkles, User, Building, ArrowUpRight } from 'lucide-react';
+import { BookOpen, Sparkles, User, ArrowUpRight } from 'lucide-react';
 import { getDirectImageUrl } from '../../utils/imageHelper';
 
 /**
@@ -104,9 +104,9 @@ export default function BookCard({ book, onAskAi, onUnlock, isUnlocked }) {
           >
             <span>Mở Khóa</span>
           </button>
-        ) : book.link && book.link.startsWith('http') ? (
+        ) : book.id ? (
           <a
-            href={book.link}
+            href={`/api/library/book-link?id=${encodeURIComponent(book.id)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex-1 py-1.5 sm:py-2.5 px-2 sm:px-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-extrabold text-[11px] sm:text-xs flex items-center justify-center shadow-sm shadow-teal-500/20 transition-all group/btn"

@@ -1,10 +1,16 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import * as cookie from 'cookie';
+import { parseCookie, stringifySetCookie } from 'cookie';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_fallback_secret_32_chars_long_123456';
-const CSRF_SECRET = process.env.CSRF_SECRET || 'dev_csrf_fallback_secret_32_chars_long_123456';
+function getJwtSecret() {
+  const value = process.env.JWT_SECRET;
+  if (value) return value;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Thiếu biến môi trường JWT_SECRET trên production.');
+  }
+  return 'dev_only_jwt_secret_never_use_in_production';
+}
 const ACCESS_TOKEN_EXPIRES_IN = '15m'; // 15 phút
 export const REFRESH_TOKEN_COOKIE_NAME = 'medquiz_refresh_token';
 export const REFRESH_TOKEN_MAX_AGE_DAYS = 30;
@@ -33,15 +39,15 @@ export function signAccessToken(payload) {
       role: payload.role || 'user',
       subscriptionTier: payload.subscriptionTier || 'free'
     },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
   );
 }
 
 export function verifyAccessToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (error) {
+    return jwt.verify(token, getJwtSecret());
+  } catch {
     return null;
   }
 }
@@ -79,7 +85,9 @@ export function verifyCsrfHeader(req) {
  */
 export function setRefreshTokenCookie(res, rawRefreshToken) {
   const isProduction = process.env.NODE_ENV === 'production';
-  const cookieSerialized = cookie.serialize(REFRESH_TOKEN_COOKIE_NAME, rawRefreshToken, {
+  const cookieSerialized = stringifySetCookie({
+    name: REFRESH_TOKEN_COOKIE_NAME,
+    value: rawRefreshToken,
     httpOnly: true,
     secure: isProduction, // Yêu cầu HTTPS trên production
     sameSite: isProduction ? 'lax' : 'lax',
@@ -92,7 +100,9 @@ export function setRefreshTokenCookie(res, rawRefreshToken) {
 
 export function clearRefreshTokenCookie(res) {
   const isProduction = process.env.NODE_ENV === 'production';
-  const cookieSerialized = cookie.serialize(REFRESH_TOKEN_COOKIE_NAME, '', {
+  const cookieSerialized = stringifySetCookie({
+    name: REFRESH_TOKEN_COOKIE_NAME,
+    value: '',
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? 'lax' : 'lax',
@@ -106,7 +116,7 @@ export function clearRefreshTokenCookie(res) {
 export function parseCookies(req) {
   const header = req.headers.cookie;
   if (!header) return {};
-  return cookie.parse(header);
+  return parseCookie(header);
 }
 
 /**

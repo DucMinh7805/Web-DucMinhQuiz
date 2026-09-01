@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { shuffleArray } from '../utils/shuffle';
+import { areAnswersEquivalent, getStableQuestionId } from '../utils/answerUtils';
 
 import { ArrowLeft, Clock, BookOpen } from 'lucide-react';
 import QuizBottomBar from '../components/Quiz/QuizBottomBar';
@@ -241,26 +242,20 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
     const timeSpentSeconds = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000));
     let correctCount = 0;
     const mistakesToSave = [];
+    const answeredQuestionIds = [];
 
     activeQuestions.forEach((q, idx) => {
       const userAns = answers[idx];
-      const correctArr = Array.isArray(q.answer)
-        ? q.answer.map(String)
-        : String(q.answer || '').split('|').map(s => s.trim()).filter(Boolean);
-
-      const userArr = Array.isArray(userAns)
-        ? userAns.map(String)
-        : (userAns ? String(userAns).split('|').map(s => s.trim()).filter(Boolean) : []);
-
-      const isCorrect = userArr.length === correctArr.length &&
-        userArr.length > 0 &&
-        [...userArr].sort().every((val, i) => val === [...correctArr].sort()[i]);
+      const questionId = getStableQuestionId(q, subjectId, deckId);
+      const isCorrect = areAnswersEquivalent(userAns, q.answer);
+      answeredQuestionIds.push(questionId);
 
       if (isCorrect) {
         correctCount += 1;
-      } else if (userAns !== undefined && userArr.length > 0) {
+      } else {
         mistakesToSave.push({
-          id: `${subjectId}-${deckId}-${idx}`,
+          id: questionId,
+          questionId,
           subjectId,
           deckId,
           question: q.question,
@@ -283,7 +278,8 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
       correctCount,
       activeQuestions.length,
       mistakesToSave,
-      timeSpentSeconds
+      timeSpentSeconds,
+      answeredQuestionIds
     );
   };
 
@@ -294,24 +290,13 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
     setCurrentIndex(0);
     setQuizFinished(false);
     setTimeLeft(activeQuestions.length * 90);
+    startTimeRef.current = Date.now();
   };
 
   const handleRetakeMistakes = () => {
     const wrongList = activeQuestions.filter((q, idx) => {
       const userAns = answers[idx];
-      const correctArr = Array.isArray(q.answer)
-        ? q.answer.map(String)
-        : String(q.answer || '').split('|').map(s => s.trim()).filter(Boolean);
-
-      const userArr = Array.isArray(userAns)
-        ? userAns.map(String)
-        : (userAns ? String(userAns).split('|').map(s => s.trim()).filter(Boolean) : []);
-
-      const isCorrect = userArr.length === correctArr.length &&
-        userArr.length > 0 &&
-        [...userArr].sort().every((val, i) => val === [...correctArr].sort()[i]);
-
-      return !isCorrect;
+      return !areAnswersEquivalent(userAns, q.answer);
     });
 
     if (wrongList.length === 0) return;
@@ -327,6 +312,7 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
     setCurrentIndex(0);
     setQuizFinished(false);
     setTimeLeft(wrongList.length * 90);
+    startTimeRef.current = Date.now();
   };
 
   if (quizFinished) {

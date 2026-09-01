@@ -46,6 +46,13 @@ const subjectSchema = new mongoose.Schema({
   sourceLink: { type: String, default: '' },
   sourceAuthor: { type: String, default: '' },
   sourceUnit: { type: String, default: '' },
+  // Giá và cờ PRO phải tồn tại ở Database để API kiểm tra quyền phía máy chủ.
+  price: { type: Number, default: 0, min: 0 },
+  priceFormatted: { type: String, default: '' },
+  priceNote: { type: String, default: '' },
+  isPro: { type: Boolean, default: false, index: true },
+  // Chỉ true khi bản ghi đã đi qua quy trình đồng bộ giá bảo mật mới.
+  pricingSynced: { type: Boolean, default: false, index: true },
   orderIndex: { type: Number, default: 0 },
   isPublished: { type: Boolean, default: true }
 }, { timestamps: true });

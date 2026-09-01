@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import HomeBackdrop from '../components/Home/HomeBackdrop';
 import HomeHero from '../components/Home/HomeHero';
 import HomeFeaturedSubjects from '../components/Home/HomeFeaturedSubjects';
-import HomeFourPillars, { FOUR_PILLARS_CONFIG } from '../components/Home/HomeFourPillars';
+import HomeFourPillars from '../components/Home/HomeFourPillars';
+import { FOUR_PILLARS_CONFIG } from '../data/fourPillarsConfig';
 import HomeQuickTools from '../components/Home/HomeQuickTools';
 import HomeFooter from '../components/Home/HomeFooter';
 import usePageTitle from '../hooks/usePageTitle';
@@ -101,7 +102,7 @@ export default function HomePage() {
           if (!recentIds.includes(id)) recentIds.push(id);
         });
       }
-    } catch (e) {}
+    } catch {}
 
     // Tìm các object môn học tương ứng
     const userMatchedSubjects = recentIds

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import { useState, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { 
   FolderTree, 
@@ -179,11 +179,17 @@ export default function KnowledgeGraphPage() {
 
         {/* VIEW 3: ĐỒ THỊ 2D CANVAS (KÈM NÚT FULLSCREEN TẠI ĐÂY) */}
         {viewMode === 'graph' && ENABLE_GRAPH_VIEW && (
-          <div className="w-full h-full relative">
+          <div className="w-full h-full relative p-2 sm:p-4 bg-slate-100/70 dark:bg-[#050812]">
+            <div className="absolute left-5 top-5 sm:left-8 sm:top-8 z-20 pointer-events-none">
+              <div className="rounded-2xl border border-white/70 dark:border-white/10 bg-white/80 dark:bg-slate-950/70 px-3.5 py-2.5 shadow-lg shadow-slate-900/5 backdrop-blur-xl">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-teal-600 dark:text-teal-400">Bản đồ liên môn</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-300">Chạm một nút để xem quan hệ gần nhất</p>
+              </div>
+            </div>
             {/* Nút Toàn Màn Hình: Chỉ Hiển Thị Khi Xem Đồ Thị */}
             <button
               onClick={() => setIsFullscreen(prev => !prev)}
-              className="absolute top-4 right-4 z-30 p-2.5 rounded-full bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:text-teal-500 shadow-lg transition-transform active:scale-95"
+              className="absolute top-5 right-5 sm:top-8 sm:right-8 z-30 p-2.5 rounded-xl bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:text-teal-500 shadow-lg transition-transform active:scale-95"
               title={isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -211,7 +217,7 @@ export default function KnowledgeGraphPage() {
 
         {/* BẢNG THÔNG TIN NODE KHI CLICK VÀO GRAPH */}
         {selectedNode && viewMode === 'graph' && (
-          <div className="absolute right-4 top-16 w-80 sm:w-96 bg-white/95 dark:bg-[#0c1222]/95 backdrop-blur-xl rounded-3xl border border-slate-200/80 dark:border-white/10 shadow-2xl p-5 z-30 transition-all">
+          <div className="absolute left-3 right-3 bottom-3 sm:left-auto sm:right-8 sm:top-24 sm:bottom-auto sm:w-96 bg-white/95 dark:bg-[#0c1222]/95 backdrop-blur-xl rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-2xl p-5 z-30 transition-all">
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[10px] font-black uppercase text-teal-600 dark:text-teal-400 tracking-wider">
@@ -237,15 +243,21 @@ export default function KnowledgeGraphPage() {
 
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-xs font-bold">
               <span className="text-slate-400">
-                {selectedNode.decksCount || selectedNode.decks?.length || 0} bộ đề thi
+                {selectedNode.type === 'root'
+                  ? `${selectedNode.totalCategories || 0} khối • ${selectedNode.totalSubjects || 0} môn`
+                  : selectedNode.type === 'category'
+                    ? `${selectedNode.subjectCount || 0} môn học`
+                    : `${selectedNode.decksCount || selectedNode.decks?.length || 0} bộ đề thi`}
               </span>
-              <button
-                onClick={() => navigate(`/subject/${selectedNode.id}`)}
-                className="flex items-center space-x-1 text-teal-600 dark:text-teal-400 hover:underline"
-              >
-                <span>Vào ôn luyện</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              {selectedNode.type === 'subject' && (
+                <button
+                  onClick={() => navigate(`/subject/${selectedNode.subjectId}`)}
+                  className="flex items-center space-x-1 text-teal-600 dark:text-teal-400 hover:underline"
+                >
+                  <span>Vào ôn luyện</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
         )}

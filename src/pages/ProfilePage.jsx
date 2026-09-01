@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { 
   User, Calendar, BookOpen, Award, CheckCircle2, Bookmark, 
-  ArrowRight, Camera, X, Check, Clock, Upload, Link as LinkIcon,
+  ArrowRight, Camera, X, Upload,
   Sparkles
 } from 'lucide-react';
 import { Navigate, useNavigate, useOutletContext } from 'react-router-dom';
@@ -41,14 +41,36 @@ function getDeckDisplayName(subjectId, deckId, manifest) {
   return String(deckId).replace(/_/g, ' ').replace(/-/g, ' ');
 }
 
+function resizeAvatarFile(file, maxSize = 512) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      const ratio = Math.min(1, maxSize / Math.max(image.width, image.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.width * ratio));
+      canvas.height = Math.max(1, Math.round(image.height * ratio));
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(objectUrl);
+      resolve(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Không thể đọc tệp ảnh đã chọn.'));
+    };
+    image.src = objectUrl;
+  });
+}
+
 export default function ProfilePage() {
   usePageTitle('Hồ sơ cá nhân');
-  const { user, login } = useAuth();
+  const { user, updateProfile } = useAuth();
   const manifest = useOutletContext();
   const navigate = useNavigate();
 
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [customAvatarUrl, setCustomAvatarUrl] = useState('');
+  const [avatarError, setAvatarError] = useState('');
 
   // Bắt buộc đăng nhập
   if (!user) {
@@ -105,21 +127,34 @@ export default function ProfilePage() {
 
   const handleSelectAvatar = (url) => {
     if (!url) return;
-    const updatedUser = { ...user, avatar: url };
-    login(updatedUser);
+    const trimmedUrl = String(url).trim();
+    if (!trimmedUrl.startsWith('data:image/') && !/^https:\/\//i.test(trimmedUrl)) {
+      setAvatarError('Liên kết ảnh phải dùng HTTPS.');
+      return;
+    }
+    updateProfile({ avatar: trimmedUrl });
+    setAvatarError('');
     setIsAvatarModalOpen(false);
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        handleSelectAvatar(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    setAvatarError('');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setAvatarError('Chỉ hỗ trợ ảnh JPG, PNG hoặc WEBP.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Ảnh vượt quá giới hạn 5MB.');
+      return;
+    }
+    try {
+      const resizedDataUrl = await resizeAvatarFile(file);
+      handleSelectAvatar(resizedDataUrl);
+    } catch (error) {
+      setAvatarError(error.message || 'Không thể xử lý ảnh.');
+    }
   };
 
   return (
@@ -172,8 +207,8 @@ export default function ProfilePage() {
             )}
           </div>
           
-          {/* 4 Thẻ Thống Kê Tổng Quan (Rộng rãi, không bị cắt chữ) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-slate-100 dark:border-white/5">
+          {/* 5 Thẻ Thống Kê Tổng Quan */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-slate-100 dark:border-white/5">
             
             {/* Thẻ 1: Đăng nhập gần nhất */}
             <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3.5 bg-slate-50/70 dark:bg-white/5 rounded-2xl border border-slate-200/60 dark:border-white/5">
@@ -190,22 +225,37 @@ export default function ProfilePage() {
               </div>
             </div>
             
-            {/* Thẻ 2: Đã hoàn thành */}
+            {/* Thẻ 2: Số đề đã hoàn thành */}
             <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3.5 bg-teal-50/50 dark:bg-teal-950/20 rounded-2xl border border-teal-500/20">
               <div className="p-2 sm:p-2.5 rounded-xl bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/20 shrink-0">
                 <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 whitespace-nowrap">
-                  Đã hoàn thành
+                  Số đề đã hoàn thành
                 </p>
                 <p className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm mt-0.5 whitespace-nowrap">
-                  {totalQuizzes} đề <span className="text-slate-400 font-normal">|</span> {totalQuestions} câu
+                  {totalQuizzes} đề
                 </p>
               </div>
             </div>
 
-            {/* Thẻ 3: Tỉ lệ chính xác */}
+            {/* Thẻ 3: Số câu đã làm */}
+            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3.5 bg-cyan-50/50 dark:bg-cyan-950/20 rounded-2xl border border-cyan-500/20">
+              <div className="p-2 sm:p-2.5 rounded-xl bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20 shrink-0">
+                <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400 whitespace-nowrap">
+                  Số câu đã làm
+                </p>
+                <p className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm mt-0.5 whitespace-nowrap">
+                  {totalQuestions} câu
+                </p>
+              </div>
+            </div>
+
+            {/* Thẻ 4: Tỉ lệ chính xác */}
             <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3.5 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-500/20">
               <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shrink-0">
                 <Award className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -220,7 +270,7 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Thẻ 4: Sổ tay câu sai */}
+            {/* Thẻ 5: Sổ tay câu sai */}
             <div 
               onClick={() => navigate('/mistakes')}
               className="flex items-center justify-between p-3.5 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 rounded-2xl cursor-pointer hover:bg-rose-100/70 dark:hover:bg-rose-900/40 transition-all group"
@@ -509,6 +559,7 @@ export default function ProfilePage() {
                   className="hidden" 
                 />
               </label>
+              {avatarError && <p className="text-xs font-bold text-rose-500">{avatarError}</p>}
             </div>
 
             {/* Hoặc dán link ảnh trực tiếp */}

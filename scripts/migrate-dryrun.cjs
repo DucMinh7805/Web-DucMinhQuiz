@@ -12,11 +12,15 @@ const dotenv = require('dotenv');
 // 1. Cấu hình DNS Server tránh lỗi querySrv ECONNREFUSED trên Windows
 try {
   dns.setServers(['8.8.8.8', '1.1.1.1']);
-} catch (e) {}
+} catch {}
 
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-const GAS_MANIFEST_URL = 'https://script.google.com/macros/s/AKfycbyOy_VJu88x2PadlUvGy-Ajg8mODrAOsas6LrtOuESJQtk-y3elzu6u5VkwOiJ9xZva/exec';
+const GAS_MANIFEST_URL = process.env.QUIZ_SHEET_WEB_APP_URL;
+const QUIZ_SYNC_INTERNAL_SECRET = process.env.QUIZ_SYNC_INTERNAL_SECRET;
+if (!GAS_MANIFEST_URL || !QUIZ_SYNC_INTERNAL_SECRET) {
+  throw new Error('Thiếu QUIZ_SHEET_WEB_APP_URL hoặc QUIZ_SYNC_INTERNAL_SECRET.');
+}
 const CACHE_FILE = path.join(__dirname, '..', '.migration_cache.json');
 
 function generateSubjectCode(name) {
@@ -58,8 +62,6 @@ function normalizeOptionsAndAnswers(q) {
       const letterMatch = formattedOptions.find(opt => opt.id === rawAnswer.toLowerCase());
       if (letterMatch) {
         correctOptionIds = [letterMatch.id];
-      } else {
-        correctOptionIds = [formattedOptions[0].id];
       }
     }
   }
@@ -77,28 +79,33 @@ function normalizeOptionsAndAnswers(q) {
   };
 }
 
-// Fetch có Retry 3 lần
-async function fetchWithRetry(url, retries = 3, timeoutMs = 25000) {
+async function fetchInternalWithRetry(action, params = {}, retries = 3, timeoutMs = 25000) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(id);
-      if (res.ok) {
-        return await res.text();
-      }
-    } catch (err) {
-      clearTimeout(id);
-      if (attempt === retries) throw err;
-      await new Promise(r => setTimeout(r, 1500 * attempt));
+      const response = await fetch(GAS_MANIFEST_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: new URLSearchParams({ action, internalSecret: QUIZ_SYNC_INTERNAL_SECRET, ...params }),
+        redirect: 'follow',
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!response.ok) throw new Error(`Google Apps Script trả HTTP ${response.status}`);
+      return await response.text();
+    } catch (error) {
+      clearTimeout(timeout);
+      if (attempt === retries) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
     }
   }
-  throw new Error('Hết lượt thử');
+  throw new Error('Hết lượt thử tác vụ nội bộ');
 }
 
 async function runMigration() {
   const isCommit = process.argv.includes('--commit');
+  const useCache = process.argv.includes('--use-cache');
 
   console.log('='.repeat(80));
   console.log(`🚀 BẮT ĐẦU QUY TRÌNH MIGRATION Y KHOA [CHẾ ĐỘ: ${isCommit ? 'COMMIT THẬT VÀO MONGODB' : 'DRY-RUN ĐỐI SOÁT'}]`);
@@ -110,11 +117,11 @@ async function runMigration() {
     try {
       cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
       console.log(`📦 Đã nạp cache cục bộ (${Object.keys(cache).length} đề đã lưu trước đó).`);
-    } catch (e) {}
+    } catch {}
   }
 
   console.log('\n[1/3] Đang tải Manifest từ Google Apps Script...');
-  const manifestRaw = await fetchWithRetry(`${GAS_MANIFEST_URL}?action=getManifest&_t=${Date.now()}`, 3, 30000);
+  const manifestRaw = await fetchInternalWithRetry('getInternalManifest', {}, 3, 30000);
   const manifestData = JSON.parse(manifestRaw);
   const subjects = manifestData.subjects || [];
 
@@ -138,7 +145,8 @@ async function runMigration() {
 
     const subjSummary = {
       subjectName: subjName,
-      subjectCode: subjCode,
+      subjectCode: String(subj.code || subj.id || subjCode),
+      source: subj,
       decksCount: decks.length,
       decks: []
     };
@@ -149,11 +157,13 @@ async function runMigration() {
       const deckPath = deck.path || `${subjCode.toLowerCase()}/de-${dIdx + 1}`;
       const cacheKey = deck.path || deckPath;
 
-      let questions = cache[cacheKey];
+      // Mặc định đọc lại Sheet để sửa/xóa câu hỏi có hiệu lực ngay.
+      // Chỉ tái sử dụng cache khi admin chủ động truyền --use-cache.
+      let questions = useCache ? cache[cacheKey] : null;
 
       if (!questions) {
         try {
-          const qText = await fetchWithRetry(`${GAS_MANIFEST_URL}?action=getDeck&path=${encodeURIComponent(cacheKey)}&_t=${Date.now()}`, 3, 20000);
+          const qText = await fetchInternalWithRetry('getInternalDeck', { path: cacheKey }, 3, 20000);
           if (qText && (qText.trim().startsWith('[') || qText.trim().startsWith('{'))) {
             questions = JSON.parse(qText);
             cache[cacheKey] = questions;
@@ -172,8 +182,10 @@ async function runMigration() {
       totalQuestionsCount += qCount;
 
       subjSummary.decks.push({
-        title: deck.title,
+        title: deck.name || deck.title,
         path: deckPath,
+        stage: deck.stage || 'y1_y3',
+        tags: Array.isArray(deck.tags) ? deck.tags : [],
         questionCount: qCount,
         questions: Array.isArray(questions) ? questions : []
       });
@@ -229,23 +241,40 @@ async function runMigration() {
   let committedSubjects = 0;
   let committedDecks = 0;
   let committedQuestions = 0;
+  const committedDeckPaths = [];
 
   for (let sIdx = 0; sIdx < reconciliationData.length; sIdx++) {
     const s = reconciliationData[sIdx];
     process.stdout.write(`\r💾 Đang ghi vào Atlas [${sIdx + 1}/${reconciliationData.length}]: ${s.subjectName.slice(0, 25).padEnd(25)}... `);
 
     // 1. Upsert Subject
+    const sourceSubject = s.source || {};
+    const stableSubjectId = String(sourceSubject.id || s.subjectCode);
     const subjRes = await subjectsCol.findOneAndUpdate(
-      { code: s.subjectCode },
+      { $or: [{ id: stableSubjectId }, { code: s.subjectCode }] },
       {
         $set: {
+          id: stableSubjectId,
           code: s.subjectCode,
           name: s.subjectName,
-          stages: ['y1_y3', 'y4_y6'],
-          category: 'co_so_nganh',
-          coverImageUrl: '',
-          iconName: 'Stethoscope',
-          colorTheme: '#0d9488',
+          stages: Array.isArray(sourceSubject.stages) && sourceSubject.stages.length ? sourceSubject.stages : ['y1_y3', 'y4_y6'],
+          categoryId: sourceSubject.categoryId || 'co_so_nganh',
+          categoryName: sourceSubject.categoryName || 'Cơ sở ngành',
+          category: sourceSubject.categoryId || 'co_so_nganh',
+          description: sourceSubject.description || '',
+          icon: sourceSubject.icon || '',
+          coverImageUrl: sourceSubject.coverImageUrl || sourceSubject.coverUrl || '',
+          coverUrl: sourceSubject.coverUrl || sourceSubject.coverImageUrl || '',
+          iconName: sourceSubject.iconName || 'Stethoscope',
+          colorTheme: sourceSubject.colorTheme || '#0d9488',
+          source: sourceSubject.source || '',
+          sourceLink: sourceSubject.sourceLink || '',
+          sourceAuthor: sourceSubject.sourceAuthor || '',
+          price: Math.max(0, Number(sourceSubject.price) || 0),
+          priceFormatted: sourceSubject.priceFormatted || '',
+          priceNote: sourceSubject.priceNote || '',
+          isPro: Boolean(sourceSubject.isPro || Number(sourceSubject.price) > 0),
+          pricingSynced: true,
           orderIndex: sIdx,
           isPublished: true,
           updatedAt: new Date()
@@ -260,6 +289,7 @@ async function runMigration() {
 
     for (let dIdx = 0; dIdx < s.decks.length; dIdx++) {
       const d = s.decks[dIdx];
+      committedDeckPaths.push(d.path);
 
       // 2. Upsert Deck
       const deckRes = await decksCol.findOneAndUpdate(
@@ -269,8 +299,8 @@ async function runMigration() {
             subjectId: subjectId,
             title: d.title,
             path: d.path,
-            stage: 'y1_y3',
-            tags: ['Lâm sàng', 'Trọng tâm'],
+            stage: ['y1_y3', 'y4_y6', 'sau_dai_hoc', 'noi_tru'].includes(d.stage) ? d.stage : 'y1_y3',
+            tags: Array.isArray(d.tags) ? d.tags : [],
             totalQuestions: d.questionCount,
             timeLimitMinutes: 45,
             orderIndex: dIdx,
@@ -328,7 +358,11 @@ async function runMigration() {
         });
 
         await questionsCol.bulkWrite(bulkOps, { ordered: false });
+        const expectedQuestionIds = d.questions.map((rawQ, qIdx) => String(rawQ.id || rawQ.qId || `q_${qIdx}`));
+        await questionsCol.deleteMany({ deckId: deckId, qId: { $nin: expectedQuestionIds } });
         committedQuestions += d.questions.length;
+      } else {
+        await questionsCol.deleteMany({ deckId: deckId });
       }
     }
   }
@@ -339,6 +373,19 @@ async function runMigration() {
   console.log(`- Đã Upsert thành công: ${committedDecks} Bộ đề thi`);
   console.log(`- Đã Upsert thành công: ${committedQuestions} Câu hỏi`);
   console.log('='.repeat(80));
+
+  // Chỉ đối soát xóa khi toàn bộ dữ liệu nguồn đã đọc thành công.
+  if (errors.length === 0) {
+    const removedDecks = await decksCol.find({ path: { $nin: committedDeckPaths } }).toArray();
+    if (removedDecks.length) {
+      await questionsCol.deleteMany({ $or: [
+        { deckId: { $in: removedDecks.map(deck => deck._id) } },
+        { deckPath: { $in: removedDecks.map(deck => deck.path) } }
+      ] });
+      await decksCol.deleteMany({ _id: { $in: removedDecks.map(deck => deck._id) } });
+    }
+    await subjectsCol.deleteMany({ id: { $nin: reconciliationData.map(item => String(item.source?.id || item.subjectCode)) } });
+  }
 
   await mongoose.disconnect();
 }

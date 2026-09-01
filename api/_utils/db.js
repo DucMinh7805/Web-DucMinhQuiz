@@ -4,7 +4,7 @@ import dns from 'dns';
 // Fix lỗi DNS querySrv trên môi trường Windows / Node.js
 try {
   dns.setServers(['8.8.8.8', '1.1.1.1']);
-} catch (e) {
+} catch {
   // Ignored on platforms that do not permit setting DNS
 }
 

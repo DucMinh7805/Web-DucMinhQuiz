@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { 
   Bookmark, ArrowLeft, Trash2, CheckCircle2, Search, 
   Sparkles, BrainCircuit
@@ -12,8 +12,12 @@ import usePageTitle from '../hooks/usePageTitle';
 
 const emptyArray = [];
 
-function formatSubjectName(subjectId) {
+function formatSubjectName(subjectId, manifest) {
   if (!subjectId) return 'Y Khoa';
+  const matchedSubject = manifest?.subjects?.find(subject =>
+    subject.id === subjectId || subject.code === subjectId
+  );
+  if (matchedSubject?.name) return matchedSubject.name;
   return String(subjectId)
     .replace(/_/g, ' ')
     .replace(/-/g, ' ')
@@ -27,6 +31,7 @@ export default function MistakesNotebookPage() {
   usePageTitle('Sổ tay câu sai');
   const { user, removeMistake, clearMistakes, reviewMistake } = useAuth();
   const navigate = useNavigate();
+  const manifest = useOutletContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('all');
   
@@ -66,18 +71,42 @@ export default function MistakesNotebookPage() {
     const map = { 'all': 'Tất cả chuyên khoa' };
     mistakes.forEach(m => {
       if (m.subjectId && !map[m.subjectId]) {
-        map[m.subjectId] = formatSubjectName(m.subjectId);
+        map[m.subjectId] = formatSubjectName(m.subjectId, manifest);
       }
     });
     return Object.keys(map).map(k => ({ id: k, name: map[k] }));
+  }, [mistakes, manifest]);
+
+  const subjectDashboard = useMemo(() => {
+    const grouped = new Map();
+    const now = Date.now();
+    mistakes.forEach(mistake => {
+      const subjectId = mistake.subjectId || 'unknown';
+      const current = grouped.get(subjectId) || { subjectId, total: 0, due: 0, mastered: 0 };
+      current.total += 1;
+      if (!mistake.nextReviewDate || new Date(mistake.nextReviewDate).getTime() <= now) current.due += 1;
+      if (mistake.isMastered || Number(mistake.repetitions || 0) >= 3) current.mastered += 1;
+      grouped.set(subjectId, current);
+    });
+
+    return Array.from(grouped.values()).map(item => {
+      const dueRatio = item.total > 0 ? item.due / item.total : 0;
+      if (item.due >= 5 || dueRatio >= 0.6) {
+        return { ...item, level: 'urgent', label: 'Cần ôn khẩn cấp' };
+      }
+      if (item.due > 0) {
+        return { ...item, level: 'reinforce', label: 'Cần củng cố' };
+      }
+      return { ...item, level: 'solid', label: 'Đã thuộc vững' };
+    }).sort((a, b) => b.due - a.due || b.total - a.total);
   }, [mistakes]);
 
   const filteredMistakes = useMemo(() => {
     return mistakes.filter(m => {
       const matchSubject = selectedSubject === 'all' || m.subjectId === selectedSubject;
       const matchSearch = !searchTerm.trim() || 
-        m.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (m.answer && m.answer.toLowerCase().includes(searchTerm.toLowerCase()));
+        String(m.question || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(m.answer || m.correctAnswer || '').toLowerCase().includes(searchTerm.toLowerCase());
       return matchSubject && matchSearch;
     });
   }, [mistakes, selectedSubject, searchTerm]);
@@ -112,7 +141,7 @@ export default function MistakesNotebookPage() {
         onClose={() => setIsReviewMode(false)}
         onRateMistake={handleRateMistake}
         onRemoveMistake={(qId) => removeMistake(qId)}
-        formatSubjectName={formatSubjectName}
+        formatSubjectName={(subjectId) => formatSubjectName(subjectId, manifest)}
       />
     );
   }
@@ -156,7 +185,7 @@ export default function MistakesNotebookPage() {
               >
                 <BrainCircuit className="w-4 h-4 mr-2" />
                 {selectedSubject !== 'all' 
-                  ? `Ôn tập ${formatSubjectName(selectedSubject)} (${reviewQueue.length} câu)`
+                  ? `Ôn tập ${formatSubjectName(selectedSubject, manifest)} (${reviewQueue.length} câu)`
                   : `Ôn tập ${reviewQueue.length} câu`}
               </button>
             )}
@@ -178,6 +207,48 @@ export default function MistakesNotebookPage() {
           </div>
         </div>
       </div>
+
+      {subjectDashboard.length > 0 && (
+        <section className="space-y-3" aria-label="Đánh giá câu sai theo môn học">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+              Mức độ cần ôn theo môn
+            </h2>
+            <span className="text-xs font-semibold text-slate-400">{mistakes.length} câu đang theo dõi</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {subjectDashboard.map(item => {
+              const levelClass = item.level === 'urgent'
+                ? 'border-rose-300/80 bg-rose-50/80 dark:border-rose-800/50 dark:bg-rose-950/25 text-rose-700 dark:text-rose-300'
+                : item.level === 'reinforce'
+                  ? 'border-amber-300/80 bg-amber-50/80 dark:border-amber-800/50 dark:bg-amber-950/25 text-amber-700 dark:text-amber-300'
+                  : 'border-emerald-300/80 bg-emerald-50/80 dark:border-emerald-800/50 dark:bg-emerald-950/25 text-emerald-700 dark:text-emerald-300';
+              return (
+                <button
+                  key={item.subjectId}
+                  type="button"
+                  onClick={() => setSelectedSubject(item.subjectId)}
+                  className={`text-left rounded-2xl border p-4 transition-transform hover:-translate-y-0.5 ${levelClass}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-extrabold text-sm truncate">{formatSubjectName(item.subjectId, manifest)}</p>
+                      <p className="text-[11px] font-bold mt-1 opacity-80">{item.label}</p>
+                    </div>
+                    <span className="text-lg font-black shrink-0">{item.due}/{item.total}</span>
+                  </div>
+                  <div className="mt-3 h-1.5 rounded-full bg-white/70 dark:bg-black/20 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-current transition-all"
+                      style={{ width: `${item.total > 0 ? Math.round((item.due / item.total) * 100) : 0}%` }}
+                    />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Search & Subject Filters (Chỉ hiện khi có câu sai) */}
       {mistakes.length > 0 && (
@@ -234,7 +305,7 @@ export default function MistakesNotebookPage() {
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center space-x-2">
                       <span className="text-xs font-extrabold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-800/30">
-                        {formatSubjectName(item.subjectId)}
+                        {formatSubjectName(item.subjectId, manifest)}
                       </span>
                       {isDue && (
                         <span className="text-[10px] font-bold text-white bg-rose-500 px-2 py-0.5 rounded-md animate-pulse">

@@ -1,7 +1,7 @@
 /**
  * Định nghĩa chuẩn hệ thống Phân Khối Đào Tạo Y Khoa (Medical Training Stages)
- * - preclinical: Tiền lâm sàng (Y1 - Y3: Giải phẫu, Sinh lý, Dược lý, Hóa sinh, Mô phôi, Lý sinh, Triết học...)
- * - clinical: Lâm sàng (Y4 - Y6: Nội, Ngoại, Sản, Nhi, Truyền nhiễm, Chẩn đoán hình ảnh...)
+ * - preclinical: Tiền lâm sàng (Y1 - Y2: Giải phẫu, Sinh lý, Dược lý, Hóa sinh, Mô phôi, Lý sinh, Triết học...)
+ * - clinical: Lâm sàng (Y3 - Y6: Nội, Ngoại, Sản, Nhi, Truyền nhiễm, Chẩn đoán hình ảnh...)
  * - unclassified: Chưa phân loại (Fallback an toàn)
  */
 
@@ -210,5 +210,10 @@ export function resolveSubjectStages(subject) {
 }
 
 export function checkStageCoverage(subjects = []) {
-  // Safe helper
+  return subjects.reduce((coverage, subject) => {
+    resolveSubjectStages(subject).forEach(stage => {
+      coverage[stage] = (coverage[stage] || 0) + 1;
+    });
+    return coverage;
+  }, {});
 }

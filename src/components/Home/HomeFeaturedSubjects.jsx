@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import SubjectCardGrid from '../Graph/SubjectCardGrid';
 
 export default function HomeFeaturedSubjects({
-  subjects = [],
-  isPersonalized = false
+  subjects = []
 }) {
   const navigate = useNavigate();
 

@@ -219,7 +219,9 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
       const correctChoice = choices.find(choice => choice.isCorrectAnswer && choice.isCorrectAnswer());
       
       const optionsList = choices.map(choice => choice.getValue().trim());
-      const answerVal = correctChoice ? correctChoice.getValue().trim() : (answerMapByIndex[questionIndex] || optionsList[0] || "");
+      // Không được tự lấy lựa chọn đầu tiên làm đáp án khi Form chưa cấu hình
+      // grading; để trống còn an toàn hơn ghi một đáp án sai vào hệ thống.
+      const answerVal = correctChoice ? correctChoice.getValue().trim() : (answerMapByIndex[questionIndex] || "");
       const feedback = mcItem.getFeedbackForCorrect() || mcItem.getFeedbackForIncorrect();
 
       // Convert ảnh sang Google Drive vĩnh viễn
@@ -248,7 +250,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
       const optionsList = choices.map(choice => choice.getValue().trim());
       const answerVal = correctChoices.length > 0 
         ? correctChoices.map(c => c.getValue().trim()).join('|')
-        : (answerMapByIndex[questionIndex] || optionsList[0] || "");
+        : (answerMapByIndex[questionIndex] || "");
       const feedback = cbItem.getFeedbackForCorrect() || cbItem.getFeedbackForIncorrect();
 
       if (itemImageUrl && imgFolder) {

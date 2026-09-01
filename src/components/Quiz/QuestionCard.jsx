@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { 
-  Sparkles, Stethoscope, CheckSquare, ArrowRight, X
+import {
+  Sparkles, CheckSquare, ArrowRight, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import OptionItem from './OptionItem';
@@ -27,7 +27,6 @@ export default function QuestionCard({
   onPrev,
   onNext
 }) {
-  const [isVignetteExpanded, setIsVignetteExpanded] = useState(true);
   const [zoomImage, setZoomImage] = useState(null);
   const [multiSelected, setMultiSelected] = useState([]);
   const cardTopRef = useRef(null);

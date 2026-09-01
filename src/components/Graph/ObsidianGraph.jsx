@@ -360,10 +360,18 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
 
   const canvasBg = isDarkMode ? '#070b14' : '#f8fafc';
 
+  const legend = [
+    ['Cơ sở', MEDICAL_PALETTES.preclinical.main],
+    ['Nội', MEDICAL_PALETTES.internal.main],
+    ['Ngoại', MEDICAL_PALETTES.surgery.main],
+    ['Sản · Nhi', MEDICAL_PALETTES.obgyn.main],
+    ['Chuyên khoa', MEDICAL_PALETTES.specialty.main]
+  ];
+
   return (
     <div 
       ref={containerRef} 
-      className="relative w-full h-full select-none overflow-hidden"
+      className="relative w-full h-full select-none overflow-hidden rounded-[28px] border border-white/80 dark:border-white/10 bg-white dark:bg-[#070b14] shadow-xl shadow-slate-900/5"
     >
       <ForceGraph2D
         ref={fgRef}
@@ -397,6 +405,15 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
         enableZoomInteraction={true}
         enablePanInteraction={true}
       />
+
+      <div className="absolute bottom-4 left-4 z-10 hidden max-w-[calc(100%-10rem)] flex-wrap gap-x-3 gap-y-1.5 rounded-2xl border border-slate-200/70 bg-white/85 px-3 py-2 shadow-lg backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/75 sm:flex">
+        {legend.map(([label, color]) => (
+          <span key={label} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-300">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+            {label}
+          </span>
+        ))}
+      </div>
 
       {/* Floating Controls Bar */}
       <div className="absolute bottom-4 right-4 flex items-center space-x-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-lg z-10">

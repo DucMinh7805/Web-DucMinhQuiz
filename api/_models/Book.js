@@ -42,6 +42,11 @@ const bookSchema = new mongoose.Schema({
     default: '', 
     trim: true 
   },
+  price: { type: Number, default: 0, min: 0 },
+  priceFormatted: { type: String, default: '' },
+  priceNote: { type: String, default: '' },
+  isPro: { type: Boolean, default: false, index: true },
+  pricingSynced: { type: Boolean, default: false, index: true },
   isPublished: { 
     type: Boolean, 
     default: true 

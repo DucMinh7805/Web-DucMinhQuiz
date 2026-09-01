@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { FileText, ChevronDown, ChevronUp, ZoomIn, X, ImageIcon } from 'lucide-react';
+import { FileText, ChevronDown, ChevronUp, ZoomIn, X } from 'lucide-react';
 import { getDirectImageUrl } from '../../../utils/imageHelper';
 
 export default function QuestionVignette({ vignette, imageUrl }) {
@@ -90,4 +90,3 @@ export default function QuestionVignette({ vignette, imageUrl }) {
     </>
   );
 }
-

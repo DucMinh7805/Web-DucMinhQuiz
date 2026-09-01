@@ -19,12 +19,12 @@ const dotenv = require('dotenv');
 
 try {
   dns.setServers(['8.8.8.8', '1.1.1.1']);
-} catch (e) {}
+} catch {}
 
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 const { calculateSM2 } = require('../api/_utils/sm2.js');
-const { normalizePhone, isValidVietnamesePhone } = require('../api/_utils/normalize.js');
+const { normalizePhone } = require('../api/_utils/normalize.js');
 const { hashRefreshToken, generateRandomRefreshToken } = require('../api/_utils/auth.js');
 const { checkRateLimit } = require('../api/_utils/rateLimiter.js');
 

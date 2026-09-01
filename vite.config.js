@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'ducminh_logo.png'],
+      includeAssets: ['favicon.svg', 'diamond_quiz.png'],
       manifest: {
         name: 'DiamondQuiz - Y Khoa Lâm Sàng',
         short_name: 'DiamondQuiz',
@@ -17,12 +17,12 @@ export default defineConfig({
         display: 'standalone',
         icons: [
           {
-            src: 'ducminh_logo.png',
+            src: 'diamond_quiz.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'ducminh_logo.png',
+            src: 'diamond_quiz.png',
             sizes: '512x512',
             type: 'image/png'
           }

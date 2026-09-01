@@ -4,29 +4,27 @@
 const dns = require('dns');
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
-const https = require('https');
 const mongoose = require('mongoose');
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://minhcute9511_db_user:wGb8IFb3GRfwOrcN@cluster0.d9fdtgy.mongodb.net/WebYKhoa?retryWrites=true&w=majority';
-const GAS_MANIFEST_URL = 'https://script.google.com/macros/s/AKfycbyOy_VJu88x2PadlUvGy-Ajg8mODrAOsas6LrtOuESJQtk-y3elzu6u5VkwOiJ9xZva/exec?action=getManifest';
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) throw new Error('Thiếu biến môi trường MONGODB_URI. Không lưu thông tin kết nối trong mã nguồn.');
+const QUIZ_SHEET_WEB_APP_URL = process.env.QUIZ_SHEET_WEB_APP_URL;
+const QUIZ_SYNC_INTERNAL_SECRET = process.env.QUIZ_SYNC_INTERNAL_SECRET;
+if (!QUIZ_SHEET_WEB_APP_URL || !QUIZ_SYNC_INTERNAL_SECRET) {
+  throw new Error('Thiếu QUIZ_SHEET_WEB_APP_URL hoặc QUIZ_SYNC_INTERNAL_SECRET.');
+}
 
-function fetchUrl(url) {
-  return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
-      if (res.statusCode === 301 || res.statusCode === 302) {
-        return fetchUrl(res.headers.location).then(resolve).catch(reject);
-      }
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          reject(new Error('Lỗi parse JSON: ' + e.message));
-        }
-      });
-    }).on('error', reject);
+async function fetchInternal(action, params = {}) {
+  const response = await fetch(QUIZ_SHEET_WEB_APP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: new URLSearchParams({ action, internalSecret: QUIZ_SYNC_INTERNAL_SECRET, ...params }),
+    redirect: 'follow'
   });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Google Apps Script trả HTTP ${response.status}`);
+  try { return JSON.parse(text); }
+  catch (error) { throw new Error('Lỗi parse JSON: ' + error.message); }
 }
 
 async function run() {
@@ -35,7 +33,7 @@ async function run() {
   const db = mongoose.connection.db;
 
   console.log('📡 Đang tải Manifest từ Google Apps Script...');
-  const manifestData = await fetchUrl(GAS_MANIFEST_URL);
+  const manifestData = await fetchInternal('getInternalManifest');
   const gasSubjects = manifestData.subjects || [];
   const gasBooks = manifestData.books || [];
 
@@ -66,6 +64,11 @@ async function run() {
       sourceLink: s.sourceLink || '',
       sourceAuthor: s.sourceAuthor || '',
       sourceUnit: s.sourceUnit || '',
+      price: Number(s.price) || 0,
+      priceFormatted: s.priceFormatted || '',
+      priceNote: s.priceNote || '',
+      isPro: Boolean(s.isPro || Number(s.price) > 0),
+      pricingSynced: true,
       orderIndex: i + 1,
       isPublished: true,
       createdAt: new Date(),
@@ -101,6 +104,11 @@ async function run() {
       link: b.link || '',
       author: b.author || '',
       coverUrl: b.coverUrl || '',
+      price: Number(b.price) || 0,
+      priceFormatted: b.priceFormatted || '',
+      priceNote: b.priceNote || '',
+      isPro: Boolean(b.isPro || Number(b.price) > 0),
+      pricingSynced: true,
       isPublished: true,
       createdAt: new Date(),
       updatedAt: new Date()

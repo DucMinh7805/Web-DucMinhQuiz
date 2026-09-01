@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useParams, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const KnowledgeGraphPage = lazy(() => import('./pages/KnowledgeGraphPage'));
@@ -21,8 +21,6 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { fetchManifest, fetchDeckQuestions } from './services/quizApi';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-
-import { DEFAULT_SAMPLE_MANIFEST } from './data/defaultManifest';
 
 const queryClient = new QueryClient({
   defaultOptions: {

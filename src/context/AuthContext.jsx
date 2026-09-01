@@ -3,35 +3,80 @@ import { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
 
+function mergeVerifiedUser(previousUser, userData) {
+  const sameAccount = previousUser?.phone === userData?.phone ? previousUser : null;
+  const entitlements = Array.isArray(userData?.entitlements) ? userData.entitlements : [];
+  const entitlementKeys = entitlements.map(item => item.itemKey).filter(Boolean);
+  const entitlementExpirations = Object.fromEntries(
+    entitlements.filter(item => item?.itemKey && item?.expiresAt).map(item => [item.itemKey, item.expiresAt])
+  );
+  return {
+    ...(sameAccount || {}),
+    ...userData,
+    entitlementKeys,
+    // Hai trường dưới chỉ phục vụ hiển thị tương thích ở trang hồ sơ.
+    // API vẫn xác minh lại entitlement trong cookie HttpOnly cho mọi nội dung PRO.
+    unlockedSubjects: entitlementKeys.filter(key => key.startsWith('subject:')).map(key => key.slice(8)),
+    unlockedBooks: entitlementKeys.filter(key => key.startsWith('book:')).map(key => key.slice(5)),
+    subjectExpirations: entitlementExpirations,
+    loginTime: new Date().toISOString()
+  };
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Lấy thông tin user từ localStorage khi ứng dụng khởi chạy
-    const storedUser = localStorage.getItem('y_khoa_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    // localStorage chỉ giữ tiến độ/UI. Danh tính và quyền luôn lấy lại từ cookie
+    // HttpOnly do máy chủ ký; sửa localStorage không thể mở API PRO.
+    let cachedProfile = null;
+    try {
+      cachedProfile = JSON.parse(localStorage.getItem('y_khoa_user') || 'null');
+    } catch {
+      localStorage.removeItem('y_khoa_user');
     }
-    setLoading(false);
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then(async response => response.ok ? response.json() : null)
+      .then(data => {
+        if (!data?.user) return setUser(null);
+        const verifiedUser = mergeVerifiedUser(cachedProfile, { ...data.user, isAuthenticated: true });
+        localStorage.setItem('y_khoa_user', JSON.stringify(verifiedUser));
+        setUser(verifiedUser);
+      })
+      .catch(() => setUser(null))
+      .finally(() => setLoading(false));
   }, []);
 
   const login = (userData) => {
-    // Lưu user vào localStorage để giữ đăng nhập
-    const newUser = {
-      ...userData,
-      loginTime: new Date().toISOString()
-    };
+    const newUser = mergeVerifiedUser(user, userData);
     localStorage.setItem('y_khoa_user', JSON.stringify(newUser));
     setUser(newUser);
   };
 
+  const updateProfile = (profileChanges) => {
+    if (!user || !profileChanges || typeof profileChanges !== 'object') return false;
+    const updatedUser = { ...user, ...profileChanges };
+    localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
+    setUser(updatedUser);
+    return true;
+  };
+
   const logout = () => {
+    fetch('/api/auth/sheet-logout', { method: 'POST', credentials: 'include' }).catch(() => {});
     localStorage.removeItem('y_khoa_user');
     setUser(null);
   };
 
-  const updateProgress = (subjectId, deckId, score, total, wrongQuestions = [], timeSpentSeconds = 0) => {
+  const updateProgress = (
+    subjectId,
+    deckId,
+    score,
+    total,
+    wrongQuestions = [],
+    timeSpentSeconds = 0,
+    answeredQuestionIds = []
+  ) => {
     if (!user) return;
     
     const updatedUser = { ...user };
@@ -49,8 +94,16 @@ export function AuthProvider({ children }) {
     // Lưu vào Sổ tay câu sai (Mistakes Notebook)
     if (!updatedUser.mistakes) updatedUser.mistakes = [];
     
-    // Loại bỏ các câu đã trả lời đúng lần này ra khỏi sổ tay câu sai (nếu có)
-    // Và thêm các câu sai mới vào
+    const wrongIds = new Set((wrongQuestions || []).map(wq => String(wq.id || wq.questionId)).filter(Boolean));
+    const answeredIds = new Set((answeredQuestionIds || []).map(String));
+
+    // Câu đã làm đúng trong lượt này phải được gỡ khỏi sổ tay. Chỉ tác động
+    // các ID thực sự xuất hiện trong lượt làm bài để không xóa nhầm dữ liệu khác.
+    updatedUser.mistakes = updatedUser.mistakes.filter(mistake => {
+      const mistakeId = String(mistake.id || mistake.questionId || '');
+      return !answeredIds.has(mistakeId) || wrongIds.has(mistakeId);
+    });
+
     if (wrongQuestions && wrongQuestions.length > 0) {
       wrongQuestions.forEach(wq => {
         const qId = wq.id || wq.questionId;
@@ -141,35 +194,35 @@ export function AuthProvider({ children }) {
     setUser(updatedUser);
   };
 
-  // Mở khóa môn học / tài liệu (Mặc định hạn 60 ngày)
-  const unlockSubject = (subjectId, durationDays = 60) => {
-    if (!user) return false;
-    const updatedUser = { ...user };
-    if (!updatedUser.unlockedSubjects) updatedUser.unlockedSubjects = [];
-    if (!updatedUser.unlockedSubjects.includes(subjectId)) {
-      updatedUser.unlockedSubjects.push(subjectId);
-    }
-    if (!updatedUser.subjectExpirations) updatedUser.subjectExpirations = {};
-    updatedUser.subjectExpirations[subjectId] = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
-    
-    localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
-    setUser(updatedUser);
+  // Chỉ áp dụng entitlement sau khi mã đã được Google Apps Script xác thực.
+  const applyVerifiedEntitlement = (verifiedUser) => {
+    if (!verifiedUser?.phone) return false;
+    login({ ...user, ...verifiedUser, isAuthenticated: true });
     return true;
   };
 
+  const refreshAccess = async () => {
+    const response = await fetch('/api/auth/refresh-access', {
+      method: 'POST',
+      credentials: 'include'
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data?.success || !data?.user) {
+      throw new Error(data?.message || 'Không thể kiểm tra quyền vừa cấp.');
+    }
+    login({ ...data.user, isAuthenticated: true });
+    return data.user;
+  };
+
   // Kiểm tra môn học đã được mở khóa hay chưa
-  const isSubjectUnlocked = (subjectId, price) => {
+  const isSubjectUnlocked = (itemId, price, itemType = 'subject') => {
     // Nếu môn miễn phí (price = 0 hoặc không có) -> Luôn mở khóa
     if (!price || price === 0 || price === '0' || price === 'Miễn phí') return true;
     if (!user) return false;
     if (user.role === 'admin') return true;
-    if (user.unlockedSubjects?.includes(subjectId)) {
-      // Kiểm tra hạn sử dụng
-      const expiry = user.subjectExpirations?.[subjectId];
-      if (!expiry) return true;
-      return new Date(expiry).getTime() > Date.now();
-    }
-    return false;
+    const itemKey = `${itemType}:${itemId}`;
+    const expiry = user.subjectExpirations?.[itemKey];
+    return Boolean(user.entitlementKeys?.includes(itemKey) && expiry && new Date(expiry).getTime() > Date.now());
   };
 
   return (
@@ -178,11 +231,13 @@ export function AuthProvider({ children }) {
       loading, 
       login, 
       logout, 
+      updateProfile,
       updateProgress,
       removeMistake,
       clearMistakes,
       reviewMistake,
-      unlockSubject,
+      applyVerifiedEntitlement,
+      refreshAccess,
       isSubjectUnlocked
     }}>
       {children}
@@ -193,4 +248,3 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
-

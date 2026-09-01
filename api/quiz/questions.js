@@ -1,12 +1,10 @@
 import { connectToDatabase } from '../_utils/db.js';
-import { Question } from '../_models/index.js';
+import { Deck, Question, Subject } from '../_models/index.js';
+import { authenticateSheetSession, sessionHasEntitlement } from '../_utils/sheetSession.js';
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  // Endpoint chỉ dùng cùng origin. Không phản chiếu Origin tùy ý kèm cookie.
+  if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Chỉ hỗ trợ GET.' });
 
   try {
     await connectToDatabase();
@@ -19,25 +17,42 @@ export default async function handler(req, res) {
     const decodedPath = decodeURIComponent(deckPath).trim();
     const escaped = decodedPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-    // Tìm kiếm linh hoạt không phân biệt hoa thường và hỗ trợ cả dấu gạch chéo
+    // Xác định môn sở hữu bộ đề trước khi đọc câu hỏi. Đây là điểm chặn PRO
+    // thực sự; khóa giao diện phía trình duyệt không được dùng làm căn cứ.
+    let deck = await Deck.findOne({ path: { $regex: new RegExp(`^${escaped}$`, 'i') }, isPublished: true }).lean();
+    if (!deck) {
+      const altPath = decodedPath.replace(/\//g, '-');
+      const altEscaped = altPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      deck = await Deck.findOne({ path: { $regex: new RegExp(`^${altEscaped}$`, 'i') }, isPublished: true }).lean();
+    }
+    if (!deck) return res.status(404).json({ success: false, message: 'Không tìm thấy bộ đề.' });
+
+    const subject = await Subject.findById(deck.subjectId).lean();
+    if (!subject || !subject.isPublished) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy môn học.' });
+    }
+    if (subject.pricingSynced !== true) {
+      return res.status(503).json({
+        success: false,
+        message: 'Dữ liệu giá chưa được đồng bộ an toàn. Vui lòng chạy lại đồng bộ manifest.'
+      });
+    }
+    const isPro = Boolean(subject.isPro || Number(subject.price) > 0);
+    if (isPro) {
+      const session = authenticateSheetSession(req);
+      if (!session) return res.status(401).json({ success: false, message: 'Vui lòng đăng nhập để mở nội dung PRO.' });
+      if (!sessionHasEntitlement(session, 'subject', subject.id)) {
+        return res.status(403).json({ success: false, message: 'Tài khoản chưa được cấp quyền cho môn học này.' });
+      }
+    }
+
+    // Chỉ truy vấn câu hỏi sau khi đã kiểm tra quyền.
     let questions = await Question.find({
-      deckPath: { $regex: new RegExp(`^${escaped}$`, 'i') },
+      deckPath: { $regex: new RegExp(`^${deck.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
       isPublished: true
     })
       .sort({ orderIndex: 1, createdAt: 1 })
       .lean();
-
-    // Fallback nếu path có dạng thay thế gạch ngang
-    if (!questions || questions.length === 0) {
-      const altPath = decodedPath.replace(/\//g, '-');
-      const altEscaped = altPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      questions = await Question.find({
-        deckPath: { $regex: new RegExp(`^${altEscaped}$`, 'i') },
-        isPublished: true
-      })
-        .sort({ orderIndex: 1, createdAt: 1 })
-        .lean();
-    }
 
     const formattedQuestions = questions.map((q, idx) => ({
       id: q._id,

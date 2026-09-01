@@ -5,7 +5,7 @@
 const rateLimitMap = new Map();
 
 // Tự động dọn dẹp các IP quá hạn mỗi 10 phút
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, record] of rateLimitMap.entries()) {
     if (record.resetAt <= now) {
@@ -13,6 +13,8 @@ setInterval(() => {
     }
   }
 }, 10 * 60 * 1000);
+// Không giữ Node/Vercel Function sống chỉ vì bộ dọn cache nội bộ.
+cleanupTimer.unref?.();
 
 export function checkRateLimit(key, maxRequests = 5, windowMs = 15 * 60 * 1000) {
   const now = Date.now();

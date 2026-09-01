@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Layers, BarChart2, PlayCircle, Search, Clock,
   BookOpen, Heart, Activity, Stethoscope, 
-  Microscope, Dna, Eye, ShieldCheck, Sparkles,
+  Dna, Eye, Sparkles,
   GraduationCap, FlaskConical
 } from 'lucide-react';
 import { getDirectImageUrl } from '../../utils/imageHelper';
@@ -130,6 +130,15 @@ function getSubjectSpecificIcon(subjectName = '', fallbackIcon = BookOpen) {
   return fallbackIcon;
 }
 
+function getSafeCustomBackground(value) {
+  const background = String(value || '').trim();
+  if (!background || /url\s*\(|[;{}]/i.test(background)) return null;
+  if (/^#[0-9a-f]{3,8}$/i.test(background)) return background;
+  if (/^(rgb|rgba|hsl|hsla)\([\d\s.,%+-]+\)$/i.test(background)) return background;
+  if (/^(linear|radial)-gradient\([#\w\d\s.,()%+-]+\)$/i.test(background)) return background;
+  return null;
+}
+
 function SubjectCardItem({ sub, idx, onHoverSubject, navigate }) {
   const [imgError, setImgError] = useState(false);
   const theme = getSubjectTheme(sub.name, sub.categoryId, sub.categoryName);
@@ -138,6 +147,7 @@ function SubjectCardItem({ sub, idx, onHoverSubject, navigate }) {
   const directCover = sheetCover ? getDirectImageUrl(sheetCover) : null;
   const rawCoverUrl = directCover || '';
   const hasValidImage = !!rawCoverUrl && !imgError;
+  const customBackground = getSafeCustomBackground(sub.colorTheme);
 
   const numericPrice = typeof sub.price === 'number' ? sub.price : parseInt(String(sub.price || '0').replace(/[^0-9]/g, ''), 10) || 0;
   const hasPrice = numericPrice > 0;
@@ -187,7 +197,10 @@ function SubjectCardItem({ sub, idx, onHoverSubject, navigate }) {
           />
         ) : (
           /* Nền Gradient Y Khoa + Icon trung tâm */
-          <div className={`w-full h-full bg-gradient-to-br ${theme.gradient} p-2.5 flex items-center justify-center relative overflow-hidden transition-all duration-500 group-hover:scale-105`}>
+          <div
+            className={`w-full h-full bg-gradient-to-br ${theme.gradient} p-2.5 flex items-center justify-center relative overflow-hidden transition-all duration-500 group-hover:scale-105`}
+            style={customBackground ? { background: customBackground } : undefined}
+          >
             <div className={`absolute -top-10 -right-10 w-24 h-24 ${theme.glowColor} rounded-full blur-2xl pointer-events-none`} />
             
             {/* Biểu tượng Y học trung tâm nổi bật */}

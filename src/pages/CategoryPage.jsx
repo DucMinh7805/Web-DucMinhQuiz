@@ -1,13 +1,12 @@
 import { useState } from 'react';
-import { ChevronLeft, Search, LayoutGrid, BookOpen } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { ChevronLeft, Search } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { getDirectImageUrl } from '../utils/imageHelper';
 import { useOutletContext } from 'react-router-dom';
 import SubjectCardGrid from '../components/Graph/SubjectCardGrid';
 
-import { FOUR_PILLARS_CONFIG } from '../components/Home/HomeFourPillars';
+import { FOUR_PILLARS_CONFIG } from '../data/fourPillarsConfig';
 import usePageTitle from '../hooks/usePageTitle';
 
 import Breadcrumb from '../components/Common/Breadcrumb';
