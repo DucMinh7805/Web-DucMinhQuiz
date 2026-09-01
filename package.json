@@ -11,6 +11,7 @@
     "test:critical": "node scripts/test-critical-logic.mjs",
     "test:security": "node scripts/test-security-session.mjs",
     "sync:manifest": "node scripts/sync-manifest-from-gas.cjs",
+    "sync:pricing": "node scripts/sync-pricing-from-gas.cjs",
     "preview": "vite preview"
   },
   "dependencies": {
