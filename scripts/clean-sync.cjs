@@ -7,6 +7,7 @@ dns.setServers(['8.8.8.8', '1.1.1.1']);
 const mongoose = require('mongoose');
 
 const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'WebYKhoa';
 if (!MONGODB_URI) throw new Error('Thiếu biến môi trường MONGODB_URI. Không lưu thông tin kết nối trong mã nguồn.');
 const QUIZ_SHEET_WEB_APP_URL = process.env.QUIZ_SHEET_WEB_APP_URL;
 const QUIZ_SYNC_INTERNAL_SECRET = process.env.QUIZ_SYNC_INTERNAL_SECRET;
@@ -29,7 +30,7 @@ async function fetchInternal(action, params = {}) {
 
 async function run() {
   console.log('🔄 Đang kết nối tới MongoDB Atlas...');
-  await mongoose.connect(MONGODB_URI);
+  await mongoose.connect(MONGODB_URI, { dbName: MONGODB_DB_NAME });
   const db = mongoose.connection.db;
 
   console.log('📡 Đang tải Manifest từ Google Apps Script...');

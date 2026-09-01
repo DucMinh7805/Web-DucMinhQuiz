@@ -94,7 +94,10 @@ async function runTestSuite() {
   }
 
   try {
-    await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
+    await mongoose.connect(uri, {
+      dbName: process.env.MONGODB_DB_NAME || 'WebYKhoa',
+      serverSelectionTimeoutMS: 5000
+    });
     assert(mongoose.connection.readyState === 1, 'Kết nối MongoDB Atlas thành công');
 
     const db = mongoose.connection.db;

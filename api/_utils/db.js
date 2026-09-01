@@ -1,11 +1,14 @@
 import mongoose from 'mongoose';
 import dns from 'dns';
 
-// Fix lỗi DNS querySrv trên môi trường Windows / Node.js
-try {
-  dns.setServers(['8.8.8.8', '1.1.1.1']);
-} catch {
-  // Ignored on platforms that do not permit setting DNS
+// Chỉ dùng DNS công cộng cho máy Windows chạy local. Vercel phải dùng DNS
+// nội bộ của nền tảng; ép truy vấn UDP ra ngoài có thể làm MongoDB SRV lỗi.
+if (process.platform === 'win32' && !process.env.VERCEL) {
+  try {
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+  } catch {
+    // Giữ DNS mặc định nếu hệ điều hành không cho phép thay đổi.
+  }
 }
 
 /**
@@ -31,6 +34,9 @@ export async function connectToDatabase() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      // URI trước đây không có /database nên MongoDB tự chọn "test" (trống).
+      // Tách tên DB thành cấu hình rõ ràng để API và các script luôn cùng kho.
+      dbName: process.env.MONGODB_DB_NAME || 'WebYKhoa',
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 45000

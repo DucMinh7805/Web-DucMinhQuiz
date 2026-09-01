@@ -230,7 +230,10 @@ async function runMigration() {
   const uri = process.env.MONGODB_URI;
   if (!uri) throw new Error('Thiếu MONGODB_URI trong .env');
 
-  await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
+  await mongoose.connect(uri, {
+    dbName: process.env.MONGODB_DB_NAME || 'WebYKhoa',
+    serverSelectionTimeoutMS: 10000
+  });
   console.log('=> Kết nối MongoDB Atlas thành công!');
 
   const db = mongoose.connection.db;
