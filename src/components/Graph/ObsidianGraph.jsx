@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { forceCollide, forceManyBody } from 'd3-force';
-import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, MousePointer2 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { STAGES } from '../../data/stageMapping';
 
@@ -39,7 +39,7 @@ function getCategoryPalette(catName = '') {
 }
 
 const ObsidianGraph = forwardRef(function ObsidianGraph({ 
-  manifest, 
+  subjects = [],
   searchTerm = '', 
   activeStages = [STAGES.ALL],
   onSelectNode,
@@ -47,12 +47,11 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
 }, ref) {
   const fgRef = useRef();
   const containerRef = useRef();
+  const hasFittedRef = useRef(false);
   const { isDarkMode } = useTheme();
 
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [hoverNode, setHoverNode] = useState(null);
-  const [highlightNodes, setHighlightNodes] = useState(new Set());
-  const [highlightLinks, setHighlightLinks] = useState(new Set());
 
   // Expose các phương thức điều khiển cho component cha
   useImperativeHandle(ref, () => ({
@@ -115,14 +114,14 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
 
   // 3. Xây dựng Dữ liệu Nodes & Links đồng bộ Stage Filter
   const graphData = useMemo(() => {
-    if (!manifest?.subjects || manifest.subjects.length === 0) {
+    if (!Array.isArray(subjects) || subjects.length === 0) {
       return { nodes: [], links: [] };
     }
 
     const isAllStage = activeStages.includes(STAGES.ALL);
     const catMap = {};
 
-    manifest.subjects.forEach(sub => {
+    subjects.forEach(sub => {
       const cId = sub.categoryId || 'khac';
       const cName = sub.categoryName || 'Khác';
       if (!catMap[cId]) {
@@ -144,7 +143,7 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
       color: '#0284c7',
       glow: 'rgba(2, 132, 199, 0.45)',
       description: 'Trung tâm Tri thức & Mạng lưới Y khoa Lâm sàng Toàn diện.',
-      totalSubjects: manifest.subjects.length,
+      totalSubjects: subjects.length,
       totalCategories: categoryList.length,
       isDimmedByFilter: false
     };
@@ -221,13 +220,20 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
     });
 
     return { nodes, links };
-  }, [manifest, activeStages]);
+  }, [subjects, activeStages]);
 
   // 4. Cấu hình D3-Force Physics Engine & Auto Settle Stop
   useEffect(() => {
     if (!fgRef.current) return;
 
-    fgRef.current.d3Force('charge', forceManyBody().strength(-280).distanceMax(450));
+    hasFittedRef.current = false;
+    fgRef.current.d3Force('charge', forceManyBody().strength(-240).distanceMax(560));
+    const linkForce = fgRef.current.d3Force('link');
+    if (linkForce) {
+      linkForce
+        .distance(link => link.distance || 70)
+        .strength(link => link.isCore ? 0.42 : 0.28);
+    }
     fgRef.current.d3Force(
       'collide',
       forceCollide().radius(node => {
@@ -239,36 +245,47 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
     // Zoom vừa vặn khung hình ban đầu
     const timer = setTimeout(() => {
       if (fgRef.current) {
-        fgRef.current.zoomToFit(400, 50);
+        fgRef.current.zoomToFit(650, dimensions.width < 640 ? 36 : 72);
+        hasFittedRef.current = true;
       }
-    }, 500);
+    }, 850);
 
     return () => clearTimeout(timer);
-  }, [graphData]);
+  }, [graphData, dimensions.width]);
 
-  // 5. Xử lý Highlight khi Hover
+  // 5. Giữ sáng quan hệ gần nhất khi hover hoặc sau khi chọn node.
   const updateHighlight = useCallback((node) => {
     setHoverNode(node || null);
+  }, []);
 
-    const newHighlightNodes = new Set();
-    const newHighlightLinks = new Set();
+  const { highlightNodes, highlightLinks } = useMemo(() => {
+    const activeNode = hoverNode || selectedNode;
+    const nodeIds = new Set();
+    const links = new Set();
 
-    if (node) {
-      newHighlightNodes.add(node.id);
+    if (activeNode) {
+      nodeIds.add(activeNode.id);
       graphData.links.forEach(link => {
-        const sId = typeof link.source === 'object' ? link.source.id : link.source;
-        const tId = typeof link.target === 'object' ? link.target.id : link.target;
-        if (sId === node.id || tId === node.id) {
-          newHighlightLinks.add(link);
-          newHighlightNodes.add(sId);
-          newHighlightNodes.add(tId);
+        const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+        const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+        if (sourceId === activeNode.id || targetId === activeNode.id) {
+          links.add(link);
+          nodeIds.add(sourceId);
+          nodeIds.add(targetId);
         }
       });
     }
 
-    setHighlightNodes(newHighlightNodes);
-    setHighlightLinks(newHighlightLinks);
-  }, [graphData]);
+    return { highlightNodes: nodeIds, highlightLinks: links };
+  }, [graphData, hoverNode, selectedNode]);
+
+  // Không giữ object node cũ sau khi dữ liệu/filter thay đổi.
+  useEffect(() => {
+    if (!selectedNode || !onSelectNode) return;
+    const currentNode = graphData.nodes.find(node => node.id === selectedNode.id);
+    if (!currentNode) onSelectNode(null);
+    else if (currentNode !== selectedNode) onSelectNode(currentNode);
+  }, [graphData, onSelectNode, selectedNode]);
 
   // 6. Xử lý Click Node
   const handleNodeClick = useCallback((node) => {
@@ -276,7 +293,8 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
     
     if (fgRef.current) {
       fgRef.current.centerAt(node.x, node.y, 600);
-      fgRef.current.zoom(2.0, 600);
+      const targetZoom = node.type === 'root' ? 1.15 : node.type === 'category' ? 1.55 : 2;
+      fgRef.current.zoom(targetZoom, 600);
     }
 
     if (onSelectNode) {
@@ -286,6 +304,9 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
 
   // 7. Paint Canvas từng Node & Nhãn chữ với cơ chế LOD (Level of Detail)
   const paintNode = useCallback((node, ctx, globalScale) => {
+    if (!Number.isFinite(node.x) || !Number.isFinite(node.y) || !Number.isFinite(globalScale) || globalScale <= 0) {
+      return;
+    }
     const isHovered = hoverNode && hoverNode.id === node.id;
     const isSelected = selectedNode && selectedNode.id === node.id;
     const isHighlighted = highlightNodes.has(node.id) || isSelected;
@@ -294,26 +315,40 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
     const term = searchTerm.trim().toLowerCase();
     const matchesSearch = term && node.name.toLowerCase().includes(term);
 
-    // Kích thước 3 tầng: Root = 18px, Category = 12px, Subject = 5px
-    const baseRadius = node.type === 'root' ? 18 : node.type === 'category' ? 12 : 5;
-    const currentRadius = (isHovered || isSelected) ? baseRadius * 1.3 : baseRadius;
+    // Kích thước 3 tầng rõ ràng hơn, vẫn giữ mật độ tốt trên màn hình nhỏ.
+    const baseRadius = node.type === 'root' ? 22 : node.type === 'category' ? 14 : 5.5;
+    const currentRadius = baseRadius;
 
     ctx.save();
-    ctx.globalAlpha = isDimmed ? 0.15 : 1.0;
+    ctx.globalAlpha = isDimmed ? 0.12 : 1.0;
 
     // A. Vầng hào quang Glow (Chỉ vẽ cho Root, Category hoặc khi Highlight để giữ hiệu năng)
     if (isHovered || isSelected || isHighlighted || node.type === 'root' || node.type === 'category') {
       ctx.beginPath();
-      ctx.arc(node.x, node.y, currentRadius * 2.2, 0, Math.PI * 2);
+      ctx.arc(node.x, node.y, currentRadius * 2.35, 0, Math.PI * 2);
       ctx.fillStyle = node.glow || 'rgba(6, 182, 212, 0.25)';
       ctx.fill();
     }
 
-    // B. Vòng tròn nơ-ron chính
+    // B. Node gradient tạo cảm giác có chiều sâu nhưng vẫn nhẹ trên Canvas.
     ctx.beginPath();
     ctx.arc(node.x, node.y, currentRadius, 0, Math.PI * 2);
-    ctx.fillStyle = node.color || '#06b6d4';
+    const nodeGradient = ctx.createRadialGradient(
+      node.x - currentRadius * 0.35,
+      node.y - currentRadius * 0.45,
+      currentRadius * 0.08,
+      node.x,
+      node.y,
+      currentRadius
+    );
+    nodeGradient.addColorStop(0, '#ffffff');
+    nodeGradient.addColorStop(0.16, node.color || '#06b6d4');
+    nodeGradient.addColorStop(1, node.color || '#06b6d4');
+    ctx.shadowColor = node.glow || 'rgba(6, 182, 212, 0.3)';
+    ctx.shadowBlur = (isHovered || isSelected ? 18 : 9) / globalScale;
+    ctx.fillStyle = nodeGradient;
     ctx.fill();
+    ctx.shadowBlur = 0;
 
     // C. Viền sắc nét
     ctx.strokeStyle = (isHovered || isSelected) ? '#ffffff' : (isDarkMode ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.15)');
@@ -333,32 +368,45 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
       matchesSearch;
 
     if (shouldShowLabel) {
-      const fontSize = Math.max(10 / globalScale, 3.2);
+      const fontSize = Math.max((node.type === 'root' ? 12 : 10.5) / globalScale, 3.4);
       ctx.font = `${(isHovered || isSelected || node.type !== 'subject') ? 'bold' : '500'} ${fontSize}px Inter, -apple-system, sans-serif`;
 
       const text = node.name;
-      const textY = node.y + currentRadius + (2.5 / globalScale);
+      const textY = node.y + currentRadius + (4 / globalScale);
 
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
 
-      if (isDarkMode) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-        ctx.shadowBlur = 3 / globalScale;
-        ctx.fillStyle = (isHovered || isSelected || matchesSearch) ? '#38bdf8' : (node.type === 'subject' ? '#cbd5e1' : '#f8fafc');
-      } else {
-        ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
-        ctx.shadowBlur = 3 / globalScale;
-        ctx.fillStyle = (isHovered || isSelected || matchesSearch) ? '#0284c7' : '#0f172a';
+      // Nhãn của node chính có nền capsule để không bị đường nối cắt qua.
+      if (node.type !== 'subject' || isHovered || isSelected) {
+        const metrics = ctx.measureText(text);
+        const paddingX = 5 / globalScale;
+        const paddingY = 3 / globalScale;
+        const labelHeight = fontSize + paddingY * 2;
+        const labelWidth = metrics.width + paddingX * 2;
+        const labelX = node.x - labelWidth / 2;
+        const labelY = textY - paddingY;
+        const radius = 5 / globalScale;
+
+        ctx.beginPath();
+        ctx.roundRect(labelX, labelY, labelWidth, labelHeight, radius);
+        ctx.fillStyle = isDarkMode ? 'rgba(7, 11, 20, 0.86)' : 'rgba(255, 255, 255, 0.88)';
+        ctx.fill();
       }
 
+      ctx.shadowColor = isDarkMode ? 'rgba(0, 0, 0, 0.75)' : 'rgba(255, 255, 255, 0.95)';
+      ctx.shadowBlur = 3 / globalScale;
+      ctx.fillStyle = (isHovered || isSelected || matchesSearch)
+        ? (isDarkMode ? '#67e8f9' : '#0369a1')
+        : (isDarkMode ? (node.type === 'subject' ? '#cbd5e1' : '#f8fafc') : '#0f172a');
       ctx.fillText(text, node.x, textY);
     }
 
     ctx.restore();
   }, [hoverNode, selectedNode, highlightNodes, searchTerm, isDarkMode]);
 
-  const canvasBg = isDarkMode ? '#070b14' : '#f8fafc';
+  // Canvas cần nền đặc để mỗi frame được xóa sạch, tránh lưu vệt khi pan/zoom.
+  const canvasBg = isDarkMode ? '#08111f' : '#f8fbff';
 
   const legend = [
     ['Cơ sở', MEDICAL_PALETTES.preclinical.main],
@@ -371,8 +419,13 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
   return (
     <div 
       ref={containerRef} 
-      className="relative w-full h-full select-none overflow-hidden rounded-[28px] border border-white/80 dark:border-white/10 bg-white dark:bg-[#070b14] shadow-xl shadow-slate-900/5"
+      className="relative w-full h-full select-none overflow-hidden rounded-[30px] border border-white/90 bg-gradient-to-br from-white via-cyan-50/40 to-indigo-50/60 shadow-[0_24px_70px_-32px_rgba(15,23,42,0.28)] dark:border-white/10 dark:from-[#0b1220] dark:via-[#07111f] dark:to-[#0b1021]"
     >
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-24 -top-28 h-80 w-80 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/10" />
+        <div className="absolute -bottom-32 right-[8%] h-96 w-96 rounded-full bg-violet-300/20 blur-3xl dark:bg-violet-500/10" />
+        <div className="absolute inset-0 opacity-[0.16] dark:opacity-[0.09] [background-image:radial-gradient(circle_at_center,rgba(14,116,144,0.35)_1px,transparent_1px)] [background-size:26px_26px]" />
+      </div>
       <ForceGraph2D
         ref={fgRef}
         width={dimensions.width}
@@ -383,6 +436,7 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
         nodeVal="val"
         nodeCanvasObject={paintNode}
         nodePointerAreaPaint={(node, color, ctx) => {
+          if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
           const r = (node.type === 'root' ? 18 : node.type === 'category' ? 12 : 6) + 4;
           ctx.beginPath();
           ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
@@ -391,6 +445,10 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
         }}
         onNodeHover={updateHighlight}
         onNodeClick={handleNodeClick}
+        onBackgroundClick={() => {
+          setHoverNode(null);
+          if (onSelectNode) onSelectNode(null);
+        }}
         linkColor={link => {
           if (highlightLinks.has(link)) return isDarkMode ? '#ffffff' : '#0284c7';
           if (hoverNode || selectedNode) return isDarkMode ? 'rgba(51, 65, 85, 0.12)' : 'rgba(203, 213, 225, 0.25)';
@@ -399,14 +457,24 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
             : (isDarkMode ? 'rgba(71, 85, 105, 0.25)' : 'rgba(203, 213, 225, 0.5)');
         }}
         linkWidth={link => (highlightLinks.has(link) ? 2.0 : link.isCore ? 1.2 : 0.8)}
+        linkCurvature={link => link.isCore ? 0.035 : 0.075}
+        linkDirectionalParticles={link => highlightLinks.has(link) ? 2 : 0}
+        linkDirectionalParticleWidth={2.4}
+        linkDirectionalParticleSpeed={0.004}
         cooldownTicks={80}
         warmupTicks={30}
+        onEngineStop={() => {
+          if (!hasFittedRef.current && fgRef.current) {
+            fgRef.current.zoomToFit(650, dimensions.width < 640 ? 36 : 72);
+            hasFittedRef.current = true;
+          }
+        }}
         enableNodeDrag={true}
         enableZoomInteraction={true}
         enablePanInteraction={true}
       />
 
-      <div className="absolute bottom-4 left-4 z-10 hidden max-w-[calc(100%-10rem)] flex-wrap gap-x-3 gap-y-1.5 rounded-2xl border border-slate-200/70 bg-white/85 px-3 py-2 shadow-lg backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/75 sm:flex">
+      <div className="absolute bottom-5 left-5 z-10 hidden max-w-[calc(100%-12rem)] flex-wrap gap-x-3 gap-y-1.5 rounded-2xl border border-white/80 bg-white/75 px-3.5 py-2.5 shadow-lg shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/65 sm:flex">
         {legend.map(([label, color]) => (
           <span key={label} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-300">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
@@ -415,9 +483,16 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
         ))}
       </div>
 
+      <div className="pointer-events-none absolute left-1/2 top-5 z-10 hidden -translate-x-1/2 items-center gap-2 rounded-full border border-white/80 bg-white/65 px-3 py-1.5 text-[10px] font-bold text-slate-500 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/55 dark:text-slate-300 md:flex">
+        <MousePointer2 className="h-3 w-3 text-cyan-500" />
+        Kéo để di chuyển · Cuộn để thu phóng
+      </div>
+
       {/* Floating Controls Bar */}
-      <div className="absolute bottom-4 right-4 flex items-center space-x-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-lg z-10">
+      <div className="absolute bottom-5 right-5 z-10 flex items-center space-x-1 rounded-2xl border border-white/80 bg-white/80 p-1.5 shadow-lg shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/70">
         <button
+          type="button"
+          aria-label="Phóng to đồ thị"
           onClick={() => {
             if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() * 1.3, 300);
           }}
@@ -427,6 +502,8 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
           <ZoomIn className="w-4 h-4" />
         </button>
         <button
+          type="button"
+          aria-label="Giảm mức thu phóng"
           onClick={() => {
             if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() * 0.75, 300);
           }}
@@ -436,6 +513,8 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
           <ZoomOut className="w-4 h-4" />
         </button>
         <button
+          type="button"
+          aria-label="Căn giữa đồ thị"
           onClick={() => {
             if (fgRef.current) fgRef.current.zoomToFit(400, 50);
           }}

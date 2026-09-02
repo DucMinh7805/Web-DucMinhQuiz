@@ -34,6 +34,8 @@ const contentSyncApi = fs.readFileSync(new URL('../api/admin/content-sync.js', i
 const unlockModal = fs.readFileSync(new URL('../src/components/Modals/UnlockSubjectModal.jsx', import.meta.url), 'utf8');
 const mistakesNotebook = fs.readFileSync(new URL('../src/pages/MistakesNotebookPage.jsx', import.meta.url), 'utf8');
 const migrationScript = fs.readFileSync(new URL('../scripts/migrate-dryrun.cjs', import.meta.url), 'utf8');
+const knowledgeGraphPage = fs.readFileSync(new URL('../src/pages/KnowledgeGraphPage.jsx', import.meta.url), 'utf8');
+const obsidianGraph = fs.readFileSync(new URL('../src/components/Graph/ObsidianGraph.jsx', import.meta.url), 'utf8');
 const gasContext = vm.createContext({ console });
 vm.runInContext(`${gasUtils}\n${gasSync}`, gasContext);
 const gasAccessContext = vm.createContext({ console });
@@ -114,5 +116,9 @@ assert.equal(manifestApi.includes('item.pricingSynced !== true'), true, 'Manifes
 assert.equal(quizClient.includes('action=getDeck'), false, 'Client must not bypass authorization through the public GAS deck fallback');
 assert.equal(quizClient.includes('DEFAULT_SAMPLE_MANIFEST'), false, 'Production manifest must not silently fall back to stale sample data');
 assert.equal(quizClient.includes("cache: 'no-store'"), true, 'Manifest requests must bypass stale browser caches');
+assert.equal(knowledgeGraphPage.includes('subjects={subjects}'), true, 'Graph must receive normalized subjects so stage filters stay accurate');
+assert.equal(obsidianGraph.includes(".distance(link => link.distance || 70)"), true, 'Graph simulation must apply the computed relationship distance');
+assert.equal(obsidianGraph.includes('const activeNode = hoverNode || selectedNode'), true, 'Selected graph relationships must remain highlighted after hover ends');
+assert.equal(obsidianGraph.includes('Number.isFinite(node.x)'), true, 'Canvas must skip nodes until the force engine assigns finite coordinates');
 
 console.log('Critical logic tests passed.');

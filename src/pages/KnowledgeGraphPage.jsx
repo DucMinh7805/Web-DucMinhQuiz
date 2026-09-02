@@ -29,6 +29,7 @@ export default function KnowledgeGraphPage() {
   const graphRef = useRef();
 
   const {
+    subjects,
     filteredSubjects,
     activeStages,
     viewMode,
@@ -179,17 +180,19 @@ export default function KnowledgeGraphPage() {
 
         {/* VIEW 3: ĐỒ THỊ 2D CANVAS (KÈM NÚT FULLSCREEN TẠI ĐÂY) */}
         {viewMode === 'graph' && ENABLE_GRAPH_VIEW && (
-          <div className="w-full h-full relative p-2 sm:p-4 bg-slate-100/70 dark:bg-[#050812]">
+          <div className="relative h-full w-full bg-gradient-to-br from-slate-100 via-cyan-50/40 to-indigo-50/50 p-2 sm:p-4 dark:from-[#050812] dark:via-[#06101b] dark:to-[#090b18]">
             <div className="absolute left-5 top-5 sm:left-8 sm:top-8 z-20 pointer-events-none">
-              <div className="rounded-2xl border border-white/70 dark:border-white/10 bg-white/80 dark:bg-slate-950/70 px-3.5 py-2.5 shadow-lg shadow-slate-900/5 backdrop-blur-xl">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-teal-600 dark:text-teal-400">Bản đồ liên môn</p>
-                <p className="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-300">Chạm một nút để xem quan hệ gần nhất</p>
+              <div className="rounded-[20px] border border-white/80 bg-white/75 px-4 py-3 shadow-xl shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/65">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-400">Bản đồ liên môn</p>
+                <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300">Chạm một nút để làm nổi bật các kết nối</p>
               </div>
             </div>
             {/* Nút Toàn Màn Hình: Chỉ Hiển Thị Khi Xem Đồ Thị */}
             <button
+              type="button"
+              aria-label={isFullscreen ? 'Thu nhỏ đồ thị' : 'Mở đồ thị toàn màn hình'}
               onClick={() => setIsFullscreen(prev => !prev)}
-              className="absolute top-5 right-5 sm:top-8 sm:right-8 z-30 p-2.5 rounded-xl bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:text-teal-500 shadow-lg transition-transform active:scale-95"
+              className="absolute right-5 top-5 z-30 rounded-2xl border border-white/80 bg-white/80 p-2.5 text-slate-600 shadow-lg shadow-slate-900/10 backdrop-blur-2xl transition-all hover:-translate-y-0.5 hover:text-cyan-600 active:scale-95 sm:right-8 sm:top-8 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-300 dark:hover:text-cyan-400"
               title={isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -204,7 +207,7 @@ export default function KnowledgeGraphPage() {
               }>
                 <ObsidianGraph 
                   ref={graphRef}
-                  manifest={manifest}
+                  subjects={subjects}
                   searchTerm={searchQuery}
                   activeStages={activeStages}
                   onSelectNode={setSelectedNode}
@@ -217,7 +220,7 @@ export default function KnowledgeGraphPage() {
 
         {/* BẢNG THÔNG TIN NODE KHI CLICK VÀO GRAPH */}
         {selectedNode && viewMode === 'graph' && (
-          <div className="absolute left-3 right-3 bottom-3 sm:left-auto sm:right-8 sm:top-24 sm:bottom-auto sm:w-96 bg-white/95 dark:bg-[#0c1222]/95 backdrop-blur-xl rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-2xl p-5 z-30 transition-all">
+          <div className="absolute bottom-3 left-3 right-3 z-30 rounded-[24px] border border-white/80 bg-white/85 p-5 shadow-2xl shadow-slate-900/15 backdrop-blur-2xl transition-all sm:bottom-auto sm:left-auto sm:right-8 sm:top-24 sm:w-96 dark:border-white/10 dark:bg-[#0c1222]/85">
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[10px] font-black uppercase text-teal-600 dark:text-teal-400 tracking-wider">
@@ -228,6 +231,8 @@ export default function KnowledgeGraphPage() {
                 </h3>
               </div>
               <button
+                type="button"
+                aria-label="Đóng thông tin môn học"
                 onClick={() => setSelectedNode(null)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white"
               >
