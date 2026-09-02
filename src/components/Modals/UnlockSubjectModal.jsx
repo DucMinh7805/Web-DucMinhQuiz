@@ -4,6 +4,7 @@ import {
   Sparkles, ExternalLink, ShieldCheck, CreditCard, AlertTriangle, MessageCircle, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { buildTransferContent, makePaymentCode } from '../../utils/paymentReference';
 
 /**
  * UnlockSubjectModal: Popup thanh toán chuyển khoản & Kích hoạt môn học / Tài liệu PRO
@@ -50,7 +51,8 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, itemType = '
   };
 
   const itemKey = `${itemType}:${itemId}`;
-  const transferContent = `DQ ${user?.phone || 'SDT'} ${itemKey}`.slice(0, 50);
+  const paymentCode = makePaymentCode(itemType, itemId);
+  const transferContent = buildTransferContent(user?.phone, itemType, itemId);
 
   // Nội dung chuyển khoản gắn SĐT + đúng Item Key để admin đối soát không nhầm.
   const vietQrUrl = `https://api.vietqr.io/image/970422-00070082005-compact.png?amount=${numericPrice}&accountName=NGUYEN%20DUC%20MINH&addInfo=${encodeURIComponent(transferContent)}`;
@@ -212,6 +214,7 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, itemType = '
                       <Copy className="w-4 h-4" />
                     </button>
                   </div>
+                  <div className="mt-1 text-[10px] text-teal-700/80 dark:text-teal-300/80">Mã đối soát: {paymentCode}</div>
                 </div>
               </div>
             </div>

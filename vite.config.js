@@ -8,6 +8,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'diamond_quiz.png'],
+      workbox: {
+        // Không để Service Worker trả index.html cho URL API khi mở trực tiếp.
+        navigateFallbackDenylist: [/^\/api\//]
+      },
       manifest: {
         name: 'DiamondQuiz - Y Khoa Lâm Sàng',
         short_name: 'DiamondQuiz',

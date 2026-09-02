@@ -118,11 +118,11 @@ function getAccessGrantSidebarHtml_() {
     '<section id="userCard" class="card user"><div class="title" id="userName"></div><div class="muted" id="userMeta"></div></section>',
     '<div class="grid"><section class="card"><div class="title">Môn học PRO</div><label>Chọn môn đã có giá</label><select id="subject"><option>Kiểm tra tài khoản trước</option></select><label>Số ngày</label><input id="subjectDays" type="number" min="1" max="3650" value="60"><div class="actions"><button onclick="act(\'subject\',\'grant\')">Duyệt môn</button><button class="secondary" onclick="act(\'subject\',\'revoke\')">Thu hồi</button></div></section>',
     '<section class="card"><div class="title">Tài liệu PRO</div><label>Chọn tài liệu đã có giá</label><select id="book"><option>Kiểm tra tài khoản trước</option></select><label>Số ngày</label><input id="bookDays" type="number" min="1" max="3650" value="60"><div class="actions"><button onclick="act(\'book\',\'grant\')">Duyệt tài liệu</button><button class="secondary" onclick="act(\'book\',\'revoke\')">Thu hồi</button></div></section></div>',
-    '<label>Ghi chú chung</label><textarea id="note" placeholder="Ví dụ: Đã xác nhận thanh toán"></textarea><div id="message"></div></main>',
+    '<label>Ghi chú chung</label><textarea id="note" placeholder="Ví dụ: Đã xác nhận thanh toán"></textarea><button style="margin-top:12px;background:#334155" onclick="auditDrive()">Kiểm tra bảo mật file Drive PRO</button><div id="message"></div></main>',
     '<script>const $=id=>document.getElementById(id),msg=(t,ok)=>{$("message").textContent=t;$("message").className=ok?"ok":"error"};let verifiedPhone="";',
-    'function options(id,items){const s=$(id);s.replaceChildren();if(!items.length){const o=document.createElement("option");o.textContent="Chưa có nội dung PRO";o.value="";s.appendChild(o);s.disabled=true;return}s.disabled=false;items.forEach(x=>{const o=document.createElement("option");o.value=x.itemKey;o.textContent=x.label.replace(/^\\[(Môn|Tài liệu)\\]\\s*/,"");s.appendChild(o)})}',
+    'function options(id,items){const s=$(id);s.replaceChildren();if(!items.length){const o=document.createElement("option");o.textContent="Chưa có nội dung PRO";o.value="";s.appendChild(o);s.disabled=true;return}s.disabled=false;items.forEach(x=>{const o=document.createElement("option");o.value=x.itemKey;o.textContent=x.label.replace(/^\\[(Môn|Tài liệu)\\]\\s*/,"")+" • CK "+x.paymentCode;s.appendChild(o)})}',
     'function lookupUser(){msg("Đang kiểm tra...",true);google.script.run.withSuccessHandler(d=>{verifiedPhone=d.user.phone;$("userName").textContent=d.user.name||"Học viên";$("userMeta").textContent=d.user.phone+" • "+d.user.status;$("userCard").classList.add("show");options("subject",d.subjects||[]);options("book",d.books||[]);msg("Đã tìm thấy tài khoản.",true)}).withFailureHandler(e=>{verifiedPhone="";$("userCard").classList.remove("show");msg(e.message||"Không tìm thấy tài khoản",false)}).getAccessAdminFormData({adminPin:$("pin").value,phone:$("phone").value})}',
-    'function act(type,action){if(!verifiedPhone)return msg("Hãy kiểm tra số điện thoại trước.",false);const s=$(type);if(!s.value)return msg("Không có nội dung PRO để chọn.",false);const f={adminPin:$("pin").value,phone:verifiedPhone,itemKey:s.value,days:$(type+"Days").value,note:$("note").value};const r=google.script.run.withSuccessHandler(x=>msg(x.message,x.success)).withFailureHandler(e=>msg(e.message||"Có lỗi xảy ra",false));action==="grant"?r.grantDirectAccess(f):r.revokeDirectAccess(f)}<\/script></body></html>'
+    'function act(type,action){if(!verifiedPhone)return msg("Hãy kiểm tra số điện thoại trước.",false);const s=$(type);if(!s.value)return msg("Không có nội dung PRO để chọn.",false);const f={adminPin:$("pin").value,phone:verifiedPhone,itemKey:s.value,days:$(type+"Days").value,note:$("note").value};const r=google.script.run.withSuccessHandler(x=>msg(x.message,x.success)).withFailureHandler(e=>msg(e.message||"Có lỗi xảy ra",false));action==="grant"?r.grantDirectAccess(f):r.revokeDirectAccess(f)}function auditDrive(){msg("Đang kiểm tra quyền chia sẻ...",true);google.script.run.withSuccessHandler(x=>msg(x.message,x.success)).withFailureHandler(e=>msg(e.message||"Không thể kiểm tra Drive",false)).auditProBookDriveSecurity({adminPin:$("pin").value})}<\/script></body></html>'
   ].join('');
 }
 
@@ -262,6 +262,7 @@ function getAccessCatalog_() {
       itemId: String(subject.id),
       itemKey: makeAccessItemKey_('subject', subject.id),
       label: '[Môn] ' + subject.name,
+      paymentCode: makePaymentCode_('subject', subject.id),
       isPro: Boolean(subject.isPro || Number(subject.price) > 0)
     });
   });
@@ -271,6 +272,8 @@ function getAccessCatalog_() {
       itemId: String(book.id),
       itemKey: makeAccessItemKey_('book', book.id),
       label: '[Tài liệu] ' + book.title,
+      paymentCode: makePaymentCode_('book', book.id),
+      driveFileId: extractDriveFileId_(book.link),
       isPro: Boolean(book.isPro || Number(book.price) > 0)
     });
   });
@@ -286,6 +289,55 @@ function makeAccessItemKey_(itemType, itemId) {
   var id = String(itemId || '').trim();
   if (!id || (type !== 'subject' && type !== 'book')) return '';
   return type + ':' + id;
+}
+
+/** Đồng nhất với src/utils/paymentReference.js trên website. */
+function makePaymentCode_(itemType, itemId) {
+  var type = String(itemType || '').trim().toLowerCase() === 'book' ? 'book' : 'subject';
+  var id = String(itemId || '').trim();
+  var source = type + ':' + id;
+  var hash = 0x811c9dc5;
+  for (var i = 0; i < source.length; i++) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  var typeCode = type === 'book' ? 'TL' : 'MON';
+  var hint = id.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 10) || 'NOID';
+  var checksum = (hash >>> 0).toString(36).toUpperCase();
+  checksum = ('0000000' + checksum).slice(-7);
+  return typeCode + '-' + hint + '-' + checksum;
+}
+
+function extractDriveFileId_(url) {
+  var value = String(url || '').trim();
+  var match = value.match(/\/d\/([A-Za-z0-9_-]{20,})/) || value.match(/[?&]id=([A-Za-z0-9_-]{20,})/);
+  return match ? match[1] : '';
+}
+
+/** Chỉ đọc trạng thái, tuyệt đối không đổi quyền chia sẻ. */
+function auditProBookDriveSecurity(form) {
+  assertAccessAdminPin_(form && form.adminPin);
+  var books = getAccessCatalog_().filter(function(item) { return item.itemType === 'book'; });
+  var restricted = 0;
+  var publicFiles = 0;
+  var invalidLinks = 0;
+  books.forEach(function(item) {
+    if (!item.driveFileId) {
+      invalidLinks++;
+      return;
+    }
+    try {
+      var access = DriveApp.getFileById(item.driveFileId).getSharingAccess();
+      if (access === DriveApp.Access.PRIVATE) restricted++;
+      else publicFiles++;
+    } catch (error) {
+      invalidLinks++;
+    }
+  });
+  return {
+    success: publicFiles === 0 && invalidLinks === 0,
+    message: 'Drive PRO: ' + restricted + ' Restricted, ' + publicFiles + ' còn công khai, ' + invalidLinks + ' link không kiểm tra được.'
+  };
 }
 
 function initAccessGrantsSheetSilently_() {

@@ -43,7 +43,9 @@ function AppDataWrapper({ children }) {
       }
       return data;
     },
-    staleTime: 1000 * 30, // 30 giây cache
+    staleTime: 5000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     retry: 2,
   });
 
@@ -97,7 +99,8 @@ function QuizDataLoader({ _manifest }) {
       }
     },
     enabled: !!deckPath,
-    staleTime: 1000 * 60 * 60, // Cache 1 tiếng
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const getQuestionsByDeckPath = () => questions;

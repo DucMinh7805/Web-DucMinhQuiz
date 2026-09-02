@@ -6,6 +6,7 @@ import {
   getStableQuestionId,
   isOptionCorrect
 } from '../src/utils/answerUtils.js';
+import { buildTransferContent, makePaymentCode } from '../src/utils/paymentReference.js';
 
 assert.equal(isOptionCorrect('A. Đáp án đúng', 0, 'A'), true);
 assert.equal(isOptionCorrect('B. Đáp án sai', 1, 'A'), false);
@@ -33,6 +34,16 @@ const unlockModal = fs.readFileSync(new URL('../src/components/Modals/UnlockSubj
 const migrationScript = fs.readFileSync(new URL('../scripts/migrate-dryrun.cjs', import.meta.url), 'utf8');
 const gasContext = vm.createContext({ console });
 vm.runInContext(`${gasUtils}\n${gasSync}`, gasContext);
+const gasAccessContext = vm.createContext({ console });
+vm.runInContext(gasAccessAdmin, gasAccessContext);
+
+const longBookId = 'TONG_QUAN_NGANH_Y_TE_PHAP_LUAT_Y_TE_VTTU_2024';
+assert.equal(buildTransferContent('0796989703', 'book', longBookId).length <= 50, true);
+assert.equal(
+  gasAccessContext.makePaymentCode_('book', longBookId),
+  makePaymentCode('book', longBookId),
+  'Web và trang cấp PRO phải dùng cùng mã đối soát'
+);
 
 assert.deepEqual(
   JSON.parse(JSON.stringify(gasContext.parsePricingCell('99.000 đ'))),
@@ -51,8 +62,10 @@ assert.equal(gasAuth.includes("code.length >= 6"), false, 'Activation must not a
 assert.equal(gasAuth.includes('isInternalRequest_(params)'), true, 'Activation codes must require the trusted server path');
 assert.equal(gasAuth.includes('hashExistingPasswords'), true, 'Existing plaintext passwords must have a migration path');
 assert.equal(gasAuth.includes('Đổi mật khẩu chỉ được thực hiện qua máy chủ MedQuiz'), true, 'Password change must reject public calls');
-assert.equal(gasAuth.includes("if (!isPost && action !== 'checkphone')"), true, 'Credentials must never be accepted through URL query strings');
-assert.equal(gasAuth.includes("(action === 'register' || action === 'login') && !isInternalRequest_(params)"), true, 'Public GAS must not validate account passwords directly');
+assert.equal(gasAuth.includes("if (!isPost)"), true, 'Account operations must never be accepted through URL query strings');
+assert.equal(gasAuth.includes("action === 'checkphone') && !isInternalRequest_(params)"), true, 'Public GAS must not expose account enumeration');
+assert.equal(gasAuth.includes('rowPass === rawPass'), true, 'A valid retained recovery password must repair a stale HMAC after pepper rotation');
+assert.equal(gasAuth.includes("setValue(hashPasswordForStorage_(rawPass))"), true, 'Successful recovery login must regenerate the automatic password key');
 assert.equal(gasAccessAdmin.includes("type + ':' + id"), true, 'Direct grants must namespace subject and book IDs');
 assert.equal(gasAccessAdmin.includes('getDirectAccessEntitlements_'), true, 'Direct account grants must be included at login');
 assert.equal(gasAccessAdmin.includes('createHtmlOutput(getAccessGrantSidebarHtml_())'), true, 'Access sidebar must not depend on a separately named HTML file');
@@ -61,6 +74,9 @@ assert.equal(gasAccessAdmin.includes('function findAccessUserByPhone_'), true, '
 assert.equal(gasAccessAdmin.includes("item.itemType === 'subject'"), true, 'Subject and book choices must remain separate');
 assert.equal(gasAccessAdmin.includes('items.filter(function(item) { return item.isPro; })'), true, 'Free items must not appear in the PRO grant form');
 assert.equal(gasAccessAdmin.includes('assertAccessAdminPin_'), true, 'Standalone admin actions must require a server-side admin code');
+assert.equal(gasAccessAdmin.includes('paymentCode: makePaymentCode_'), true, 'PRO catalog must expose the same payment reconciliation code shown on the web');
+assert.equal(gasAccessAdmin.includes('function auditProBookDriveSecurity'), true, 'Admin must be able to audit PRO Drive sharing without changing permissions');
+assert.equal(gasAccessAdmin.includes('getSharingAccess()'), true, 'Drive security audit must inspect actual file sharing state');
 assert.equal(gasAccessAdmin.includes("getProperty('AUTH_SHEET_WEB_APP_URL')"), true, 'Admin link must use the explicitly configured active deployment URL');
 assert.equal(gasAccessAdmin.includes('ScriptApp.getService().getUrl()'), false, 'Admin link must not guess an obsolete deployment URL');
 assert.equal(fs.existsSync(new URL('../Sheet WEB/DM Quiz/GAS_User_Access_Admin.html', import.meta.url)), false, 'Unused access admin HTML file must stay deleted');
@@ -85,5 +101,7 @@ assert.equal(questionsApi.includes('subject.pricingSynced !== true'), true, 'Uns
 assert.equal(manifestApi.includes("link: ''"), true, 'Public manifest must not expose document links');
 assert.equal(manifestApi.includes('item.pricingSynced !== true'), true, 'Manifest must fail closed before secure pricing sync');
 assert.equal(quizClient.includes('action=getDeck'), false, 'Client must not bypass authorization through the public GAS deck fallback');
+assert.equal(quizClient.includes('DEFAULT_SAMPLE_MANIFEST'), false, 'Production manifest must not silently fall back to stale sample data');
+assert.equal(quizClient.includes("cache: 'no-store'"), true, 'Manifest requests must bypass stale browser caches');
 
 console.log('Critical logic tests passed.');

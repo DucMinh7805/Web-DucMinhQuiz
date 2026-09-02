@@ -70,12 +70,12 @@ function handleAuthRequest(e, isPost) {
       return jsonResponse({ status: "Auth Server Running", time: new Date() });
     }
 
-    if (!isPost && action !== 'checkphone') {
+    if (!isPost) {
       return jsonResponse({ success: false, error: 'Tác vụ xác thực chỉ chấp nhận POST.' });
     }
 
-    if ((action === 'register' || action === 'login') && !isInternalRequest_(params)) {
-      return jsonResponse({ success: false, error: 'Đăng nhập và đăng ký chỉ được thực hiện qua máy chủ MedQuiz.' });
+    if ((action === 'register' || action === 'login' || action === 'checkphone') && !isInternalRequest_(params)) {
+      return jsonResponse({ success: false, error: 'Tác vụ tài khoản chỉ được thực hiện qua máy chủ MedQuiz.' });
     }
 
     if (action === "register") {
@@ -193,6 +193,13 @@ function handleLogin(params) {
       var passwordMatches = rowPasswordKey
         ? verifyStoredPassword_(rawPass, rowPasswordKey)
         : rowPass === rawPass;
+      // Nếu quản trị viên vừa thay PASSWORD_PEPPER, mã khóa cũ sẽ không còn
+      // khớp. Vì cột D được chủ hệ thống chủ động giữ làm nguồn khôi phục,
+      // một mật khẩu gốc đúng được phép tự tái tạo cột G ngay lần đăng nhập này.
+      if (!passwordMatches && rowPasswordKey && rowPass === rawPass) {
+        sheet.getRange(i + 1, 7).setNumberFormat('@').setValue(hashPasswordForStorage_(rawPass));
+        passwordMatches = true;
+      }
       if (!passwordMatches) {
         return jsonResponse({ success: false, error: "Mật khẩu không chính xác. Vui lòng thử lại!" });
       }
@@ -397,7 +404,12 @@ function handleSessionProfile(params) {
 function isInternalRequest_(params) {
   var expected = PropertiesService.getScriptProperties().getProperty('AUTH_SHEET_INTERNAL_SECRET');
   var supplied = String((params && params.internalSecret) || '');
-  return Boolean(expected && supplied && expected === supplied);
+  if (!expected || !supplied || expected.length !== supplied.length) return false;
+  var difference = 0;
+  for (var i = 0; i < expected.length; i++) {
+    difference |= expected.charCodeAt(i) ^ supplied.charCodeAt(i);
+  }
+  return difference === 0;
 }
 
 function getActivationSheet(required) {
@@ -471,9 +483,10 @@ function handleChangePassword(params) {
   for (var i = 1; i < data.length; i++) {
     var rowPhone = cleanPhoneNumber(data[i][0]);
     var rowPass = String(data[i][3] || "").replace(/^'/, "").trim();
+    var rowPasswordKey = String(data[i][6] || "").trim();
 
     if (rowPhone === cleanPhone) {
-      if (!verifyStoredPassword_(oldPass, rowPass)) {
+      if (!verifyStoredPassword_(oldPass, rowPasswordKey || rowPass)) {
         return jsonResponse({ success: false, error: "Mật khẩu cũ không chính xác!" });
       }
       sheet.getRange(i + 1, 4).setNumberFormat('@').setValue("'" + newPass);

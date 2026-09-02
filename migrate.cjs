@@ -1,4 +1,3 @@
-const fs = require('fs');
 async function migrate() {
     console.log("Fetching old GAS data...");
     const res = await fetch("https://script.google.com/macros/s/AKfycbwl4PVbJ_-3VRyYvNwH9nTvTW74GguAxHKhGvoLVtRyHrPC6IoYZaIv8cp8ztftkbz5/exec?action=getManifest");
