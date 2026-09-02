@@ -108,18 +108,71 @@ function normalizeQuestion(raw, index, deckId, deckPath) {
   };
 }
 
-async function syncManifest(manifest) {
+async function pruneMissingManifestContent(subjectDocs, subjects, books) {
+  const keptSubjectIds = subjectDocs.map(subject => subject._id);
+  const expectedDeckPaths = new Set(
+    subjects.flatMap(subject => (subject.decks || []).map(deck => String(deck?.path || '').trim().toLowerCase()))
+      .filter(Boolean)
+  );
+  const expectedBookIds = books.map(book => String(book?.id || '').trim()).filter(Boolean);
+
+  // Một lần "Đồng bộ toàn bộ" là ảnh chụp chuẩn từ Sheet. Vì vậy những bản
+  // ghi không còn trong manifest phải được dọn khỏi MongoDB, nếu không web sẽ
+  // tiếp tục hiện môn/đề/tài liệu đã xóa cho đến khi xóa thủ công.
+  const staleDecks = await Deck.find({
+    $or: [
+      { subjectId: { $nin: keptSubjectIds } },
+      { path: { $nin: Array.from(expectedDeckPaths) } }
+    ]
+  }).select('_id path').lean();
+  if (staleDecks.length) {
+    const staleDeckIds = staleDecks.map(deck => deck._id);
+    const staleDeckPaths = staleDecks.map(deck => String(deck.path || '').toLowerCase()).filter(Boolean);
+    await Promise.all([
+      Question.deleteMany({ $or: [{ deckId: { $in: staleDeckIds } }, { deckPath: { $in: staleDeckPaths } }] }),
+      Deck.deleteMany({ _id: { $in: staleDeckIds } })
+    ]);
+  }
+
+  const [subjectResult, bookResult] = await Promise.all([
+    Subject.deleteMany({ _id: { $nin: keptSubjectIds } }),
+    Book.deleteMany(expectedBookIds.length ? { id: { $nin: expectedBookIds } } : {})
+  ]);
+  return {
+    deletedSubjects: subjectResult.deletedCount,
+    deletedDecks: staleDecks.length,
+    deletedBooks: bookResult.deletedCount
+  };
+}
+
+async function syncManifest(manifest, { prune = false } = {}) {
   const subjects = Array.isArray(manifest?.subjects) ? manifest.subjects : [];
   const books = Array.isArray(manifest?.books) ? manifest.books : [];
-  for (let index = 0; index < subjects.length; index += 1) {
-    const payload = subjectPayload(subjects[index], index);
-    await Subject.findOneAndUpdate({ $or: [{ id: payload.id }, { code: payload.code }] }, { $set: payload }, { upsert: true, new: true, runValidators: true });
-  }
-  for (const book of books) {
-    const payload = bookPayload(book);
-    await Book.findOneAndUpdate({ id: payload.id }, { $set: payload }, { upsert: true, new: true, runValidators: true });
-  }
-  return { subjects: subjects.length, books: books.length };
+  if (!subjects.length) throw new Error('Manifest không có môn học; đã dừng để tránh xóa nhầm toàn bộ dữ liệu.');
+
+  const [subjectDocs] = await Promise.all([
+    Promise.all(subjects.map((subject, index) => {
+      const payload = subjectPayload(subject, index);
+      return Subject.findOneAndUpdate(
+        { $or: [{ id: payload.id }, { code: payload.code }] },
+        { $set: payload },
+        { upsert: true, new: true, runValidators: true }
+      );
+    })),
+    Promise.all(books.map((book) => {
+      const payload = bookPayload(book);
+      return Book.findOneAndUpdate(
+        { id: payload.id },
+        { $set: payload },
+        { upsert: true, new: true, runValidators: true }
+      );
+    }))
+  ]);
+
+  const deleted = prune
+    ? await pruneMissingManifestContent(subjectDocs, subjects, books)
+    : { deletedSubjects: 0, deletedDecks: 0, deletedBooks: 0 };
+  return { subjects: subjects.length, books: books.length, ...deleted };
 }
 
 async function upsertDeck(manifest, deckPath, rawQuestions) {
@@ -191,7 +244,7 @@ export default async function handler(req, res) {
   try {
     await connectToDatabase();
     let result;
-    if (operation === 'syncManifest') result = await syncManifest(req.body.manifest);
+    if (operation === 'syncManifest') result = await syncManifest(req.body.manifest, { prune: true });
     if (operation === 'upsertDeck') {
       await syncManifest(req.body.manifest);
       result = await upsertDeck(req.body.manifest, req.body.deckPath, req.body.questions);

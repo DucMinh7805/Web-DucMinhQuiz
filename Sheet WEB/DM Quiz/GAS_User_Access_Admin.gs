@@ -12,7 +12,9 @@ var ACCESS_ADMIN_CONFIG = Object.freeze({
   ACCESS_SHEET_NAME: 'QuyenTruyCap',
   QUIZ_SPREADSHEET_ID: '1xirMurSZ0iBYeC0VkYGXWXlGSgYT7sLcTx0JbIa-FY0',
   QUIZ_DATABASE_SHEET_NAME: 'Database_JSON',
-  CATALOG_CACHE_SECONDS: 600,
+  // Danh mục giá thay đổi ở một Apps Script khác nên không thể chủ động xóa
+  // cache tại đây. Giữ 30 giây để Web PRO thấy môn/tài liệu mới gần như ngay.
+  CATALOG_CACHE_SECONDS: 30,
   ENTITLEMENT_CACHE_SECONDS: 300
 });
 

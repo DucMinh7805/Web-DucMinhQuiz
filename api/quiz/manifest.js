@@ -3,8 +3,9 @@ import { Subject, Deck, Book } from '../_models/index.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  // Manifest là công khai và không dùng cookie; wildcard rõ ràng an toàn hơn
+  // việc phản chiếu Origin bất kỳ kèm Access-Control-Allow-Credentials.
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
 
   if (req.method === 'OPTIONS') return res.status(200).end();

@@ -28,8 +28,8 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, itemType = '
 
   // Tính toán số tiền thanh toán thực tế
   const rawPrice = item.price;
-  let numericPrice = 20000;
-  let itemPriceFormatted = '20.000 đ';
+  let numericPrice = 0;
+  let itemPriceFormatted = 'Chưa cấu hình giá';
   if (typeof rawPrice === 'number' && rawPrice > 0) {
     numericPrice = rawPrice;
     itemPriceFormatted = `${rawPrice.toLocaleString('vi-VN')} đ`;
@@ -38,8 +38,6 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, itemType = '
     if (cleaned) {
       numericPrice = parseInt(cleaned, 10);
       itemPriceFormatted = `${numericPrice.toLocaleString('vi-VN')} đ`;
-    } else {
-      itemPriceFormatted = rawPrice;
     }
   }
 
@@ -55,7 +53,10 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, itemType = '
   const transferContent = buildTransferContent(user?.phone, itemType, itemId);
 
   // Nội dung chuyển khoản gắn SĐT + đúng Item Key để admin đối soát không nhầm.
-  const vietQrUrl = `https://api.vietqr.io/image/970422-00070082005-compact.png?amount=${numericPrice}&accountName=NGUYEN%20DUC%20MINH&addInfo=${encodeURIComponent(transferContent)}`;
+  const hasValidPrice = Number.isFinite(numericPrice) && numericPrice > 0;
+  const vietQrUrl = hasValidPrice
+    ? `https://api.vietqr.io/image/970422-00070082005-compact.png?amount=${numericPrice}&accountName=NGUYEN%20DUC%20MINH&addInfo=${encodeURIComponent(transferContent)}`
+    : '';
 
   const handleCopyStk = (text) => {
     navigator.clipboard.writeText(text);
@@ -222,12 +223,18 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, itemType = '
             {/* Cột Phải (6/12): Mã VietQR thanh toán nhanh (Siêu To & Rõ Nét) */}
             <div className="md:col-span-6 flex flex-col items-center justify-center p-3 sm:p-4 bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-xs">
               <div className="w-52 h-52 sm:w-60 sm:h-60 bg-white p-2 rounded-2xl border border-slate-100 flex items-center justify-center overflow-hidden shadow-inner">
-                <img 
-                  src={vietQrUrl} 
-                  alt="Mã VietQR" 
-                  className="w-full h-full object-contain"
-                  loading="eager"
-                />
+                {hasValidPrice ? (
+                  <img
+                    src={vietQrUrl}
+                    alt="Mã VietQR"
+                    className="w-full h-full object-contain"
+                    loading="eager"
+                  />
+                ) : (
+                  <div className="px-4 text-center text-sm font-bold text-rose-600">
+                    Chưa có giá hợp lệ. Vui lòng liên hệ quản trị viên trước khi chuyển khoản.
+                  </div>
+                )}
               </div>
               <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-2 text-center flex items-center">
                 <QrCode className="w-3.5 h-3.5 mr-1 text-teal-500" /> Quét mã bằng App Ngân hàng để thanh toán

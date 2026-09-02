@@ -4,6 +4,9 @@ import { authenticateSheetSession, sessionHasEntitlement } from '../_utils/sheet
 
 export default async function handler(req, res) {
   // Endpoint chỉ dùng cùng origin. Không phản chiếu Origin tùy ý kèm cookie.
+  // Câu hỏi PRO tuyệt đối không được giữ trong CDN/shared browser cache.
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+  res.setHeader('Vary', 'Cookie, Authorization');
   if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Chỉ hỗ trợ GET.' });
 
   try {

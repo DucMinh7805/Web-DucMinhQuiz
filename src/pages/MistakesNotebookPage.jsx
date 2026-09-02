@@ -47,7 +47,9 @@ export default function MistakesNotebookPage() {
 
     return rawMistakes.filter(m => {
       if (!m.subjectId) return true;
-      const expiry = subjectExpirations[m.subjectId];
+      // Quyền mới luôn dùng namespace `subject:<id>` để không va chạm với
+      // tài liệu cùng ID. Giữ fallback cũ để dữ liệu người dùng trước đây vẫn đọc được.
+      const expiry = subjectExpirations[`subject:${m.subjectId}`] || subjectExpirations[m.subjectId];
       if (!expiry) return true; // Môn miễn phí hoặc chưa set hạn
       const expiryTime = new Date(expiry).getTime();
       // Nếu đã hết hạn quá 7 ngày -> ẩn khỏi sổ tay

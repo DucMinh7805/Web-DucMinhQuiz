@@ -27,10 +27,12 @@ const gasApi = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_5_Api.gs', impo
 const gasContentAdmin = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_6_Content_Admin.gs', import.meta.url), 'utf8');
 const questionsApi = fs.readFileSync(new URL('../api/quiz/questions.js', import.meta.url), 'utf8');
 const manifestApi = fs.readFileSync(new URL('../api/quiz/manifest.js', import.meta.url), 'utf8');
+const authMeApi = fs.readFileSync(new URL('../api/auth/me.js', import.meta.url), 'utf8');
 const quizClient = fs.readFileSync(new URL('../src/services/quizApi.js', import.meta.url), 'utf8');
 const refreshAccessApi = fs.readFileSync(new URL('../api/auth/refresh-access.js', import.meta.url), 'utf8');
 const contentSyncApi = fs.readFileSync(new URL('../api/admin/content-sync.js', import.meta.url), 'utf8');
 const unlockModal = fs.readFileSync(new URL('../src/components/Modals/UnlockSubjectModal.jsx', import.meta.url), 'utf8');
+const mistakesNotebook = fs.readFileSync(new URL('../src/pages/MistakesNotebookPage.jsx', import.meta.url), 'utf8');
 const migrationScript = fs.readFileSync(new URL('../scripts/migrate-dryrun.cjs', import.meta.url), 'utf8');
 const gasContext = vm.createContext({ console });
 vm.runInContext(`${gasUtils}\n${gasSync}`, gasContext);
@@ -77,6 +79,7 @@ assert.equal(gasAccessAdmin.includes('assertAccessAdminPin_'), true, 'Standalone
 assert.equal(gasAccessAdmin.includes('paymentCode: makePaymentCode_'), true, 'PRO catalog must expose the same payment reconciliation code shown on the web');
 assert.equal(gasAccessAdmin.includes('function auditProBookDriveSecurity'), true, 'Admin must be able to audit PRO Drive sharing without changing permissions');
 assert.equal(gasAccessAdmin.includes('getSharingAccess()'), true, 'Drive security audit must inspect actual file sharing state');
+assert.equal(gasAccessAdmin.includes('CATALOG_CACHE_SECONDS: 30'), true, 'PRO catalog updates must not remain stale for ten minutes');
 assert.equal(gasAccessAdmin.includes("getProperty('AUTH_SHEET_WEB_APP_URL')"), true, 'Admin link must use the explicitly configured active deployment URL');
 assert.equal(gasAccessAdmin.includes('ScriptApp.getService().getUrl()'), false, 'Admin link must not guess an obsolete deployment URL');
 assert.equal(fs.existsSync(new URL('../Sheet WEB/DM Quiz/GAS_User_Access_Admin.html', import.meta.url)), false, 'Unused access admin HTML file must stay deleted');
@@ -88,6 +91,11 @@ assert.equal(unlockModal.includes('Kiểm tra quyền vừa được cấp'), tr
 assert.equal(unlockModal.includes('addInfo='), true, 'Bank transfer QR must carry an account/item reconciliation memo');
 assert.equal(contentSyncApi.includes("process.env.CONTENT_SYNC_SECRET"), true, 'Sheet-to-Mongo content sync must require a server secret');
 assert.equal(contentSyncApi.includes("'deleteSubject'"), true, 'Content sync must support explicit subject deletion');
+assert.equal(contentSyncApi.includes('pruneMissingManifestContent'), true, 'Full manifest sync must prune records removed from Sheet');
+assert.equal(contentSyncApi.includes("syncManifest(req.body.manifest, { prune: true })"), true, 'Only a full manifest snapshot may prune stale Mongo content');
+assert.equal(contentSyncApi.includes('Manifest không có môn học'), true, 'An empty manifest must fail closed before pruning');
+assert.equal(mistakesNotebook.includes('subjectExpirations[`subject:${m.subjectId}`]'), true, 'Mistake retention must use the namespaced subject entitlement key');
+assert.equal(unlockModal.includes("itemPriceFormatted = 'Chưa cấu hình giá'"), true, 'Payment must never invent a fallback amount');
 assert.equal(gasContentAdmin.includes('QUIZ_ADMIN_DELETE_PIN'), true, 'Delete authority must be separate from editor authority');
 assert.equal(gasContentAdmin.includes('createContentBackupSet_'), true, 'Content deletion must create recoverable backups');
 assert.equal(gasContentAdmin.includes("confirmText || '').trim().toUpperCase() !== 'XOA DE'"), true, 'Deck deletion must require explicit confirmation text');
@@ -98,7 +106,10 @@ assert.equal(gasApi.includes("if (!isPost) throw new Error"), true, 'Internal GA
 assert.equal(questionsApi.includes('authenticateSheetSession(req)'), true, 'Questions API must authenticate PRO requests');
 assert.equal(questionsApi.includes("sessionHasEntitlement(session, 'subject', subject.id)"), true, 'Questions API must authorize the exact subject');
 assert.equal(questionsApi.includes('subject.pricingSynced !== true'), true, 'Unsynced pricing must fail closed');
+assert.equal(questionsApi.includes("Cache-Control', 'private, no-store"), true, 'Question responses must never enter a shared cache');
+assert.equal(authMeApi.includes("Cache-Control', 'private, no-store"), true, 'Authenticated profile responses must never enter a shared cache');
 assert.equal(manifestApi.includes("link: ''"), true, 'Public manifest must not expose document links');
+assert.equal(manifestApi.includes("Access-Control-Allow-Origin', '*'"), true, 'Public manifest CORS must not reflect arbitrary origins with credentials');
 assert.equal(manifestApi.includes('item.pricingSynced !== true'), true, 'Manifest must fail closed before secure pricing sync');
 assert.equal(quizClient.includes('action=getDeck'), false, 'Client must not bypass authorization through the public GAS deck fallback');
 assert.equal(quizClient.includes('DEFAULT_SAMPLE_MANIFEST'), false, 'Production manifest must not silently fall back to stale sample data');
