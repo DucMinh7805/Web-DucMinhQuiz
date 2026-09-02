@@ -5,6 +5,7 @@ import {
   ArrowRight, Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { STAGE_CONFIG } from '../../data/stageMapping';
 
 /**
  * WindowsFileTree: Cây thư mục tri thức 2 Cột (35% Trái - 65% Phải)
@@ -188,9 +189,9 @@ export default function WindowsFileTree({ manifest, searchTerm = '' }) {
                   <span className="px-3 py-1 rounded-xl text-xs font-black bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30">
                     {selectedSubject.categoryName || 'Chuyên khoa Y'}
                   </span>
-                  {selectedSubject.stage && (
+                  {Array.isArray(selectedSubject.stages) && selectedSubject.stages.length > 0 && (
                     <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300">
-                      {selectedSubject.stage === 'preclinical' ? 'Y1 - Y2' : 'Lâm sàng (Y3 - Y6)'}
+                      {selectedSubject.stages.map(stage => STAGE_CONFIG[stage]?.shortLabel || 'Khác').join(' · ')}
                     </span>
                   )}
                 </div>

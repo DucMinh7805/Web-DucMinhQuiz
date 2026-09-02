@@ -32,7 +32,7 @@ export default function HomeFeaturedSubjects({
       </div>
 
       {/* Lưới thẻ môn học tỉ lệ chuẩn */}
-      <SubjectCardGrid subjects={subjects} />
+      <SubjectCardGrid subjects={subjects} layout="featured" />
     </section>
   );
 }

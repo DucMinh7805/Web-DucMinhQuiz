@@ -80,7 +80,6 @@ export default function ProfilePage() {
   // Chuyển đổi dữ liệu progress thành dạng mảng để dễ hiển thị
   const progressList = [];
   const subjectStatsMap = {};
-  let totalQuizzes = 0;
   let totalScore = 0;
   let totalQuestions = 0;
 
@@ -100,7 +99,6 @@ export default function ProfilePage() {
           score: scoreVal,
           total: totalVal
         });
-        totalQuizzes++;
         totalScore += scoreVal;
         totalQuestions += totalVal;
 
@@ -158,7 +156,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="w-full px-3 sm:px-8 lg:px-12 py-5 space-y-6 sm:space-y-8 max-w-6xl mx-auto">
+    <div className="w-full px-3 sm:px-8 lg:px-12 py-5 space-y-6 sm:space-y-8 max-w-[1440px] mx-auto">
       
       {/* Header Hồ Sơ (Avatar căn chính giữa khung banner phía trên) */}
       <motion.div 
@@ -207,8 +205,8 @@ export default function ProfilePage() {
             )}
           </div>
           
-          {/* 5 Thẻ Thống Kê Tổng Quan */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-slate-100 dark:border-white/5">
+          {/* 4 Thẻ Thống Kê Tổng Quan */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-slate-100 dark:border-white/5">
             
             {/* Thẻ 1: Đăng nhập gần nhất */}
             <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3.5 bg-slate-50/70 dark:bg-white/5 rounded-2xl border border-slate-200/60 dark:border-white/5">
@@ -216,7 +214,7 @@ export default function ProfilePage() {
                 <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
                   Đăng nhập gần nhất
                 </p>
                 <p className="font-extrabold text-slate-800 dark:text-slate-200 text-xs sm:text-sm mt-0.5 whitespace-nowrap">
@@ -225,28 +223,13 @@ export default function ProfilePage() {
               </div>
             </div>
             
-            {/* Thẻ 2: Số đề đã hoàn thành */}
-            <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3.5 bg-teal-50/50 dark:bg-teal-950/20 rounded-2xl border border-teal-500/20">
-              <div className="p-2 sm:p-2.5 rounded-xl bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/20 shrink-0">
-                <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 whitespace-nowrap">
-                  Số đề đã hoàn thành
-                </p>
-                <p className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm mt-0.5 whitespace-nowrap">
-                  {totalQuizzes} đề
-                </p>
-              </div>
-            </div>
-
-            {/* Thẻ 3: Số câu đã làm */}
+            {/* Thẻ 2: Số câu đã làm */}
             <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3.5 bg-cyan-50/50 dark:bg-cyan-950/20 rounded-2xl border border-cyan-500/20">
               <div className="p-2 sm:p-2.5 rounded-xl bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20 shrink-0">
                 <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400 whitespace-nowrap">
+                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400 whitespace-nowrap">
                   Số câu đã làm
                 </p>
                 <p className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm mt-0.5 whitespace-nowrap">
@@ -255,13 +238,13 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Thẻ 4: Tỉ lệ chính xác */}
+            {/* Thẻ 3: Tỉ lệ chính xác */}
             <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300 p-3.5 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-500/20">
               <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shrink-0">
                 <Award className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                   Tỉ lệ chính xác
                 </p>
                 <p className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm mt-0.5">
@@ -270,7 +253,7 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Thẻ 5: Sổ tay câu sai */}
+            {/* Thẻ 4: Sổ tay câu sai */}
             <div 
               onClick={() => navigate('/mistakes')}
               className="flex items-center justify-between p-3.5 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 rounded-2xl cursor-pointer hover:bg-rose-100/70 dark:hover:bg-rose-900/40 transition-all group"
@@ -280,7 +263,7 @@ export default function ProfilePage() {
                   <Bookmark className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400 whitespace-nowrap">
+                  <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400 whitespace-nowrap">
                     Sổ tay câu sai
                   </p>
                   <p className="font-black text-rose-700 dark:text-rose-300 text-xs sm:text-sm">

@@ -7,6 +7,7 @@ import {
   isOptionCorrect
 } from '../src/utils/answerUtils.js';
 import { buildTransferContent, makePaymentCode } from '../src/utils/paymentReference.js';
+import { resolveSubjectStages, STAGES } from '../src/data/stageMapping.js';
 
 assert.equal(isOptionCorrect('A. Đáp án đúng', 0, 'A'), true);
 assert.equal(isOptionCorrect('B. Đáp án sai', 1, 'A'), false);
@@ -36,6 +37,9 @@ const mistakesNotebook = fs.readFileSync(new URL('../src/pages/MistakesNotebookP
 const migrationScript = fs.readFileSync(new URL('../scripts/migrate-dryrun.cjs', import.meta.url), 'utf8');
 const knowledgeGraphPage = fs.readFileSync(new URL('../src/pages/KnowledgeGraphPage.jsx', import.meta.url), 'utf8');
 const obsidianGraph = fs.readFileSync(new URL('../src/components/Graph/ObsidianGraph.jsx', import.meta.url), 'utf8');
+const homePage = fs.readFileSync(new URL('../src/pages/HomePage.jsx', import.meta.url), 'utf8');
+const profilePage = fs.readFileSync(new URL('../src/pages/ProfilePage.jsx', import.meta.url), 'utf8');
+const floatingContactButton = fs.readFileSync(new URL('../src/components/Common/FloatingContactButton.jsx', import.meta.url), 'utf8');
 const viteConfig = fs.readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
 const gasContext = vm.createContext({ console });
 vm.runInContext(`${gasUtils}\n${gasSync}`, gasContext);
@@ -49,6 +53,19 @@ assert.equal(
   makePaymentCode('book', longBookId),
   'Web và trang cấp PRO phải dùng cùng mã đối soát'
 );
+
+assert.deepEqual(
+  resolveSubjectStages({ id: 'NGOAI_CO_XUONG', name: 'Ngoại Cơ Xương', stages: ['y1_y3', 'y4_y6'] }),
+  [STAGES.CLINICAL],
+  'Conflicting API stages must be resolved from the clinical subject mapping'
+);
+assert.deepEqual(
+  resolveSubjectStages({ id: 'SINH_LY', name: 'Sinh Lý', stages: ['y1_y3', 'y4_y6'] }),
+  [STAGES.PRECLINICAL],
+  'Conflicting API stages must be resolved from the preclinical subject mapping'
+);
+assert.deepEqual(resolveSubjectStages({ stages: ['y3'] }), [STAGES.PRECLINICAL]);
+assert.deepEqual(resolveSubjectStages({ stages: ['y4'] }), [STAGES.CLINICAL]);
 
 assert.deepEqual(
   JSON.parse(JSON.stringify(gasContext.parsePricingCell('99.000 đ'))),
@@ -90,7 +107,13 @@ assert.equal(gasAuth.includes('Mã Khóa Xác Thực (Tự Động)'), true, 'Us
 assert.equal(gasAuth.includes('Không hỗ trợ ALL'), true, 'Activation codes must be bound to exactly one item');
 assert.equal(refreshAccessApi.includes('authenticateSheetSession(req)'), true, 'Access refresh must trust only the signed server session');
 assert.equal(refreshAccessApi.includes("callAuthSheet('sessionprofile'"), true, 'Access refresh must reload grants from the account sheet');
-assert.equal(unlockModal.includes('Kiểm tra quyền vừa được cấp'), true, 'Manual payment flow must support direct account grants without activation codes');
+assert.equal(unlockModal.includes('Mở môn học mới'), true, 'Manual payment flow must support direct account grants without activation codes');
+assert.equal(unlockModal.includes('Mã đối soát:'), false, 'Customers must not see an internal reconciliation code');
+assert.equal(unlockModal.includes('profile.php?id=61594039586612'), true, 'Payment support must link to the official Facebook Fanpage');
+assert.equal(floatingContactButton.includes('profile.php?id=61594039586612'), true, 'Floating support button must link to the official Facebook Fanpage');
+assert.equal(homePage.includes('.slice(0, 6)'), true, 'Homepage must show at most six featured subjects');
+assert.equal(profilePage.includes('Số đề đã hoàn thành'), false, 'Profile summary must not show the completed quiz card');
+assert.equal(profilePage.includes('max-w-[1440px]'), true, 'Profile content must use the wider desktop frame');
 assert.equal(unlockModal.includes('addInfo='), true, 'Bank transfer QR must carry an account/item reconciliation memo');
 assert.equal(contentSyncApi.includes("process.env.CONTENT_SYNC_SECRET"), true, 'Sheet-to-Mongo content sync must require a server secret');
 assert.equal(contentSyncApi.includes("'deleteSubject'"), true, 'Content sync must support explicit subject deletion');

@@ -4,7 +4,7 @@ import {
   Sparkles, ExternalLink, ShieldCheck, CreditCard, AlertTriangle, MessageCircle, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { buildTransferContent, makePaymentCode } from '../../utils/paymentReference';
+import { buildTransferContent } from '../../utils/paymentReference';
 
 /**
  * UnlockSubjectModal: Popup thanh toán chuyển khoản & Kích hoạt môn học / Tài liệu PRO
@@ -49,7 +49,6 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, itemType = '
   };
 
   const itemKey = `${itemType}:${itemId}`;
-  const paymentCode = makePaymentCode(itemType, itemId);
   const transferContent = buildTransferContent(user?.phone, itemType, itemId);
 
   // Nội dung chuyển khoản gắn SĐT + đúng Item Key để admin đối soát không nhầm.
@@ -215,7 +214,6 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, itemType = '
                       <Copy className="w-4 h-4" />
                     </button>
                   </div>
-                  <div className="mt-1 text-[10px] text-teal-700/80 dark:text-teal-300/80">Mã đối soát: {paymentCode}</div>
                 </div>
               </div>
             </div>
@@ -257,10 +255,10 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, itemType = '
         <section className="space-y-3 pt-1">
           <div className="p-4 rounded-2xl bg-teal-50 dark:bg-teal-950/25 border border-teal-500/25">
             <p className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-100">Sau khi chuyển khoản</p>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Admin đối soát nội dung chuyển khoản và cấp đúng môn/tài liệu cho SĐT của bạn. Sau đó bấm nút dưới đây, không cần nhập mã.</p>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Sau khi chuyển khoản, Người dùng chụp lại thông tin chuyển khoản kèm SĐT, sau đó liên hệ với Admin qua Fanpage để được mở khóa môn học. Khi Admin xác nhận đã cấp quyền, bạn chỉ cần tải lại trang hoặc bấm nút dưới đây.</p>
             <button type="button" onClick={handleCheckAccess} disabled={isCheckingAccess} className="mt-3 w-full px-5 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-black text-xs sm:text-sm shadow-md disabled:opacity-60 flex items-center justify-center gap-2">
               <RefreshCw className={`w-4 h-4 ${isCheckingAccess ? 'animate-spin' : ''}`} />
-              <span>{isCheckingAccess ? 'Đang kiểm tra quyền...' : 'Kiểm tra quyền vừa được cấp'}</span>
+              <span>{isCheckingAccess ? 'Đang mở môn học...' : 'Mở môn học mới'}</span>
             </button>
           </div>
 
@@ -320,7 +318,7 @@ export default function UnlockSubjectModal({ isOpen, onClose, item, itemType = '
               <span>Liên hệ Zalo</span>
             </a>
             <a 
-              href="https://www.facebook.com" 
+              href="https://www.facebook.com/profile.php?id=61594039586612"
               target="_blank" 
               rel="noreferrer"
               className="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center"

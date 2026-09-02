@@ -252,7 +252,7 @@ function SubjectCardItem({ sub, idx, onHoverSubject, navigate }) {
   );
 }
 
-export default function SubjectCardGrid({ subjects = [], onHoverSubject }) {
+export default function SubjectCardGrid({ subjects = [], onHoverSubject, layout = 'default' }) {
   const navigate = useNavigate();
 
   if (subjects.length === 0) {
@@ -272,7 +272,9 @@ export default function SubjectCardGrid({ subjects = [], onHoverSubject }) {
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5 pb-10 w-full">
+    <div className={`grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3.5 pb-10 w-full ${
+      layout === 'featured' ? 'lg:grid-cols-6' : 'md:grid-cols-4 xl:grid-cols-5'
+    }`}>
       <AnimatePresence>
         {subjects.map((sub, idx) => (
           <SubjectCardItem 

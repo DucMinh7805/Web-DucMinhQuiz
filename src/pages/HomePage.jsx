@@ -118,7 +118,7 @@ export default function HomePage() {
       .sort((a, b) => (b.totalQuestions || 0) - (a.totalQuestions || 0) || (b.decksCount || 0) - (a.decksCount || 0));
 
     // Ghép danh sách: Môn của user trước, sau đó là môn phổ biến
-    const finalSubjects = [...userMatchedSubjects, ...popularSubjects].slice(0, 8);
+    const finalSubjects = [...userMatchedSubjects, ...popularSubjects].slice(0, 6);
 
     return {
       featuredSubjects: finalSubjects,

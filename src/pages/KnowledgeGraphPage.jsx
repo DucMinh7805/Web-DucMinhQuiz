@@ -44,8 +44,8 @@ export default function KnowledgeGraphPage() {
 
   const timelineChips = [
     { id: STAGES.ALL, label: 'Tất cả', count: stats?.totalSubjects || 0 },
-    { id: STAGES.PRECLINICAL, label: 'Tiền lâm sàng (Y1 - Y2)', count: stats?.stageCounts?.preclinical || 0 },
-    { id: STAGES.CLINICAL, label: 'Lâm sàng (Y3 - Y6)', count: stats?.stageCounts?.clinical || 0 }
+    { id: STAGES.PRECLINICAL, label: 'Nền tảng (Y1 - Y3)', count: stats?.stageCounts?.preclinical || 0 },
+    { id: STAGES.CLINICAL, label: 'Lâm sàng (Y4 - Y6)', count: stats?.stageCounts?.clinical || 0 }
   ];
 
   return (
