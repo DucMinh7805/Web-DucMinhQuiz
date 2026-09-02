@@ -115,6 +115,10 @@ function normalizeSubjectId(value = '') {
     .replace(/^-+|-+$/g, '');
 }
 
+function includesPhrase(value, phrase) {
+  return (` ${value} `).includes(` ${phrase} `);
+}
+
 function parseStageValue(value) {
   const normalized = stripAccents(String(value || '')).replace(/[^a-z0-9]+/g, '');
   if (!normalized) return null;
@@ -168,58 +172,35 @@ export function resolveSubjectStages(subject) {
   const catName = stripAccents(subject.categoryName || '').replace(/[_-]+/g, ' ');
 
   // 4. Nhận diện khối Tiền Lâm Sàng (Y1 - Y3)
-  const isPreclinical = 
-    catId.includes('co so') ||
-    catName.includes('co so') || 
-    catName.includes('dai cuong') ||
-    rawName.includes('giai phau') || 
-    rawName.includes('sinh ly') || 
-    rawName.includes('hoa sinh') || 
-    rawName.includes('duoc') || 
-    rawName.includes('mo phoi') || 
-    rawName.includes('vi sinh') || 
-    rawName.includes('ky sinh') || 
-    rawName.includes('ly sinh') || 
-    rawName.includes('di truyen') || 
-    rawName.includes('chinh tri') || 
-    rawName.includes('lich su') || 
-    rawName.includes('dang') || 
-    rawName.includes('xa hoi') || 
-    rawName.includes('tu tuong') || 
-    rawName.includes('triet') || 
-    rawName.includes('phap luat') || 
-    rawName.includes('dieu duong') || 
-    rawName.includes('tien lam sang');
+  const isPreclinicalCategory = [catId, catName].some(value =>
+    includesPhrase(value, 'co so') ||
+    includesPhrase(value, 'dai cuong') ||
+    includesPhrase(value, 'tien lam sang') ||
+    includesPhrase(value, 'nen tang')
+  );
+  const isPreclinicalSubject = [
+    'giai phau', 'sinh ly', 'hoa sinh', 'duoc ly', 'mo phoi', 'vi sinh',
+    'ky sinh', 'ly sinh', 'di truyen', 'chinh tri', 'lich su dang',
+    'chu nghia xa hoi', 'tu tuong', 'triet hoc', 'phap luat',
+    'dieu duong co ban', 'tien lam sang'
+  ].some(phrase => includesPhrase(rawName, phrase));
 
   // 5. Nhận diện khối Lâm Sàng (Y4 - Y6)
-  const isClinical = 
-    catId.includes('noi') || 
-    catId.includes('ngoai') || 
-    catId.includes('san') || 
-    catId.includes('nhi') || 
-    catName.includes('noi') || 
-    catName.includes('ngoai') || 
-    catName.includes('san') || 
-    catName.includes('nhi') || 
-    rawName.includes('noi') || 
-    rawName.includes('ngoai') || 
-    rawName.includes('san') || 
-    rawName.includes('nhi') || 
-    rawName.includes('tim mach') || 
-    rawName.includes('ho hap') || 
-    rawName.includes('tieu hoa') || 
-    rawName.includes('co xuong') || 
-    rawName.includes('truyen nhiem') || 
-    rawName.includes('hoi suc') || 
-    rawName.includes('cap cuu') || 
-    rawName.includes('chan doan') || 
-    rawName.includes('mat') || 
-    rawName.includes('tai mui hong') || 
-    rawName.includes('rang');
+  const clinicalPhrases = [
+    'noi', 'ngoai', 'san', 'nhi', 'tim mach', 'ho hap', 'tieu hoa',
+    'co xuong', 'truyen nhiem', 'hoi suc', 'cap cuu', 'chan doan hinh anh',
+    'mat', 'tai mui hong', 'rang ham mat'
+  ];
+  const isClinicalSubject = clinicalPhrases.some(phrase => includesPhrase(rawName, phrase));
+  const isClinicalCategory = !isPreclinicalCategory && [catId, catName].some(value =>
+    clinicalPhrases.some(phrase => includesPhrase(value, phrase))
+  );
 
-  // Tên/chuyên khoa lâm sàng cụ thể có độ tin cậy cao hơn danh mục nền tảng.
-  if (isClinical) return [STAGES.CLINICAL];
-  if (isPreclinical) return [STAGES.PRECLINICAL];
+  // Tên môn lâm sàng cụ thể được ưu tiên; nếu tên không đủ rõ thì danh mục
+  // “cơ sở/tiền lâm sàng” giữ môn ở đúng khối Y1–Y3.
+  if (isClinicalSubject) return [STAGES.CLINICAL];
+  if (isPreclinicalCategory || isPreclinicalSubject) return [STAGES.PRECLINICAL];
+  if (isClinicalCategory) return [STAGES.CLINICAL];
 
   // Không âm thầm đưa môn chưa rõ vào Y1 - Y3.
   return [STAGES.UNCLASSIFIED];

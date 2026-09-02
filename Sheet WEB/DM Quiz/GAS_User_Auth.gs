@@ -89,6 +89,11 @@ function handleAuthRequest(e, isPost) {
         return jsonResponse({ success: false, error: "Đổi mật khẩu chỉ được thực hiện qua máy chủ MedQuiz." });
       }
       return handleChangePassword(params);
+    } else if (action === "updateprofile") {
+      if (!isInternalRequest_(params)) {
+        return jsonResponse({ success: false, error: "Cập nhật hồ sơ chỉ được thực hiện qua máy chủ MedQuiz." });
+      }
+      return handleUpdateProfile(params);
     } else if (action === "activatecode") {
       return handleActivateCode(params);
     } else if (action === "sessionprofile") {
@@ -496,6 +501,112 @@ function handleChangePassword(params) {
   }
 
   return jsonResponse({ success: false, error: "Không tìm thấy tài khoản!" });
+}
+
+/** Cập nhật hồ sơ và chuyển toàn bộ quyền PRO sang SĐT mới trong một khóa ghi. */
+function handleUpdateProfile(params) {
+  var originalPhone = cleanPhoneNumber(params.originalPhone);
+  var newPhone = cleanPhoneNumber(params.phone);
+  var name = String(params.name || '').trim().replace(/\s+/g, ' ');
+  var email = String(params.email || '').trim().toLowerCase();
+  var currentPassword = String(params.currentPassword || '').replace(/^'/, '');
+  var newPassword = String(params.newPassword || '').replace(/^'/, '');
+
+  if (!/^0\d{9}$/.test(originalPhone) || !/^0\d{9}$/.test(newPhone)) {
+    return jsonResponse({ success: false, error: 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.' });
+  }
+  if (name.length < 2 || name.length > 80) {
+    return jsonResponse({ success: false, error: 'Họ và tên phải có từ 2 đến 80 ký tự.' });
+  }
+  if (email && (email.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    return jsonResponse({ success: false, error: 'Địa chỉ Gmail/email không hợp lệ.' });
+  }
+  if (!currentPassword) {
+    return jsonResponse({ success: false, error: 'Vui lòng nhập mật khẩu hiện tại để xác nhận.' });
+  }
+  if (newPassword && (newPassword.length < 6 || newPassword.length > 128)) {
+    return jsonResponse({ success: false, error: 'Mật khẩu mới phải có từ 6 đến 128 ký tự.' });
+  }
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    return jsonResponse({ success: false, error: 'Hệ thống đang bận. Vui lòng thử lại sau ít giây.' });
+  }
+
+  try {
+    var sheet = getTargetSheet();
+    var data = sheet.getDataRange().getValues();
+    var accountRow = -1;
+    for (var i = 1; i < data.length; i++) {
+      var rowPhone = cleanPhoneNumber(data[i][0]);
+      if (rowPhone === newPhone && rowPhone !== originalPhone) {
+        return jsonResponse({ success: false, error: 'Số điện thoại mới đã được một tài khoản khác sử dụng.' });
+      }
+      if (rowPhone === originalPhone) accountRow = i;
+    }
+    if (accountRow < 1) {
+      return jsonResponse({ success: false, error: 'Không tìm thấy tài khoản.' });
+    }
+
+    var rowPass = String(data[accountRow][3] || '').replace(/^'/, '').trim();
+    var rowPasswordKey = String(data[accountRow][6] || '').trim();
+    if (!verifyStoredPassword_(currentPassword, rowPasswordKey || rowPass)) {
+      return jsonResponse({ success: false, error: 'Mật khẩu hiện tại không chính xác.' });
+    }
+
+    var passwordToStore = newPassword || rowPass;
+    sheet.getRange(accountRow + 1, 1, 1, 4)
+      .setNumberFormat('@')
+      .setValues([["'" + newPhone, name, email, "'" + passwordToStore]]);
+    sheet.getRange(accountRow + 1, 7)
+      .setNumberFormat('@')
+      .setValue(hashPasswordForStorage_(passwordToStore));
+
+    if (newPhone !== originalPhone) migrateAccountPhone_(originalPhone, newPhone);
+    return jsonResponse({ success: true, user: {
+      phone: newPhone,
+      name: name,
+      email: email,
+      role: 'user',
+      entitlements: getActiveEntitlementsForPhone(newPhone)
+    }});
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function migrateAccountPhone_(oldPhone, newPhone) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var accessSheet = ss.getSheetByName('QuyenTruyCap');
+  if (accessSheet && accessSheet.getLastRow() > 1) {
+    var accessRange = accessSheet.getRange(2, 1, accessSheet.getLastRow() - 1, 1);
+    var accessPhones = accessRange.getValues();
+    var accessChanged = false;
+    accessPhones.forEach(function(row) {
+      if (cleanPhoneNumber(row[0]) === oldPhone) {
+        row[0] = "'" + newPhone;
+        accessChanged = true;
+      }
+    });
+    if (accessChanged) accessRange.setNumberFormat('@').setValues(accessPhones);
+  }
+
+  var activationSheet = getActivationSheet(false);
+  if (activationSheet && activationSheet.getLastRow() > 1) {
+    var activationRange = activationSheet.getRange(2, 5, activationSheet.getLastRow() - 1, 1);
+    var activationPhones = activationRange.getValues();
+    var activationChanged = false;
+    activationPhones.forEach(function(row) {
+      if (cleanPhoneNumber(row[0]) === oldPhone) {
+        row[0] = "'" + newPhone;
+        activationChanged = true;
+      }
+    });
+    if (activationChanged) activationRange.setNumberFormat('@').setValues(activationPhones);
+  }
+
+  CacheService.getScriptCache().remove('direct_access_' + oldPhone);
+  CacheService.getScriptCache().remove('direct_access_' + newPhone);
 }
 
 /**

@@ -147,7 +147,7 @@ export default function LoginPage() {
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center space-x-3">
                     <img 
-                      src="/diamond_quiz.png"
+                      src="/ducminh_logo.png"
                       alt="DiamondQuiz Logo" 
                       loading="lazy"
                       className="h-11 w-11 object-contain rounded-2xl drop-shadow-md bg-white/5 p-1 border border-white/10"

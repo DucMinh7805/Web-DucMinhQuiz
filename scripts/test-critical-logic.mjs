@@ -31,6 +31,10 @@ const manifestApi = fs.readFileSync(new URL('../api/quiz/manifest.js', import.me
 const authMeApi = fs.readFileSync(new URL('../api/auth/me.js', import.meta.url), 'utf8');
 const quizClient = fs.readFileSync(new URL('../src/services/quizApi.js', import.meta.url), 'utf8');
 const refreshAccessApi = fs.readFileSync(new URL('../api/auth/refresh-access.js', import.meta.url), 'utf8');
+const updateProfileApi = fs.readFileSync(new URL('../api/auth/update-profile.js', import.meta.url), 'utf8');
+const authContext = fs.readFileSync(new URL('../src/context/AuthContext.jsx', import.meta.url), 'utf8');
+const homeHero = fs.readFileSync(new URL('../src/components/Home/HomeHero.jsx', import.meta.url), 'utf8');
+const windowsFileTree = fs.readFileSync(new URL('../src/components/Tree/WindowsFileTree.jsx', import.meta.url), 'utf8');
 const contentSyncApi = fs.readFileSync(new URL('../api/admin/content-sync.js', import.meta.url), 'utf8');
 const unlockModal = fs.readFileSync(new URL('../src/components/Modals/UnlockSubjectModal.jsx', import.meta.url), 'utf8');
 const mistakesNotebook = fs.readFileSync(new URL('../src/pages/MistakesNotebookPage.jsx', import.meta.url), 'utf8');
@@ -66,6 +70,11 @@ assert.deepEqual(
 );
 assert.deepEqual(resolveSubjectStages({ stages: ['y3'] }), [STAGES.PRECLINICAL]);
 assert.deepEqual(resolveSubjectStages({ stages: ['y4'] }), [STAGES.CLINICAL]);
+assert.deepEqual(
+  resolveSubjectStages({ id: 'MON_MOI', name: 'Kỹ năng học tập', categoryName: 'Tiền lâm sàng' }),
+  [STAGES.PRECLINICAL],
+  'The phrase lâm sàng inside tiền lâm sàng must not force a subject into Y4-Y6'
+);
 
 assert.deepEqual(
   JSON.parse(JSON.stringify(gasContext.parsePricingCell('99.000 đ'))),
@@ -107,6 +116,11 @@ assert.equal(gasAuth.includes('Mã Khóa Xác Thực (Tự Động)'), true, 'Us
 assert.equal(gasAuth.includes('Không hỗ trợ ALL'), true, 'Activation codes must be bound to exactly one item');
 assert.equal(refreshAccessApi.includes('authenticateSheetSession(req)'), true, 'Access refresh must trust only the signed server session');
 assert.equal(refreshAccessApi.includes("callAuthSheet('sessionprofile'"), true, 'Access refresh must reload grants from the account sheet');
+assert.equal(updateProfileApi.includes('authenticateSheetSession(req)'), true, 'Profile updates must require a signed session');
+assert.equal(updateProfileApi.includes("callAuthSheet('updateprofile'"), true, 'Profile edits must sync through the private Sheet gateway');
+assert.equal(gasAuth.includes('function handleUpdateProfile'), true, 'The account Sheet must support profile updates');
+assert.equal(gasAuth.includes('migrateAccountPhone_'), true, 'Changing phone must preserve existing PRO entitlements');
+assert.equal(authContext.includes('updateAccountProfile'), true, 'Verified profile changes must replace client account data');
 assert.equal(unlockModal.includes('Mở môn học mới'), true, 'Manual payment flow must support direct account grants without activation codes');
 assert.equal(unlockModal.includes('Mã đối soát:'), false, 'Customers must not see an internal reconciliation code');
 assert.equal(unlockModal.includes('profile.php?id=61594039586612'), true, 'Payment support must link to the official Facebook Fanpage');
@@ -114,6 +128,12 @@ assert.equal(floatingContactButton.includes('profile.php?id=61594039586612'), tr
 assert.equal(homePage.includes('.slice(0, 6)'), true, 'Homepage must show at most six featured subjects');
 assert.equal(profilePage.includes('Số đề đã hoàn thành'), false, 'Profile summary must not show the completed quiz card');
 assert.equal(profilePage.includes('max-w-[1440px]'), true, 'Profile content must use the wider desktop frame');
+assert.equal(profilePage.includes('Chỉnh sửa hồ sơ'), true, 'Profile must expose an account editor');
+assert.equal(profilePage.includes('subject:${subId}'), true, 'Profile expiry lookup must use namespaced entitlement keys');
+assert.equal(homeHero.includes("sessionStorage.getItem('diamondquiz:home-stats-animated')"), true, 'Home counters must animate once per browser session');
+assert.equal(homeHero.includes('src="/ducminh_logo.png"'), true, 'The hero must use the lightweight transparent logo');
+assert.equal(windowsFileTree.includes('Mặc định chọn môn đầu tiên khi load'), false, 'Tree view must wait for an explicit subject selection');
+assert.equal(windowsFileTree.includes('PRO'), true, 'Paid subjects must keep a visible PRO tag');
 assert.equal(unlockModal.includes('addInfo='), true, 'Bank transfer QR must carry an account/item reconciliation memo');
 assert.equal(contentSyncApi.includes("process.env.CONTENT_SYNC_SECRET"), true, 'Sheet-to-Mongo content sync must require a server secret');
 assert.equal(contentSyncApi.includes("'deleteSubject'"), true, 'Content sync must support explicit subject deletion');

@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.svg', 'diamond_quiz.png'],
+        includeAssets: ['favicon.svg', 'ducminh_logo.png', 'icons/*.png'],
         workbox: {
           // Không để Service Worker trả index.html cho URL API khi mở trực tiếp.
           navigateFallbackDenylist: [/^\/api\//]
@@ -20,19 +20,26 @@ export default defineConfig(({ mode }) => {
           name: 'DiamondQuiz - Y Khoa Lâm Sàng',
           short_name: 'DiamondQuiz',
           description: 'Ngân hàng đề thi và ca lâm sàng Y khoa toàn diện',
+          lang: 'vi',
           theme_color: '#0f172a',
           background_color: '#f8fafc',
           display: 'standalone',
           icons: [
             {
-              src: 'diamond_quiz.png',
+              src: 'icons/icon-192.png',
               sizes: '192x192',
               type: 'image/png'
             },
             {
-              src: 'diamond_quiz.png',
+              src: 'icons/icon-512.png',
               sizes: '512x512',
               type: 'image/png'
+            },
+            {
+              src: 'icons/icon-512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable'
             }
           ]
         }

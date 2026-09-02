@@ -26,3 +26,33 @@
     @apply antialiased text-slate-800 bg-surface dark:bg-navy-900;
   }
 }
+
+@layer utilities {
+  .mobile-safe-header {
+    padding-top: max(0.625rem, env(safe-area-inset-top));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  .safe-area-drawer {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .graph-safe-fullscreen {
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .graph-safe-controls {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-180%) skewX(-20deg); }
+  55%, 100% { transform: translateX(420%) skewX(-20deg); }
+}

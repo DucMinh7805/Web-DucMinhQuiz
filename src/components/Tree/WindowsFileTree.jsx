@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ChevronRight, ChevronDown, FileText, PlayCircle, BookOpen,
@@ -36,19 +36,9 @@ export default function WindowsFileTree({ manifest, searchTerm = '' }) {
     return Object.values(map);
   }, [manifest]);
 
-  // Mặc định chọn môn đầu tiên khi load
-  useEffect(() => {
-    if (!selectedSubjectId && manifest?.subjects?.length > 0) {
-      setSelectedSubjectId(manifest.subjects[0].id);
-      if (manifest.subjects[0].categoryId) {
-        setExpandedFolders(prev => ({ ...prev, [manifest.subjects[0].categoryId]: true }));
-      }
-    }
-  }, [manifest, selectedSubjectId]);
-
   const selectedSubject = useMemo(() => {
     if (!manifest?.subjects || !selectedSubjectId) return null;
-    return manifest.subjects.find(s => s.id === selectedSubjectId) || manifest.subjects[0] || null;
+    return manifest.subjects.find(s => s.id === selectedSubjectId) || null;
   }, [manifest, selectedSubjectId]);
 
   const toggleFolder = (catId) => {
@@ -74,7 +64,7 @@ export default function WindowsFileTree({ manifest, searchTerm = '' }) {
               Cây Thư Mục Chuyên Khoa
             </h2>
           </div>
-          <span className="text-[11px] font-extrabold text-slate-400">
+          <span className="rounded-full border border-cyan-400/40 bg-gradient-to-r from-teal-500/15 to-cyan-500/15 px-2.5 py-1 text-[11px] font-black text-teal-700 shadow-sm shadow-cyan-500/10 dark:text-cyan-300">
             {manifest?.subjects?.length || 0} môn
           </span>
         </div>
@@ -108,8 +98,8 @@ export default function WindowsFileTree({ manifest, searchTerm = '' }) {
                     </span>
                   </div>
 
-                  <span className="text-[10px] font-bold text-slate-400 bg-white dark:bg-white/10 px-2 py-0.5 rounded-full border border-slate-200/50 dark:border-white/5 shrink-0">
-                    {subjects.length}
+                  <span className="shrink-0 rounded-full border border-indigo-400/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-black text-indigo-600 shadow-sm dark:bg-indigo-400/15 dark:text-indigo-300">
+                    {subjects.length} môn
                   </span>
                 </button>
 
@@ -125,6 +115,7 @@ export default function WindowsFileTree({ manifest, searchTerm = '' }) {
                     >
                       {filteredSubjects.map(sub => {
                         const isSelected = selectedSubjectId === sub.id;
+                        const isPro = Boolean(sub.isPro || (Number.parseFloat(sub.price) || 0) > 0);
 
                         return (
                           <div
@@ -150,11 +141,18 @@ export default function WindowsFileTree({ manifest, searchTerm = '' }) {
                               </span>
                             </div>
 
-                            <span className={`text-[10px] shrink-0 font-semibold px-1.5 py-0.5 rounded-md ${
-                              isSelected ? 'bg-white/20 text-white' : 'text-slate-400 bg-slate-100 dark:bg-white/10'
-                            }`}>
-                              {sub.decks?.length || 0} đề
-                            </span>
+                            <div className="flex shrink-0 items-center gap-1">
+                              {isPro && (
+                                <span className="relative overflow-hidden rounded-full border border-amber-400/60 bg-gradient-to-r from-amber-100 via-yellow-50 to-orange-100 px-2 py-0.5 text-[9px] font-black text-amber-700 shadow-[0_2px_10px_rgba(245,158,11,0.22)] before:absolute before:inset-y-0 before:-left-full before:w-1/2 before:skew-x-[-20deg] before:bg-white/70 before:animate-[shimmer_2.4s_infinite] dark:from-amber-400/25 dark:via-yellow-300/15 dark:to-orange-400/25 dark:text-amber-200">
+                                  PRO
+                                </span>
+                              )}
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
+                                isSelected ? 'bg-white/20 text-white' : 'text-slate-400 bg-slate-100 dark:bg-white/10'
+                              }`}>
+                                {sub.decks?.length || 0} đề
+                              </span>
+                            </div>
                           </div>
                         );
                       })}

@@ -51,14 +51,14 @@ export default function KnowledgeGraphPage() {
   return (
     <div className={`w-full flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 ${
       isFullscreen 
-        ? 'fixed inset-0 z-50 h-screen bg-slate-50 dark:bg-[#060a14]' 
-        : 'h-[calc(100vh-56px)] md:h-screen relative'
+        ? 'fixed inset-0 z-50 h-[100dvh] bg-slate-50 dark:bg-[#060a14] graph-safe-fullscreen'
+        : 'h-[calc(100dvh-56px-env(safe-area-inset-top))] md:h-screen relative'
     }`}>
 
       {/* =================================================================== */}
       {/* 1. TOP CONTROLS (Thanh Chuyển Chế Độ Nằm Gọn Trên 1 Dòng Mượt Mà)   */}
       {/* =================================================================== */}
-      <div className="pt-3 pb-3 px-3 sm:px-8 flex items-center justify-between gap-2 shrink-0 z-20 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden bg-slate-50/80 dark:bg-[#060a14]/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-white/5">
+      <div className="graph-safe-controls pt-3 pb-3 px-3 sm:px-8 flex items-center justify-between gap-2 shrink-0 z-20 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden bg-slate-50/80 dark:bg-[#060a14]/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-white/5">
         
         {/* Capsule Dock Chuyển Chế Độ (Bung xả, êm ái, bo tròn mềm) */}
         <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
@@ -181,7 +181,7 @@ export default function KnowledgeGraphPage() {
         {/* VIEW 3: ĐỒ THỊ 2D CANVAS (KÈM NÚT FULLSCREEN TẠI ĐÂY) */}
         {viewMode === 'graph' && ENABLE_GRAPH_VIEW && (
           <div className="relative h-full w-full bg-gradient-to-br from-slate-100 via-cyan-50/40 to-indigo-50/50 p-2 sm:p-4 dark:from-[#050812] dark:via-[#06101b] dark:to-[#090b18]">
-            <div className="absolute left-5 top-5 sm:left-8 sm:top-8 z-20 pointer-events-none">
+            <div className="absolute left-3 top-3 max-w-[calc(100%-4.5rem)] sm:left-8 sm:top-8 z-20 pointer-events-none">
               <div className="rounded-[20px] border border-white/80 bg-white/75 px-4 py-3 shadow-xl shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/65">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-400">Bản đồ liên môn</p>
                 <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300">Chạm một nút để làm nổi bật các kết nối</p>
@@ -192,7 +192,7 @@ export default function KnowledgeGraphPage() {
               type="button"
               aria-label={isFullscreen ? 'Thu nhỏ đồ thị' : 'Mở đồ thị toàn màn hình'}
               onClick={() => setIsFullscreen(prev => !prev)}
-              className="absolute right-5 top-5 z-30 rounded-2xl border border-white/80 bg-white/80 p-2.5 text-slate-600 shadow-lg shadow-slate-900/10 backdrop-blur-2xl transition-all hover:-translate-y-0.5 hover:text-cyan-600 active:scale-95 sm:right-8 sm:top-8 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-300 dark:hover:text-cyan-400"
+              className="absolute right-3 top-3 z-30 rounded-2xl border border-white/80 bg-white/80 p-2.5 text-slate-600 shadow-lg shadow-slate-900/10 backdrop-blur-2xl transition-all hover:-translate-y-0.5 hover:text-cyan-600 active:scale-95 sm:right-8 sm:top-8 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-300 dark:hover:text-cyan-400"
               title={isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}

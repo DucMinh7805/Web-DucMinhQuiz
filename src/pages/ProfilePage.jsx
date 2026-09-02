@@ -3,8 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
 import { 
   User, Calendar, BookOpen, Award, CheckCircle2, Bookmark, 
-  ArrowRight, Camera, X, Upload,
-  Sparkles
+  ArrowRight, Camera, X, Upload, Pencil, Mail, Phone, LockKeyhole,
+  Sparkles, Loader2, Save, ShieldCheck
 } from 'lucide-react';
 import { Navigate, useNavigate, useOutletContext } from 'react-router-dom';
 import usePageTitle from '../hooks/usePageTitle';
@@ -64,13 +64,24 @@ function resizeAvatarFile(file, maxSize = 512) {
 
 export default function ProfilePage() {
   usePageTitle('Hồ sơ cá nhân');
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, updateAccountProfile } = useAuth();
   const manifest = useOutletContext();
   const navigate = useNavigate();
 
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [customAvatarUrl, setCustomAvatarUrl] = useState('');
   const [avatarError, setAvatarError] = useState('');
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: user?.name || '',
+    phone: user?.phone || '',
+    email: user?.email || '',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [profileMessage, setProfileMessage] = useState({ type: '', text: '' });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Bắt buộc đăng nhập
   if (!user) {
@@ -155,6 +166,49 @@ export default function ProfilePage() {
     }
   };
 
+  const openProfileEditor = () => {
+    setProfileForm({
+      name: user.name || '',
+      phone: user.phone || '',
+      email: user.email || '',
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+    setProfileMessage({ type: '', text: '' });
+    setIsEditProfileOpen(true);
+  };
+
+  const handleProfileField = (field) => (event) => {
+    setProfileForm(prev => ({ ...prev, [field]: event.target.value }));
+    if (profileMessage.text) setProfileMessage({ type: '', text: '' });
+  };
+
+  const handleSaveProfile = async (event) => {
+    event.preventDefault();
+    if (profileForm.newPassword !== profileForm.confirmPassword) {
+      setProfileMessage({ type: 'error', text: 'Mật khẩu mới nhập lại chưa khớp.' });
+      return;
+    }
+    setIsSavingProfile(true);
+    setProfileMessage({ type: '', text: '' });
+    try {
+      await updateAccountProfile({
+        name: profileForm.name,
+        phone: profileForm.phone,
+        email: profileForm.email,
+        currentPassword: profileForm.currentPassword,
+        newPassword: profileForm.newPassword
+      });
+      setProfileMessage({ type: 'success', text: 'Đã cập nhật và đồng bộ với Google Sheet.' });
+      setProfileForm(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
+    } catch (error) {
+      setProfileMessage({ type: 'error', text: error.message || 'Không thể cập nhật hồ sơ.' });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   return (
     <div className="w-full px-3 sm:px-8 lg:px-12 py-5 space-y-6 sm:space-y-8 max-w-[1440px] mx-auto">
       
@@ -203,6 +257,14 @@ export default function ProfilePage() {
                 {user.phone}
               </p>
             )}
+            <button
+              type="button"
+              onClick={openProfileEditor}
+              className="mt-3 inline-flex items-center gap-2 rounded-xl border border-teal-500/25 bg-teal-50/80 px-3.5 py-2 text-xs font-black text-teal-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-teal-500/50 hover:bg-teal-100 dark:bg-teal-500/10 dark:text-teal-300"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Chỉnh sửa hồ sơ
+            </button>
           </div>
           
           {/* 4 Thẻ Thống Kê Tổng Quan */}
@@ -372,7 +434,7 @@ export default function ProfilePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {user.unlockedSubjects.map((subId, idx) => {
               const displayName = getSubjectDisplayName(subId, manifest);
-              const expiry = user.subjectExpirations?.[subId];
+              const expiry = user.subjectExpirations?.[`subject:${subId}`];
               const remainingDays = expiry ? Math.max(0, Math.ceil((new Date(expiry).getTime() - Date.now()) / (24 * 60 * 60 * 1000))) : 60;
               const isExpired = remainingDays === 0;
 
@@ -502,6 +564,76 @@ export default function ProfilePage() {
           </div>
         )}
       </motion.div>
+
+      {isEditProfileOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-md sm:p-5"
+          onClick={() => !isSavingProfile && setIsEditProfileOpen(false)}
+        >
+          <form
+            onSubmit={handleSaveProfile}
+            className="max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-[#0c1222] sm:p-7"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4 dark:border-white/10">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">Thông tin tài khoản</h3>
+                <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">Thông tin sau khi lưu sẽ được đồng bộ trực tiếp với Google Sheet.</p>
+              </div>
+              <button type="button" aria-label="Đóng" onClick={() => setIsEditProfileOpen(false)} disabled={isSavingProfile} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:hover:bg-white/10 dark:hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label className="space-y-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="flex items-center gap-1.5"><User className="h-3.5 w-3.5 text-teal-500" />Họ và tên</span>
+                <input required minLength="2" maxLength="80" autoComplete="name" value={profileForm.name} onChange={handleProfileField('name')} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5 dark:text-white" />
+              </label>
+              <label className="space-y-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-teal-500" />Số điện thoại</span>
+                <input required inputMode="tel" autoComplete="tel" pattern="0[0-9]{9}" value={profileForm.phone} onChange={handleProfileField('phone')} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5 dark:text-white" />
+              </label>
+              <label className="space-y-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 sm:col-span-2">
+                <span className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5 text-teal-500" />Gmail / Email</span>
+                <input type="email" maxLength="120" autoComplete="email" value={profileForm.email} onChange={handleProfileField('email')} placeholder="tenban@gmail.com" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5 dark:text-white" />
+              </label>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-amber-200/70 bg-amber-50/60 p-4 dark:border-amber-500/20 dark:bg-amber-500/5">
+              <p className="flex items-center gap-2 text-xs font-black text-amber-800 dark:text-amber-300"><ShieldCheck className="h-4 w-4" />Xác nhận bảo mật</p>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 sm:col-span-2">
+                  <span className="flex items-center gap-1.5"><LockKeyhole className="h-3.5 w-3.5" />Mật khẩu hiện tại</span>
+                  <input required type="password" autoComplete="current-password" value={profileForm.currentPassword} onChange={handleProfileField('currentPassword')} className="w-full rounded-xl border border-amber-200 bg-white px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-amber-500 dark:border-amber-500/20 dark:bg-white/5 dark:text-white" />
+                </label>
+                <label className="space-y-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                  <span>Mật khẩu mới (không bắt buộc)</span>
+                  <input type="password" minLength="6" maxLength="128" autoComplete="new-password" value={profileForm.newPassword} onChange={handleProfileField('newPassword')} className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5 dark:text-white" />
+                </label>
+                <label className="space-y-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                  <span>Nhập lại mật khẩu mới</span>
+                  <input type="password" minLength="6" maxLength="128" autoComplete="new-password" value={profileForm.confirmPassword} onChange={handleProfileField('confirmPassword')} className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5 dark:text-white" />
+                </label>
+              </div>
+            </div>
+
+            {profileMessage.text && (
+              <p role="status" className={`mt-4 rounded-xl px-3.5 py-2.5 text-xs font-bold ${profileMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300'}`}>
+                {profileMessage.text}
+              </p>
+            )}
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setIsEditProfileOpen(false)} disabled={isSavingProfile} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-black text-slate-600 disabled:opacity-50 dark:border-white/10 dark:text-slate-300">Đóng</button>
+              <button type="submit" disabled={isSavingProfile} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 px-5 py-2.5 text-xs font-black text-white shadow-lg shadow-teal-500/20 disabled:opacity-60">
+                {isSavingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {isSavingProfile ? 'Đang đồng bộ...' : 'Lưu thay đổi'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* MODAL ĐỔI ẢNH ĐẠI DIỆN TỰ TẢI                                             */}

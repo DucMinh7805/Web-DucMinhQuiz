@@ -3,12 +3,16 @@ import { motion, useInView, AnimatePresence } from 'motion/react';
 import { Search, GraduationCap, BrainCircuit, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-function AnimatedCounter({ target, duration = 1.6, suffix = '' }) {
-  const [count, setCount] = useState(0);
+function AnimatedCounter({ target, duration = 1.6, suffix = '', animate = true }) {
+  const [count, setCount] = useState(() => animate ? 0 : target);
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-40px' });
 
   useEffect(() => {
+    if (!animate) {
+      setCount(target);
+      return;
+    }
     if (!inView || target <= 0) return;
     let start = 0;
     const step = Math.max(1, Math.ceil(target / (duration * 60)));
@@ -22,7 +26,7 @@ function AnimatedCounter({ target, duration = 1.6, suffix = '' }) {
       }
     }, 1000 / 60);
     return () => clearInterval(timer);
-  }, [inView, target, duration]);
+  }, [animate, inView, target, duration]);
 
   return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
 }
@@ -67,6 +71,24 @@ export default function HomeHero({ subjectsCount = 0, totalDecks = 0, totalQuest
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [animateStats] = useState(() => {
+    try {
+      return sessionStorage.getItem('diamondquiz:home-stats-animated') !== '1';
+    } catch {
+      return true;
+    }
+  });
+  const hasLoadedStats = subjectsCount > 0 || totalDecks > 0 || totalQuestions > 0;
+  const shouldAnimateStats = hasLoadedStats && animateStats;
+
+  useEffect(() => {
+    if (!hasLoadedStats || !animateStats) return;
+    try {
+      sessionStorage.setItem('diamondquiz:home-stats-animated', '1');
+    } catch {
+      // Trình duyệt riêng tư có thể chặn sessionStorage; animation vẫn hoạt động.
+    }
+  }, [animateStats, hasLoadedStats]);
 
   // Animation chu kỳ đổi chữ placeholder
   useEffect(() => {
@@ -100,8 +122,14 @@ export default function HomeHero({ subjectsCount = 0, totalDecks = 0, totalQuest
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           >
             <img
-              src="/diamond_quiz.png"
+              src="/ducminh_logo.png"
               alt="Diamond Quiz"
+              width="612"
+              height="408"
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
+              draggable="false"
               className="w-32 sm:w-44 lg:w-52 max-w-[240px] object-contain drop-shadow-[0_10px_20px_rgba(13,148,136,0.3)] transition-transform select-none"
             />
           </motion.div>
@@ -229,21 +257,21 @@ export default function HomeHero({ subjectsCount = 0, totalDecks = 0, totalQuest
         >
           <div className="text-center">
             <div className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white">
-              <AnimatedCounter target={subjectsCount} duration={1} />
+              <AnimatedCounter target={subjectsCount} duration={1} animate={shouldAnimateStats} />
             </div>
             <div className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-wider mt-0.5">Môn học</div>
           </div>
           <div className="w-px h-8 bg-slate-200 dark:bg-white/10" />
           <div className="text-center">
             <div className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white">
-              <AnimatedCounter target={totalDecks} duration={1.3} />
+              <AnimatedCounter target={totalDecks} duration={1.3} animate={shouldAnimateStats} />
             </div>
             <div className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-wider mt-0.5">Bộ đề</div>
           </div>
           <div className="w-px h-8 bg-slate-200 dark:bg-white/10" />
           <div className="text-center">
             <div className="text-xl sm:text-3xl font-black text-teal-600 dark:text-teal-400">
-              <AnimatedCounter target={totalQuestions} duration={1.6} suffix="+" />
+              <AnimatedCounter target={totalQuestions} duration={1.6} suffix="+" animate={shouldAnimateStats} />
             </div>
             <div className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-wider mt-0.5">Câu hỏi</div>
           </div>

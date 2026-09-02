@@ -87,7 +87,7 @@ export default function MainLayout({ manifest }) {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#060a14] text-slate-800 dark:text-slate-200 flex flex-col md:flex-row antialiased selection:bg-teal-500/20 selection:text-teal-700 relative">
+    <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#060a14] text-slate-800 dark:text-slate-200 flex flex-col md:flex-row antialiased selection:bg-teal-500/20 selection:text-teal-700 relative">
       
       {/* Global Ocean Cyan Mesh Ambient Background */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
@@ -106,9 +106,9 @@ export default function MainLayout({ manifest }) {
       />
 
       {/* Mobile Header (Mềm mại, đồng nhất màu nền, không bị lệch viền) */}
-      <div className="md:hidden bg-white/80 dark:bg-[#060a14]/80 backdrop-blur-xl border-b border-slate-200/40 dark:border-white/5 px-4 py-2.5 flex items-center justify-between sticky top-0 z-40">
+      <div className="mobile-safe-header md:hidden bg-white/80 dark:bg-[#060a14]/80 backdrop-blur-xl border-b border-slate-200/40 dark:border-white/5 px-4 py-2.5 flex items-center justify-between sticky top-0 z-40">
         <Link to="/" className="flex items-center space-x-2">
-          <img src="/diamond_quiz.png" alt="DiamondQuiz" loading="lazy" className="h-8 w-8 object-contain rounded-xl" />
+          <img src="/ducminh_logo.png" alt="DiamondQuiz" width="612" height="408" loading="eager" decoding="async" className="h-8 w-10 object-contain" />
           <span className="font-extrabold text-base text-slate-900 dark:text-white tracking-tight">
             Diamond<span className="text-teal-500">Quiz</span>
           </span>
@@ -135,7 +135,7 @@ export default function MainLayout({ manifest }) {
       <aside
         className={`fixed md:sticky top-0 inset-y-0 left-0 z-50 bg-white/95 dark:bg-[#080d1a]/95 backdrop-blur-2xl border-r border-slate-200/50 dark:border-white/5 flex flex-col justify-between transition-all duration-300 md:translate-x-0 ${
           isMobileMenuOpen ? 'translate-x-0 w-72' : '-translate-x-full'
-        } ${isCollapsed ? 'md:w-20' : 'md:w-64'} h-screen shrink-0 shadow-xl`}
+        } ${isCollapsed ? 'md:w-20' : 'md:w-64'} h-[100dvh] shrink-0 shadow-xl safe-area-drawer`}
       >
         {/* Top: Logo & Collapse Trigger */}
         <div>
@@ -147,7 +147,7 @@ export default function MainLayout({ manifest }) {
                 title="Mở rộng thanh công cụ"
               >
                 <img
-                  src="/diamond_quiz.png"
+                  src="/ducminh_logo.png"
                   alt="DiamondQuiz"
                   loading="lazy"
                   className="h-10 w-10 object-contain rounded-2xl group-hover:scale-110 transition-transform drop-shadow-md"
@@ -159,7 +159,7 @@ export default function MainLayout({ manifest }) {
             <div className={`flex items-center justify-between w-full ${isCollapsed ? 'md:hidden' : ''}`}>
               <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 min-w-0 group">
                 <img
-                  src="/diamond_quiz.png"
+                  src="/ducminh_logo.png"
                   alt="DiamondQuiz"
                   loading="lazy"
                   className="h-9 w-9 object-contain rounded-xl shrink-0 group-hover:scale-105 transition-transform"

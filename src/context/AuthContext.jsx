@@ -201,6 +201,32 @@ export function AuthProvider({ children }) {
     return true;
   };
 
+  const updateAccountProfile = async (profileChanges) => {
+    if (!user || !profileChanges || typeof profileChanges !== 'object') {
+      throw new Error('Bạn cần đăng nhập lại để cập nhật hồ sơ.');
+    }
+    const response = await fetch('/api/auth/update-profile', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profileChanges)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data?.success || !data?.user) {
+      throw new Error(data?.message || 'Không thể cập nhật hồ sơ.');
+    }
+
+    // Giữ tiến độ/avatar cục bộ khi người dùng đổi SĐT; danh tính và quyền
+    // được thay bằng dữ liệu đã xác minh từ máy chủ/Google Sheet.
+    const verifiedUser = mergeVerifiedUser(
+      { ...user, phone: data.user.phone },
+      { ...data.user, isAuthenticated: true }
+    );
+    localStorage.setItem('y_khoa_user', JSON.stringify(verifiedUser));
+    setUser(verifiedUser);
+    return verifiedUser;
+  };
+
   const refreshAccess = async () => {
     const response = await fetch('/api/auth/refresh-access', {
       method: 'POST',
@@ -232,6 +258,7 @@ export function AuthProvider({ children }) {
       login, 
       logout, 
       updateProfile,
+      updateAccountProfile,
       updateProgress,
       removeMistake,
       clearMistakes,

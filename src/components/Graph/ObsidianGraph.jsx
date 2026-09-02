@@ -245,7 +245,7 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
     // Zoom vừa vặn khung hình ban đầu
     const timer = setTimeout(() => {
       if (fgRef.current) {
-        fgRef.current.zoomToFit(650, dimensions.width < 640 ? 36 : 72);
+        fgRef.current.zoomToFit(650, dimensions.width < 640 ? 72 : 84);
       }
     }, 850);
 
@@ -466,7 +466,7 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
         warmupTicks={30}
         onEngineStop={() => {
           if (!hasFittedRef.current && fgRef.current) {
-            fgRef.current.zoomToFit(650, dimensions.width < 640 ? 36 : 72);
+            fgRef.current.zoomToFit(650, dimensions.width < 640 ? 72 : 84);
             hasFittedRef.current = true;
           }
         }}
@@ -517,7 +517,7 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
           type="button"
           aria-label="Căn giữa đồ thị"
           onClick={() => {
-            if (fgRef.current) fgRef.current.zoomToFit(400, 50);
+            if (fgRef.current) fgRef.current.zoomToFit(400, dimensions.width < 640 ? 72 : 84);
           }}
           className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-teal-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           title="Căn giữa"
