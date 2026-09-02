@@ -246,7 +246,6 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
     const timer = setTimeout(() => {
       if (fgRef.current) {
         fgRef.current.zoomToFit(650, dimensions.width < 640 ? 36 : 72);
-        hasFittedRef.current = true;
       }
     }, 850);
 
@@ -433,7 +432,9 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
         graphData={graphData}
         backgroundColor={canvasBg}
         nodeRelSize={1}
-        nodeVal="val"
+        // Khớp bán kính nội bộ với kích thước custom để zoomToFit không cắt
+        // halo/nhãn ở mép, đặc biệt trên màn hình điện thoại.
+        nodeVal={node => node.type === 'root' ? 22 ** 2 : node.type === 'category' ? 14 ** 2 : 5.5 ** 2}
         nodeCanvasObject={paintNode}
         nodePointerAreaPaint={(node, color, ctx) => {
           if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
@@ -489,7 +490,7 @@ const ObsidianGraph = forwardRef(function ObsidianGraph({
       </div>
 
       {/* Floating Controls Bar */}
-      <div className="absolute bottom-5 right-5 z-10 flex items-center space-x-1 rounded-2xl border border-white/80 bg-white/80 p-1.5 shadow-lg shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/70">
+      <div className="absolute bottom-5 left-5 right-auto z-10 flex items-center space-x-1 rounded-2xl border border-white/80 bg-white/80 p-1.5 shadow-lg shadow-slate-900/10 backdrop-blur-2xl sm:left-auto sm:right-5 dark:border-white/10 dark:bg-slate-950/70">
         <button
           type="button"
           aria-label="Phóng to đồ thị"

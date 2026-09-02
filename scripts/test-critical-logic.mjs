@@ -36,6 +36,7 @@ const mistakesNotebook = fs.readFileSync(new URL('../src/pages/MistakesNotebookP
 const migrationScript = fs.readFileSync(new URL('../scripts/migrate-dryrun.cjs', import.meta.url), 'utf8');
 const knowledgeGraphPage = fs.readFileSync(new URL('../src/pages/KnowledgeGraphPage.jsx', import.meta.url), 'utf8');
 const obsidianGraph = fs.readFileSync(new URL('../src/components/Graph/ObsidianGraph.jsx', import.meta.url), 'utf8');
+const viteConfig = fs.readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
 const gasContext = vm.createContext({ console });
 vm.runInContext(`${gasUtils}\n${gasSync}`, gasContext);
 const gasAccessContext = vm.createContext({ console });
@@ -120,5 +121,12 @@ assert.equal(knowledgeGraphPage.includes('subjects={subjects}'), true, 'Graph mu
 assert.equal(obsidianGraph.includes(".distance(link => link.distance || 70)"), true, 'Graph simulation must apply the computed relationship distance');
 assert.equal(obsidianGraph.includes('const activeNode = hoverNode || selectedNode'), true, 'Selected graph relationships must remain highlighted after hover ends');
 assert.equal(obsidianGraph.includes('Number.isFinite(node.x)'), true, 'Canvas must skip nodes until the force engine assigns finite coordinates');
+assert.equal(obsidianGraph.includes('hasFittedRef.current = true;'), true, 'Graph must perform a final fit after the force engine settles');
+assert.equal(obsidianGraph.includes("nodeVal={node => node.type === 'root' ? 22 ** 2"), true, 'Graph fit bounds must match custom canvas node radii');
+assert.equal(viteConfig.includes("'/api/quiz/manifest'"), true, 'Local Vite must proxy the public manifest endpoint');
+assert.equal(viteConfig.includes("'/api/quiz/questions'"), true, 'Local Vite must proxy read-only quiz content requests');
+assert.equal(viteConfig.includes("'/api':"), false, 'Local Vite must not proxy every API mutation to production');
+assert.equal(viteConfig.includes('strictPort: true'), true, 'Local HMR must use a stable development port');
+assert.equal(viteConfig.includes('clientPort: 5173'), true, 'Local HMR client must connect to the actual Vite port');
 
 console.log('Critical logic tests passed.');
