@@ -30,4 +30,5 @@ google-key.json
 .migration_cache.json
 ma Qr.jpg
 *.private.*
+scripts/latest-gas-manifest.json
 

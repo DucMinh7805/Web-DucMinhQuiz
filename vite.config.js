@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.svg', 'diamond_quiz.png', 'icons/*.png'],
+        includeAssets: ['diamond_quiz.png', 'icons/*.png'],
         workbox: {
           cleanupOutdatedCaches: true,
           clientsClaim: true,

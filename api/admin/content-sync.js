@@ -119,22 +119,24 @@ async function pruneMissingManifestContent(subjectDocs, subjects, books) {
   );
   const expectedBookIds = books.map(book => String(book?.id || '').trim()).filter(Boolean);
 
-  // Một lần "Đồng bộ toàn bộ" là ảnh chụp chuẩn từ Sheet. Vì vậy những bản
-  // ghi không còn trong manifest phải được dọn khỏi MongoDB, nếu không web sẽ
-  // tiếp tục hiện môn/đề/tài liệu đã xóa cho đến khi xóa thủ công.
-  const staleDecks = await Deck.find({
-    $or: [
-      { subjectId: { $nin: keptSubjectIds } },
-      { path: { $nin: Array.from(expectedDeckPaths) } }
-    ]
-  }).select('_id path').lean();
-  if (staleDecks.length) {
-    const staleDeckIds = staleDecks.map(deck => deck._id);
-    const staleDeckPaths = staleDecks.map(deck => String(deck.path || '').toLowerCase()).filter(Boolean);
-    await Promise.all([
-      Question.deleteMany({ $or: [{ deckId: { $in: staleDeckIds } }, { deckPath: { $in: staleDeckPaths } }] }),
-      Deck.deleteMany({ _id: { $in: staleDeckIds } })
-    ]);
+  // XÓA TRÊN SHEET = XÓA TRÊN DB (Khi nào nạp lại thì nạp lại sau)
+  let deletedDecksCount = 0;
+  if (expectedDeckPaths.size > 0) {
+    const staleDecks = await Deck.find({
+      $or: [
+        { subjectId: { $nin: keptSubjectIds } },
+        { path: { $nin: Array.from(expectedDeckPaths) } }
+      ]
+    }).select('_id path').lean();
+    if (staleDecks.length) {
+      const staleDeckIds = staleDecks.map(deck => deck._id);
+      const staleDeckPaths = staleDecks.map(deck => String(deck.path || '').toLowerCase()).filter(Boolean);
+      await Promise.all([
+        Question.deleteMany({ $or: [{ deckId: { $in: staleDeckIds } }, { deckPath: { $in: staleDeckPaths } }] }),
+        Deck.deleteMany({ _id: { $in: staleDeckIds } })
+      ]);
+      deletedDecksCount = staleDecks.length;
+    }
   }
 
   const [subjectResult, bookResult] = await Promise.all([
@@ -143,7 +145,7 @@ async function pruneMissingManifestContent(subjectDocs, subjects, books) {
   ]);
   return {
     deletedSubjects: subjectResult.deletedCount,
-    deletedDecks: staleDecks.length,
+    deletedDecks: deletedDecksCount,
     deletedBooks: bookResult.deletedCount
   };
 }
@@ -159,7 +161,7 @@ async function syncManifest(manifest, { prune = false } = {}) {
       return Subject.findOneAndUpdate(
         { $or: [{ id: payload.id }, { code: payload.code }] },
         { $set: payload },
-        { upsert: true, new: true, runValidators: true }
+        { upsert: true, returnDocument: 'after', runValidators: true }
       );
     })),
     Promise.all(books.map((book) => {
@@ -167,15 +169,51 @@ async function syncManifest(manifest, { prune = false } = {}) {
       return Book.findOneAndUpdate(
         { id: payload.id },
         { $set: payload },
-        { upsert: true, new: true, runValidators: true }
+        { upsert: true, returnDocument: 'after', runValidators: true }
       );
     }))
   ]);
 
+  // TỰ ĐỘNG LƯU TOÀN BỘ CÁC BỘ ĐỀ TRONG MANIFEST VÀO BẢNG DECKS
+  // Giúp thao tác đồng bộ từ Google Sheet cập nhật ngay lập tức 100% bộ đề lên web trong 1 giây
+  const deckOps = [];
+  subjects.forEach((subj, sIdx) => {
+    const sDoc = subjectDocs[sIdx];
+    const sDecks = Array.isArray(subj.decks) ? subj.decks : [];
+    sDecks.forEach((d, dIdx) => {
+      const path = String(d.path || '').trim().toLowerCase();
+      if (!path) return;
+      deckOps.push({
+        updateOne: {
+          filter: { path },
+          update: {
+            $set: {
+              subjectId: sDoc._id,
+              title: String(d.name || d.title || path),
+              path,
+              stage: ['y1_y3', 'y4_y6', 'sau_dai_hoc', 'noi_tru'].includes(d.stage) ? d.stage : 'y1_y3',
+              tags: Array.isArray(d.tags) ? d.tags : [],
+              totalQuestions: Math.max(0, Number(d.questionCount) || 0),
+              timeLimitMinutes: Math.max(1, Number(d.timeLimitMinutes) || Math.ceil((Number(d.questionCount) || 20) * 1.5)),
+              orderIndex: dIdx,
+              isPublished: true
+            },
+            $setOnInsert: { createdAt: new Date() }
+          },
+          upsert: true
+        }
+      });
+    });
+  });
+
+  if (deckOps.length) {
+    await Deck.bulkWrite(deckOps, { ordered: false });
+  }
+
   const deleted = prune
     ? await pruneMissingManifestContent(subjectDocs, subjects, books)
-    : { deletedSubjects: 0, deletedDecks: 0, deletedBooks: 0 };
-  return { subjects: subjects.length, books: books.length, ...deleted };
+    : { deletedSubjects: 0, unpublishedDecks: 0, deletedBooks: 0 };
+  return { subjects: subjects.length, books: books.length, decks: deckOps.length, ...deleted };
 }
 
 async function upsertDeck(manifest, deckPath, rawQuestions) {
