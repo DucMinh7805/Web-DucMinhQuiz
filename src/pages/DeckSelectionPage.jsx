@@ -40,7 +40,7 @@ export default function DeckSelectionPage() {
   const [sessionConfig, setSessionConfig] = useState({
     mode: 'tutor',
     shuffle: true,
-    limit: '30'
+    limit: 'full'
   });
 
   const isUnlocked = useMemo(() => {
@@ -339,7 +339,7 @@ export default function DeckSelectionPage() {
                         setSessionConfig({
                           mode: 'tutor',
                           shuffle: true,
-                          limit: deck.questionCount > 30 ? '30' : 'full'
+                          limit: 'full'
                         });
                       }}
                       className={`w-full sm:w-auto px-6 py-2.5 sm:px-7 sm:py-3 rounded-2xl text-white font-black text-xs sm:text-sm shadow-md hover:scale-[1.02] active:scale-95 transition-all cursor-pointer text-center flex items-center justify-center space-x-1.5 ${
