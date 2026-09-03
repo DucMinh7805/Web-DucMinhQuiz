@@ -139,7 +139,7 @@ export default function ReviewPage({
               </div>
               <div className="flex-1 sm:flex-none p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 text-center min-w-[90px]">
                 <div className="text-lg font-black text-amber-700 dark:text-amber-300">{ungradedCount}</div>
-                <div className="text-[11px] font-bold text-amber-800 dark:text-amber-300">Chưa có barem</div>
+                <div className="text-[11px] font-bold text-amber-800 dark:text-amber-300">Chưa chấm tự động</div>
               </div>
             </div>
           </div>
@@ -212,7 +212,7 @@ export default function ReviewPage({
                     : 'bg-white dark:bg-[#0b1120] text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 border border-slate-200 dark:border-white/10'
                 }`}
               >
-                Chưa có barem ({ungradedCount})
+                Chưa chấm tự động ({ungradedCount})
               </button>
             )}
             {flaggedCount > 0 && (
@@ -281,7 +281,7 @@ export default function ReviewPage({
                         : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
                     }`}>
                       {isUngraded ? <Bookmark className="w-3.5 h-3.5 mr-1.5" /> : isCorrect ? <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> : <XCircle className="w-3.5 h-3.5 mr-1.5" />}
-                      {isUngraded ? 'Chưa có barem chấm' : isCorrect ? 'Đã trả lời đúng' : (userArr.length > 0 ? 'Đã trả lời sai' : 'Chưa trả lời')}
+                      {isUngraded ? 'Chưa chấm tự động' : isCorrect ? 'Đã trả lời đúng' : (userArr.length > 0 ? 'Đã trả lời sai' : 'Chưa trả lời')}
                     </span>
                   </div>
 
