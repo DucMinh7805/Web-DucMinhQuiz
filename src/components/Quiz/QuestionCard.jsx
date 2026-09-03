@@ -7,6 +7,11 @@ import OptionItem from './OptionItem';
 import DeepCitationCard from './DeepCitationCard';
 import QuestionVignette from './Question/QuestionVignette';
 import QuestionResultBanner from './Question/QuestionResultBanner';
+import {
+  evaluateQuestionAnswer,
+  isOptionCorrect,
+  QUESTION_EVALUATION
+} from '../../utils/answerUtils';
 
 /**
  * QuestionCard: Khung làm bài trắc nghiệm thông minh
@@ -52,22 +57,9 @@ export default function QuestionCard({
 
   // Kiểm tra tính đúng đắn của toàn bộ câu hỏi
   const isCorrect = useMemo(() => {
-    if (!isAnswered || userAnswersList.length === 0) return false;
-    
-    // Nếu là tự luận ngắn
-    if (question?.type === 'short_answer' || question?.type === 'fill_in_blank') {
-      if (correctAnswers.length === 0) return true; // Tự luận không có barem -> cho qua để tự check giải thích
-      const userStr = userAnswersList.join(' ').toLowerCase().trim();
-      const correctStr = correctAnswers.join(' ').toLowerCase().trim();
-      return userStr === correctStr || userStr.includes(correctStr) || correctStr.includes(userStr);
-    }
-
-    if (correctAnswers.length === 0) return false;
-    if (userAnswersList.length !== correctAnswers.length) return false;
-    const sortedUser = [...userAnswersList].sort();
-    const sortedCorrect = [...correctAnswers].sort();
-    return sortedUser.every((val, i) => val === sortedCorrect[i]);
-  }, [isAnswered, userAnswersList, correctAnswers, question]);
+    if (!isAnswered) return false;
+    return evaluateQuestionAnswer(question, selectedAnswer) === QUESTION_EVALUATION.CORRECT;
+  }, [isAnswered, question, selectedAnswer]);
 
   // Reset multiSelected khi chuyển câu
   useEffect(() => {
@@ -246,7 +238,7 @@ export default function QuestionCard({
                       ? (isAnswered ? userAnswersList.includes(opt) : multiSelected.includes(opt))
                       : (selectedAnswer === opt);
 
-                    const isOptCorrect = correctAnswers.includes(opt);
+                    const isOptCorrect = isOptionCorrect(opt, idx, question.answer);
 
                     return (
                       <OptionItem

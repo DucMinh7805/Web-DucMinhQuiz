@@ -11,8 +11,11 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.svg', 'ducminh_logo.png', 'icons/*.png'],
+        includeAssets: ['favicon.svg', 'diamond_quiz.png', 'icons/*.png'],
         workbox: {
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true,
           // Không để Service Worker trả index.html cho URL API khi mở trực tiếp.
           navigateFallbackDenylist: [/^\/api\//]
         },

@@ -75,12 +75,15 @@ function normalizeQuestion(raw, index, deckId, deckPath) {
     id: String.fromCharCode(97 + optionIndex),
     text
   }));
-  const rawAnswers = String(raw?.answer || '').split('|').map(value => value.trim()).filter(Boolean);
+  const rawAnswers = (Array.isArray(raw?.answer) ? raw.answer : String(raw?.answer || '').split('|'))
+    .map(value => String(value).trim())
+    .filter(Boolean);
   const correctOptionIds = [];
   rawAnswers.forEach(answer => {
     const normalizedAnswer = answer.replace(/^[A-Za-z][.)]\s*/, '').trim().toLowerCase();
     const byText = options.find(option => option.text.replace(/^[A-Za-z][.)]\s*/, '').trim().toLowerCase() === normalizedAnswer);
-    const byLetter = options.find(option => option.id === answer.toLowerCase());
+    const answerLetter = answer.trim().match(/^([A-Za-z])(?:\s*[.):-]|$)/)?.[1]?.toLowerCase();
+    const byLetter = answerLetter ? options.find(option => option.id === answerLetter) : null;
     const matched = byText || byLetter;
     if (matched && !correctOptionIds.includes(matched.id)) correctOptionIds.push(matched.id);
   });

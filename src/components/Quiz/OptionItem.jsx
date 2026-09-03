@@ -13,7 +13,7 @@ export default function OptionItem({
   isCorrect,
   isAnswered,
   mode, // 'tutor' | 'exam'
-  _isMultiple, // true nếu câu hỏi có nhiều đáp án đúng
+  isMultiple, // true nếu câu hỏi có nhiều đáp án đúng
   isEliminated,
   onSelect,
   onToggleEliminate,
@@ -54,10 +54,25 @@ export default function OptionItem({
     >
       <button
         type="button"
+        aria-pressed={isSelected}
+        aria-label={`${isMultiple ? 'Chọn nhiều đáp án' : 'Chọn đáp án'} ${letter}: ${option}`}
         disabled={disabled || isEliminated}
         onClick={onSelect}
         className="flex-1 p-3.5 sm:p-4 text-left flex items-start space-x-3.5 focus:outline-none"
       >
+        {isMultiple && (
+          <span
+            aria-hidden="true"
+            className={`mt-1 shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
+              isSelected
+                ? 'bg-teal-500 border-teal-500 text-white'
+                : 'bg-white/80 dark:bg-slate-900/60 border-slate-300 dark:border-slate-600'
+            }`}
+          >
+            {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+          </span>
+        )}
+
         {/* Huy hiệu A, B, C, D */}
         <span
           className={`shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center border transition-all ${badgeStyle}`}

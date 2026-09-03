@@ -1,7 +1,7 @@
 Add-Type -AssemblyName System.Drawing
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$sourcePath = Join-Path $projectRoot 'public\ducminh_logo.png'
+$sourcePath = Join-Path $projectRoot 'public\diamond_quiz.png'
 $outputDir = Join-Path $projectRoot 'public\icons'
 [System.IO.Directory]::CreateDirectory($outputDir) | Out-Null
 

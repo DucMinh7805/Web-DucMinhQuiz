@@ -1,15 +1,14 @@
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function QuestionResultBanner({ question, isCorrect, correctAnswers, isMultiple }) {
-  const isShortAnswer = question.type === 'short_answer' || question.type === 'fill_in_blank';
-  const noExactAnswer = isShortAnswer && correctAnswers.length === 0;
+  const isUngraded = correctAnswers.length === 0;
 
   let bgColor = '';
   let borderColor = '';
   let textColor = '';
   let iconBgColor = '';
 
-  if (noExactAnswer) {
+  if (isUngraded) {
     bgColor = 'bg-blue-50/90 dark:bg-blue-950/30';
     borderColor = 'border-blue-300 dark:border-blue-800/50';
     textColor = 'text-blue-950 dark:text-blue-200';
@@ -30,15 +29,15 @@ export default function QuestionResultBanner({ question, isCorrect, correctAnswe
     <div className={`p-4 rounded-2xl border backdrop-blur-md flex flex-col space-y-2 ${bgColor} ${borderColor} ${textColor}`}>
       <div className="flex items-center space-x-3">
         <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-white font-bold shrink-0 ${iconBgColor}`}>
-          {(noExactAnswer || isCorrect) ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          {(isUngraded || isCorrect) ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
         </div>
         <div>
           <h4 className="font-extrabold text-xs sm:text-sm">
-            {noExactAnswer ? 'Đã ghi nhận câu trả lời!' : isCorrect ? 'Chính xác!' : 'Chưa chính xác!'}
+            {isUngraded ? 'Chưa chấm tự động' : isCorrect ? 'Chính xác!' : 'Chưa chính xác!'}
           </h4>
           <p className="text-[11px] opacity-90 mt-0.5">
-            {noExactAnswer 
-              ? 'Hãy tự đối chiếu với phần giải thích bên dưới nhé.'
+            {isUngraded 
+              ? 'Nguồn chưa có barem nên câu này được ghi nhận nhưng không tính vào điểm.'
               : isMultiple ? `Câu này có ${correctAnswers.length} đáp án đúng:` : 'Đáp án chuẩn:'}
           </p>
         </div>

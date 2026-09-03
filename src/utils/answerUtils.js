@@ -1,4 +1,4 @@
-function normalizeText(value) {
+export function normalizeText(value) {
   return String(value ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -44,6 +44,45 @@ export function areAnswersEquivalent(userAnswer, correctAnswer) {
   return userValues.length > 0 &&
     userValues.length === correctValues.length &&
     userValues.every((value, index) => value === correctValues[index]);
+}
+
+export const QUESTION_EVALUATION = Object.freeze({
+  CORRECT: 'correct',
+  INCORRECT: 'incorrect',
+  UNGRADED: 'ungraded'
+});
+
+export function isShortAnswerQuestion(question) {
+  return question?.type === 'short_answer' || question?.type === 'fill_in_blank';
+}
+
+export function hasQuestionAnswerKey(question) {
+  return splitAnswerValues(question?.answer).length > 0;
+}
+
+/**
+ * Một nguồn sự thật duy nhất cho chấm điểm ở lúc làm bài, tổng kết và ôn câu sai.
+ * Câu tự luận chấp nhận MỘT trong các đáp án phân cách bằng `|`. Nếu nguồn chưa
+ * có barem thì trả về `ungraded`, tuyệt đối không tự tính đúng hoặc sai.
+ */
+export function evaluateQuestionAnswer(question, userAnswer) {
+  if (!hasQuestionAnswerKey(question)) return QUESTION_EVALUATION.UNGRADED;
+
+  const userValues = splitAnswerValues(userAnswer);
+  if (userValues.length === 0) return QUESTION_EVALUATION.INCORRECT;
+
+  if (isShortAnswerQuestion(question)) {
+    const normalizedUserAnswer = normalizeText(userValues.join(' '));
+    const matchesAcceptedAnswer = splitAnswerValues(question.answer)
+      .some(answer => normalizeText(answer) === normalizedUserAnswer);
+    return matchesAcceptedAnswer
+      ? QUESTION_EVALUATION.CORRECT
+      : QUESTION_EVALUATION.INCORRECT;
+  }
+
+  return areAnswersEquivalent(userAnswer, question.answer)
+    ? QUESTION_EVALUATION.CORRECT
+    : QUESTION_EVALUATION.INCORRECT;
 }
 
 function hashString(value) {

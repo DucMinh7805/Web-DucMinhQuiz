@@ -3,8 +3,10 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {
   areAnswersEquivalent,
+  evaluateQuestionAnswer,
   getStableQuestionId,
-  isOptionCorrect
+  isOptionCorrect,
+  QUESTION_EVALUATION
 } from '../src/utils/answerUtils.js';
 import { buildTransferContent, makePaymentCode } from '../src/utils/paymentReference.js';
 import { resolveSubjectStages, STAGES } from '../src/data/stageMapping.js';
@@ -14,6 +16,20 @@ assert.equal(isOptionCorrect('B. Đáp án sai', 1, 'A'), false);
 assert.equal(isOptionCorrect('Đáp án đúng', 0, 'Đáp án đúng'), true);
 assert.equal(areAnswersEquivalent(['B', 'A'], 'A|B'), true);
 assert.equal(areAnswersEquivalent('A', 'A|B'), false);
+assert.equal(
+  evaluateQuestionAnswer({ type: 'short_answer', answer: 'Cơ hoành|Hoành cách mô' }, 'cơ hoành'),
+  QUESTION_EVALUATION.CORRECT
+);
+assert.equal(
+  evaluateQuestionAnswer({ type: 'short_answer', answer: 'Cơ hoành' }, 'Cơ'),
+  QUESTION_EVALUATION.INCORRECT,
+  'Short answers must not pass on partial text'
+);
+assert.equal(
+  evaluateQuestionAnswer({ type: 'short_answer', answer: '' }, 'Bất kỳ câu trả lời nào'),
+  QUESTION_EVALUATION.UNGRADED,
+  'Short answers without a rubric must not be counted correct or wrong'
+);
 
 const first = getStableQuestionId({ question: 'Câu hỏi không có ID?' }, 'noi-khoa', 'de-1');
 const second = getStableQuestionId({ question: 'Câu hỏi không có ID?' }, 'noi-khoa', 'de-1');
@@ -131,7 +147,7 @@ assert.equal(profilePage.includes('max-w-[1440px]'), true, 'Profile content must
 assert.equal(profilePage.includes('Chỉnh sửa hồ sơ'), true, 'Profile must expose an account editor');
 assert.equal(profilePage.includes('subject:${subId}'), true, 'Profile expiry lookup must use namespaced entitlement keys');
 assert.equal(homeHero.includes("sessionStorage.getItem('diamondquiz:home-stats-animated')"), true, 'Home counters must animate once per browser session');
-assert.equal(homeHero.includes('src="/ducminh_logo.png"'), true, 'The hero must use the lightweight transparent logo');
+assert.equal(homeHero.includes('src="/diamond_quiz.png"'), true, 'The hero must use the requested DiamondQuiz logo');
 assert.equal(windowsFileTree.includes('Mặc định chọn môn đầu tiên khi load'), false, 'Tree view must wait for an explicit subject selection');
 assert.equal(windowsFileTree.includes('PRO'), true, 'Paid subjects must keep a visible PRO tag');
 assert.equal(unlockModal.includes('addInfo='), true, 'Bank transfer QR must carry an account/item reconciliation memo');

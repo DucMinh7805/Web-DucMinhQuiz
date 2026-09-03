@@ -122,10 +122,10 @@ export default function HomeHero({ subjectsCount = 0, totalDecks = 0, totalQuest
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           >
             <img
-              src="/ducminh_logo.png"
+              src="/diamond_quiz.png"
               alt="Diamond Quiz"
-              width="612"
-              height="408"
+              width="1536"
+              height="1024"
               loading="eager"
               decoding="async"
               fetchPriority="high"

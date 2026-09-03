@@ -108,7 +108,7 @@ export default function MainLayout({ manifest }) {
       {/* Mobile Header (Mềm mại, đồng nhất màu nền, không bị lệch viền) */}
       <div className="mobile-safe-header md:hidden bg-white/80 dark:bg-[#060a14]/80 backdrop-blur-xl border-b border-slate-200/40 dark:border-white/5 px-4 py-2.5 flex items-center justify-between sticky top-0 z-40">
         <Link to="/" className="flex items-center space-x-2">
-          <img src="/ducminh_logo.png" alt="DiamondQuiz" width="612" height="408" loading="eager" decoding="async" className="h-8 w-10 object-contain" />
+          <img src="/diamond_quiz.png" alt="DiamondQuiz" width="1536" height="1024" loading="eager" decoding="async" className="h-8 w-10 object-contain" />
           <span className="font-extrabold text-base text-slate-900 dark:text-white tracking-tight">
             Diamond<span className="text-teal-500">Quiz</span>
           </span>
@@ -147,7 +147,7 @@ export default function MainLayout({ manifest }) {
                 title="Mở rộng thanh công cụ"
               >
                 <img
-                  src="/ducminh_logo.png"
+                  src="/diamond_quiz.png"
                   alt="DiamondQuiz"
                   loading="lazy"
                   className="h-10 w-10 object-contain rounded-2xl group-hover:scale-110 transition-transform drop-shadow-md"
@@ -159,7 +159,7 @@ export default function MainLayout({ manifest }) {
             <div className={`flex items-center justify-between w-full ${isCollapsed ? 'md:hidden' : ''}`}>
               <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 min-w-0 group">
                 <img
-                  src="/ducminh_logo.png"
+                  src="/diamond_quiz.png"
                   alt="DiamondQuiz"
                   loading="lazy"
                   className="h-9 w-9 object-contain rounded-xl shrink-0 group-hover:scale-105 transition-transform"

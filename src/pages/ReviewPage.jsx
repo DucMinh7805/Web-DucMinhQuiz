@@ -9,6 +9,13 @@ import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { getDirectImageUrl } from '../utils/imageHelper';
 import usePageTitle from '../hooks/usePageTitle';
+import {
+  evaluateQuestionAnswer,
+  hasQuestionAnswerKey,
+  isOptionCorrect,
+  QUESTION_EVALUATION,
+  splitAnswerValues
+} from '../utils/answerUtils';
 
 export default function ReviewPage({
   questions,
@@ -27,30 +34,18 @@ export default function ReviewPage({
   const [filter, setFilter] = useState('all'); // 'all' | 'correct' | 'wrong' | 'flagged'
 
   const total = questions.length;
-  const accuracy = Math.round((score / total) * 100);
-  const wrongCount = total - score;
+  const gradedTotal = questions.filter(hasQuestionAnswerKey).length;
+  const ungradedCount = total - gradedTotal;
+  const accuracy = gradedTotal > 0 ? Math.round((score / gradedTotal) * 100) : 0;
+  const wrongCount = Math.max(0, gradedTotal - score);
   const flaggedCount = Object.values(flagged || {}).filter(Boolean).length;
-
-  const isQuestionCorrect = (userAns, q) => {
-    if (userAns === undefined || userAns === null || !q) return false;
-    const cArr = Array.isArray(q.answer) ? q.answer.map(String) : String(q.answer || '').split('|').map(s => s.trim()).filter(Boolean);
-    const uArr = Array.isArray(userAns) ? userAns.map(String) : (userAns ? String(userAns).split('|').map(s => s.trim()).filter(Boolean) : []);
-
-    if (q.type === 'short_answer' || q.type === 'fill_in_blank') {
-      if (cArr.length === 0) return true;
-      const uStr = uArr.join(' ').toLowerCase().trim();
-      const cStr = cArr.join(' ').toLowerCase().trim();
-      return uStr === cStr || uStr.includes(cStr) || cStr.includes(uStr);
-    }
-
-    return uArr.length === cArr.length && uArr.length > 0 && [...uArr].sort().every((v, i) => v === [...cArr].sort()[i]);
-  };
 
   // Lọc câu hỏi theo tab
   const filteredIndices = questions.map((_, idx) => idx).filter(idx => {
-    const isCorrect = isQuestionCorrect(answers[idx], questions[idx]);
-    if (filter === 'correct') return isCorrect;
-    if (filter === 'wrong') return !isCorrect;
+    const evaluation = evaluateQuestionAnswer(questions[idx], answers[idx]);
+    if (filter === 'correct') return evaluation === QUESTION_EVALUATION.CORRECT;
+    if (filter === 'wrong') return evaluation === QUESTION_EVALUATION.INCORRECT;
+    if (filter === 'ungraded') return evaluation === QUESTION_EVALUATION.UNGRADED;
     if (filter === 'flagged') return !!flagged[idx];
     return true;
   });
@@ -62,7 +57,9 @@ export default function ReviewPage({
     return { text: 'Cần củng cố lại lý thuyết & cơ chế bệnh học', color: 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/40' };
   };
 
-  const evaluation = getEvaluation(accuracy);
+  const evaluation = gradedTotal > 0
+    ? getEvaluation(accuracy)
+    : { text: 'Bộ đề chưa có barem để chấm tự động', color: 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800/40' };
 
   return (
     <div className="min-h-screen bg-slate-50/80 dark:bg-[#060a14] py-6 px-3 sm:px-6 lg:px-10 text-slate-800 dark:text-slate-200">
@@ -115,7 +112,7 @@ export default function ReviewPage({
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">{accuracy}%</span>
+                  <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">{gradedTotal > 0 ? `${accuracy}%` : '—'}</span>
                   <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Chính xác</span>
                 </div>
               </div>
@@ -141,8 +138,8 @@ export default function ReviewPage({
                 <div className="text-[11px] font-bold text-rose-800 dark:text-rose-300">Câu sai</div>
               </div>
               <div className="flex-1 sm:flex-none p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 text-center min-w-[90px]">
-                <div className="text-lg font-black text-amber-700 dark:text-amber-300">{flaggedCount}</div>
-                <div className="text-[11px] font-bold text-amber-800 dark:text-amber-300">Cắm cờ</div>
+                <div className="text-lg font-black text-amber-700 dark:text-amber-300">{ungradedCount}</div>
+                <div className="text-[11px] font-bold text-amber-800 dark:text-amber-300">Chưa có barem</div>
               </div>
             </div>
           </div>
@@ -206,6 +203,18 @@ export default function ReviewPage({
             >
               Câu sai ({wrongCount})
             </button>
+            {ungradedCount > 0 && (
+              <button
+                onClick={() => setFilter('ungraded')}
+                className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold transition-all ${
+                  filter === 'ungraded'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'bg-white dark:bg-[#0b1120] text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 border border-slate-200 dark:border-white/10'
+                }`}
+              >
+                Chưa có barem ({ungradedCount})
+              </button>
+            )}
             {flaggedCount > 0 && (
               <button
                 onClick={() => setFilter('flagged')}
@@ -230,12 +239,14 @@ export default function ReviewPage({
           {filteredIndices.map(idx => {
             const q = questions[idx];
             const userAns = answers[idx];
-            const isCorrect = isQuestionCorrect(userAns, q);
+            const questionEvaluation = evaluateQuestionAnswer(q, userAns);
+            const isCorrect = questionEvaluation === QUESTION_EVALUATION.CORRECT;
+            const isUngraded = questionEvaluation === QUESTION_EVALUATION.UNGRADED;
             const isFlag = !!flagged[idx];
             const parsedOptions = q.parsedOptions || (q.options ? q.options.split('|') : []);
 
-            const correctArr = Array.isArray(q.answer) ? q.answer.map(String) : String(q.answer || '').split('|').map(s => s.trim()).filter(Boolean);
-            const userArr = Array.isArray(userAns) ? userAns.map(String) : (userAns ? String(userAns).split('|').map(s => s.trim()).filter(Boolean) : []);
+            const correctArr = splitAnswerValues(q.answer);
+            const userArr = splitAnswerValues(userAns);
 
             return (
               <motion.div
@@ -243,7 +254,9 @@ export default function ReviewPage({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={`bg-white/90 dark:bg-[#0b1120]/90 backdrop-blur-xl rounded-3xl p-5 sm:p-7 border transition-all shadow-md ${
-                  isCorrect 
+                  isUngraded
+                    ? 'border-blue-300/80 dark:border-blue-900/60 bg-blue-50/20 dark:bg-blue-950/15'
+                    : isCorrect 
                     ? 'border-slate-200/80 dark:border-white/10' 
                     : 'border-rose-300/80 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/15'
                 }`}
@@ -252,19 +265,23 @@ export default function ReviewPage({
                 <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-white/10">
                   <div className="flex items-center space-x-2.5">
                     <span className={`w-9 h-9 rounded-xl font-black text-sm flex items-center justify-center ${
-                      isCorrect 
+                      isUngraded
+                        ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                        : isCorrect 
                         ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' 
                         : 'bg-rose-500/20 text-rose-700 dark:text-rose-300'
                     }`}>
                       {idx + 1}
                     </span>
                     <span className={`text-xs font-extrabold px-3 py-1.5 rounded-xl flex items-center ${
-                      isCorrect 
+                      isUngraded
+                        ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30'
+                        : isCorrect 
                         ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' 
                         : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
                     }`}>
-                      {isCorrect ? <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> : <XCircle className="w-3.5 h-3.5 mr-1.5" />}
-                      {isCorrect ? 'Đã trả lời đúng' : (userArr.length > 0 ? 'Đã trả lời sai' : 'Chưa trả lời')}
+                      {isUngraded ? <Bookmark className="w-3.5 h-3.5 mr-1.5" /> : isCorrect ? <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> : <XCircle className="w-3.5 h-3.5 mr-1.5" />}
+                      {isUngraded ? 'Chưa có barem chấm' : isCorrect ? 'Đã trả lời đúng' : (userArr.length > 0 ? 'Đã trả lời sai' : 'Chưa trả lời')}
                     </span>
                   </div>
 
@@ -300,7 +317,7 @@ export default function ReviewPage({
                   <div className="space-y-2.5 mb-5">
                     {parsedOptions.map((opt, optIdx) => {
                       const isUserChoice = userArr.includes(opt);
-                      const isRightChoice = correctArr.includes(opt);
+                      const isRightChoice = isOptionCorrect(opt, optIdx, q.answer);
 
                       let optClass = 'p-3.5 rounded-2xl border text-sm font-semibold flex items-center justify-between transition-all ';
                       if (isRightChoice) {

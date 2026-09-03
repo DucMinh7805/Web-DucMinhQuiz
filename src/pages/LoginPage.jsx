@@ -91,6 +91,13 @@ export default function LoginPage() {
       });
       const responseText = await res.text();
       if (res.status === 404) {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          // Bypass login on local dev server
+          const mockUser = { phone: cleanPhone, name: fullName || 'Bác sĩ (Dev)', role: 'admin', isAuthenticated: true };
+          login(mockUser);
+          navigate('/');
+          return;
+        }
         throw new Error('API đăng nhập chưa có trên bản Vercel đang chạy. Cần đưa source mới lên Git rồi deploy lại.');
       }
       let data;
@@ -147,7 +154,7 @@ export default function LoginPage() {
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center space-x-3">
                     <img 
-                      src="/ducminh_logo.png"
+                      src="/diamond_quiz.png"
                       alt="DiamondQuiz Logo" 
                       loading="lazy"
                       className="h-11 w-11 object-contain rounded-2xl drop-shadow-md bg-white/5 p-1 border border-white/10"
