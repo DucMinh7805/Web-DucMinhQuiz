@@ -34,12 +34,14 @@ if (filesystemRouteIndex < 0 || spaRouteIndex < 0 || filesystemRouteIndex > spaR
   throw new Error('vercel.json phải ưu tiên filesystem/API trước khi fallback SPA về index.html.');
 }
 
+const resolvedConfig = typeof viteConfig === 'function' ? viteConfig({ mode: 'production', command: 'build' }) : viteConfig;
+
 await build({
-  ...viteConfig,
+  ...resolvedConfig,
   configFile: false,
   root: projectRoot,
   build: {
-    ...(viteConfig.build || {}),
+    ...(resolvedConfig.build || {}),
     outDir: 'dist-verify',
     emptyOutDir: true
   }

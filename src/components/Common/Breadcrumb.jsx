@@ -6,11 +6,11 @@ import { ChevronRight, Home } from 'lucide-react';
  * @param {{ items: Array<{ label: string, to?: string }> }} props
  * items: mảng các bước, item cuối cùng không có `to` (trang hiện tại)
  */
-export default function Breadcrumb({ items = [] }) {
+export default function Breadcrumb({ items = [], className = '' }) {
   if (!items || items.length === 0) return null;
 
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center space-x-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 sm:px-6 lg:px-10 pt-4 pb-2 overflow-x-auto">
+    <nav aria-label="Breadcrumb" className={`flex items-center space-x-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 py-1 overflow-x-auto ${className}`}>
       <Link
         to="/"
         className="flex items-center space-x-1 text-slate-400 dark:text-slate-500 hover:text-teal-500 dark:hover:text-teal-400 transition-colors shrink-0"

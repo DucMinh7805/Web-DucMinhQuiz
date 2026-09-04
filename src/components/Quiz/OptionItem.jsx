@@ -22,13 +22,13 @@ export default function OptionItem({
   const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
   const letter = letters[index] || `${index + 1}`;
 
-  // Default styling
-  let containerStyle = 'bg-white/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-white/10 text-slate-800 dark:text-slate-100 hover:border-teal-400 dark:hover:border-teal-500/50 hover:bg-teal-50/20 dark:hover:bg-slate-800/90 shadow-sm';
-  let badgeStyle = 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10';
+  // Default styling (viền tinh giản, nhẹ nhàng hơn)
+  let containerStyle = 'bg-white/60 dark:bg-slate-800/40 border-slate-200/50 dark:border-white/5 text-slate-800 dark:text-slate-100 hover:border-teal-400/60 dark:hover:border-teal-500/40 hover:bg-teal-50/20 dark:hover:bg-slate-800/60 shadow-2xs';
+  let badgeStyle = 'bg-slate-100/80 dark:bg-white/5 text-slate-700 dark:text-slate-200 border-slate-200/50 dark:border-white/5';
 
   if (isEliminated) {
-    containerStyle = 'bg-slate-100/40 dark:bg-slate-900/40 border-slate-200/40 dark:border-white/5 text-slate-400 dark:text-slate-500 opacity-40 line-through';
-    badgeStyle = 'bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500 border-slate-200/50 dark:border-white/5';
+    containerStyle = 'bg-slate-100/40 dark:bg-slate-900/40 border-slate-200/30 dark:border-white/5 text-slate-400 dark:text-slate-500 opacity-40 line-through';
+    badgeStyle = 'bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500 border-slate-200/40 dark:border-white/5';
   } else if (mode === 'tutor' && isAnswered) {
     if (isCorrect) {
       containerStyle = 'bg-emerald-50/95 dark:bg-emerald-950/50 border-emerald-500 dark:border-emerald-500 text-emerald-950 dark:text-emerald-200 shadow-sm ring-2 ring-emerald-400/40';

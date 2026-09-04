@@ -363,10 +363,10 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
               }
               navigate(-1);
             }}
-            className="p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 transition-colors shrink-0"
+            className="p-2 sm:p-2.5 rounded-xl bg-slate-100/90 dark:bg-white/5 hover:bg-slate-200/80 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 transition-colors shrink-0 border border-slate-200/60 dark:border-white/5"
             title="Thoát phòng thi"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </button>
           
           <div className="min-w-0 flex flex-col sm:flex-row sm:items-center sm:space-x-2">

@@ -40,6 +40,15 @@ const userSchema = new mongoose.Schema({
     expiresAt: { type: Date }
   }],
 
+  progress: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  mistakes: {
+    type: mongoose.Schema.Types.Mixed,
+    default: []
+  },
+
   isActive: { 
     type: Boolean, 
     default: true 

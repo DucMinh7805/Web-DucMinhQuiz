@@ -27,6 +27,7 @@ export default async function handler(req, res) {
       if (!sessionHasEntitlement(session, 'book', book.id)) {
         return res.status(403).json({ success: false, message: 'Tài khoản chưa được cấp quyền cho tài liệu này.' });
       }
+    }
     if (req.query?.format === 'json') {
       return res.status(200).json({ success: true, url: book.link });
     }

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   ChevronLeft, Clock, BarChart,
-  Sparkles, X, CheckCircle2, Lock
+  Sparkles, X, CheckCircle2, Lock, HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
@@ -124,19 +124,21 @@ export default function DeckSelectionPage() {
     return String(d.title || d.name || '').toLowerCase().includes(activeTag.toLowerCase());
   });
 
+  const hasPrice = Boolean(subject?.price && subject.price !== 0 && subject.price !== '0' && Number(subject.price) > 0);
+
   return (
-    <div className="min-h-full py-6 px-4 sm:px-8 lg:px-12 w-full space-y-6">
+    <div className="min-h-full py-4 sm:py-6 px-4 sm:px-8 lg:px-12 w-full space-y-3.5 sm:space-y-4">
       <Breadcrumb items={[
         { label: subject.categoryName || 'Danh mục', to: subject.categoryId ? `/category/${subject.categoryId}` : undefined },
         { label: subject.name || 'Chọn bộ đề' }
       ]} />
       {/* Header Môn Học */}
-      <div className="bg-white/80 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-white/10 shadow-sm relative overflow-hidden">
+      <div className="bg-white/80 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200/80 dark:border-white/10 shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-teal-500/10 via-cyan-500/5 to-transparent rounded-bl-full pointer-events-none"></div>
         <div className="relative z-10">
           <button 
             onClick={() => navigate(subject.categoryId ? `/category/${subject.categoryId}` : '/')} 
-            className="group inline-flex items-center text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 mb-3 sm:mb-4 transition-colors w-fit bg-slate-100/80 dark:bg-white/5 hover:bg-slate-200/60 dark:hover:bg-white/10 px-2.5 py-1 rounded-lg border border-slate-200/80 dark:border-white/10 shadow-2xs"
+            className="group inline-flex items-center text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 mb-2 sm:mb-3 transition-colors w-fit bg-slate-100/80 dark:bg-white/5 hover:bg-slate-200/60 dark:hover:bg-white/10 px-2.5 py-1 rounded-lg border border-slate-200/80 dark:border-white/10 shadow-2xs"
             title={`Trở về ${subject.categoryName || 'Danh mục'}`}
           >
             <ChevronLeft className="h-3.5 w-3.5 mr-1 group-hover:-translate-x-0.5 transition-transform text-slate-400 group-hover:text-teal-500" />
@@ -147,34 +149,34 @@ export default function DeckSelectionPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="flex flex-col sm:flex-row sm:items-center gap-5 mb-4"
+            className="flex flex-col sm:flex-row sm:items-center gap-3.5 sm:gap-4 mb-3 sm:mb-4"
           >
             {subject.icon && (
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden shrink-0 shadow-sm bg-teal-500/10 dark:bg-teal-500/20 flex items-center justify-center border border-teal-500/20">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl overflow-hidden shrink-0 shadow-sm bg-teal-500/10 dark:bg-teal-500/20 flex items-center justify-center border border-teal-500/20">
                 <img 
                   src={getDirectImageUrl(subject.icon)} 
                   alt={subject.name} 
                   loading="lazy"
-                  className="w-full h-full object-cover rounded-2xl" 
+                  className="w-full h-full object-cover rounded-xl sm:rounded-2xl" 
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
               </div>
             )}
             <div>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 dark:text-white mb-2">
-                <span className="inline-block py-1 leading-normal text-teal-600 dark:text-teal-400">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 dark:text-white mb-1">
+                <span className="inline-block py-0.5 leading-normal text-teal-600 dark:text-teal-400">
                   {subject.name}
                 </span>
               </h1>
               {subject.description && (
-                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mb-3">
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mb-2">
                   {subject.description}
                 </p>
               )}
             </div>
           </motion.div>
           
-          <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300">
             {decks.length > 0 ? (
               <>
                 <div className="flex items-center bg-teal-500/10 dark:bg-teal-500/20 text-teal-800 dark:text-teal-300 border border-teal-500/20 px-3 py-1.5 rounded-xl">
@@ -182,7 +184,7 @@ export default function DeckSelectionPage() {
                   {decks.length} bộ đề thi
                 </div>
                 <div className="flex items-center bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-xl border border-slate-200/60 dark:border-white/5">
-                  <Clock className="w-4 h-4 mr-1.5 text-sky-500" />
+                  <HelpCircle className="w-4 h-4 mr-1.5 text-sky-500" />
                   {totalQuestions} câu hỏi
                 </div>
               </>
@@ -194,7 +196,7 @@ export default function DeckSelectionPage() {
             )}
 
             {/* Trạng thái Mở khóa PRO & Đếm ngược ngày còn lại */}
-            {subject.price && subject.price !== 0 && subject.price !== '0' && isUnlocked && (
+            {hasPrice && isUnlocked && (
               <div className="flex items-center bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-xl font-bold text-xs sm:text-sm">
                 <CheckCircle2 className="w-4 h-4 mr-1.5 text-emerald-600 dark:text-emerald-400" />
                 <span>
@@ -203,7 +205,7 @@ export default function DeckSelectionPage() {
               </div>
             )}
 
-            {subject.price && subject.price !== 0 && subject.price !== '0' && !isUnlocked && (
+            {hasPrice && !isUnlocked && (
               <button
                 type="button"
                 onClick={() => setIsUnlockModalOpen(true)}

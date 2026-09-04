@@ -75,19 +75,19 @@ export default function QuizBottomBar({
       {/* ========================================================================= */}
       {/* THANH ĐIỀU KHIỂN NGANG DƯỚI ĐÁY (CHỐNG TRÀN NÚT TRÊN MOBILE)              */}
       {/* ========================================================================= */}
-      <div className="fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-[#0b1120]/95 backdrop-blur-2xl border-t border-slate-200/80 dark:border-white/10 py-2 px-2 sm:py-2.5 sm:px-6 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] select-none">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-1.5 sm:gap-4">
+      <div className="fixed bottom-0 inset-x-0 z-30 bg-white/60 dark:bg-[#0b1120]/60 backdrop-blur-xl border-t border-slate-200/40 dark:border-white/10 py-2.5 px-3 sm:px-6 shadow-[0_-4px_20px_rgba(0,0,0,0.04)] select-none">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
           
           {/* Cụm Trái: Trước / Tiếp */}
-          <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
+          <div className="flex items-center space-x-1.5 shrink-0">
             <button
               type="button"
               onClick={onPrev}
               disabled={currentIndex === 0}
-              className="py-2 px-2.5 sm:px-4 rounded-xl border border-slate-200/80 dark:border-white/10 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed flex items-center transition-all"
+              className="py-2.5 px-3 sm:px-4.5 rounded-xl border border-slate-200/70 dark:border-white/10 bg-white/80 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed flex items-center transition-all text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 shadow-2xs"
               title="Câu trước (←)"
             >
-              <ChevronLeft className="w-4 h-4 sm:mr-1" />
+              <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 sm:mr-1" />
               <span className="hidden xs:inline">Trước</span>
             </button>
 
@@ -95,11 +95,11 @@ export default function QuizBottomBar({
               type="button"
               onClick={onNext}
               disabled={currentIndex === totalQuestions - 1}
-              className="py-2 px-2.5 sm:px-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed flex items-center transition-all shadow-xs"
+              className="py-2.5 px-3 sm:px-4.5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white text-xs sm:text-sm font-bold disabled:opacity-30 disabled:cursor-not-allowed flex items-center transition-all shadow-xs"
               title="Câu tiếp (→)"
             >
               <span className="hidden xs:inline">Tiếp</span>
-              <ChevronRight className="w-4 h-4 sm:ml-1" />
+              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 sm:ml-1" />
             </button>
           </div>
 
@@ -116,7 +116,7 @@ export default function QuizBottomBar({
                 const isAnswered = userAnswers[idx] !== undefined && userAnswers[idx] !== null;
                 const isFlagged = !!flaggedQuestions[idx];
 
-                let pillClass = 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 border-slate-200/60 dark:border-white/5 hover:border-teal-400';
+                let pillClass = 'bg-slate-100/90 dark:bg-white/5 text-slate-600 dark:text-slate-400 border-slate-200/60 dark:border-white/5 hover:border-teal-400';
 
                 if (isCurrent) {
                   pillClass = 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-black border-transparent shadow-sm ring-2 ring-teal-400/40 scale-105';
@@ -137,7 +137,7 @@ export default function QuizBottomBar({
                     ref={(el) => (buttonRefs.current[idx] = el)}
                     type="button"
                     onClick={() => onSelectQuestion(idx)}
-                    className={`w-8 h-8 rounded-xl text-xs font-bold flex items-center justify-center border shrink-0 transition-all relative ${pillClass}`}
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center border shrink-0 transition-all relative ${pillClass}`}
                     title={`Câu ${idx + 1}`}
                   >
                     {idx + 1}
@@ -153,10 +153,10 @@ export default function QuizBottomBar({
             <button
               type="button"
               onClick={() => setIsGridModalOpen(true)}
-              className="py-1.5 px-2.5 sm:px-3.5 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:text-teal-500 font-extrabold text-xs flex items-center space-x-1 shrink-0 transition-colors border border-slate-200/60 dark:border-white/5"
+              className="py-2 px-3 sm:px-4 rounded-xl bg-slate-100/90 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:text-teal-500 font-extrabold text-xs sm:text-sm flex items-center space-x-1.5 shrink-0 transition-colors border border-slate-200/60 dark:border-white/5 shadow-2xs"
               title="Mở toàn bộ bảng câu hỏi"
             >
-              <Grid className="w-3.5 h-3.5 text-teal-500" />
+              <Grid className="w-4 h-4 text-teal-500" />
               <span>{currentIndex + 1}/{totalQuestions}</span>
             </button>
           </div>

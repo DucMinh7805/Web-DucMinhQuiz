@@ -48,7 +48,7 @@ export default function QuestionCard({
     if (question?.type === 'multiple' || question?.type === 'checkbox') return true;
     if (correctAnswers.length > 1) return true;
     const text = String(question?.question || '').toLowerCase();
-    return text.includes('(chọn nhiều') || text.includes('(nhiều đáp án') || text.includes('chọn các đáp án');
+    return /chọn nhiều|nhiều đáp án|các đáp án|nhiều lựa chọn/i.test(text);
   }, [question, correctAnswers]);
 
   // Danh sách đáp án người dùng đã chọn
@@ -155,7 +155,7 @@ export default function QuestionCard({
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full bg-white/80 dark:bg-slate-900/50 backdrop-blur-2xl rounded-3xl p-4 sm:p-7 lg:p-8 border border-slate-200/70 dark:border-white/10 shadow-xl relative"
+          className="w-full bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-3xl p-4 sm:p-7 lg:p-8 border border-slate-200/50 dark:border-white/10 shadow-sm relative"
         >
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8 items-start">
             

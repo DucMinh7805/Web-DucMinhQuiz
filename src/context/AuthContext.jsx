@@ -61,6 +61,66 @@ function mergeVerifiedUser(previousUser, userData) {
   };
 }
 
+let syncTimer = null;
+export function syncUserDataToCloud(progress, mistakes) {
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    fetch('/api/user/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ progress, mistakes })
+    }).catch(err => console.warn('[Cloud Sync Failed]', err));
+  }, 1000);
+}
+
+export function mergeProgress(serverProgress = {}, clientProgress = {}) {
+  const merged = { ...serverProgress };
+  for (const subjectId of Object.keys(clientProgress || {})) {
+    if (!merged[subjectId]) {
+      merged[subjectId] = { ...clientProgress[subjectId] };
+      continue;
+    }
+    for (const deckId of Object.keys(clientProgress[subjectId] || {})) {
+      const clientDeck = clientProgress[subjectId][deckId];
+      const serverDeck = merged[subjectId][deckId];
+      if (!serverDeck) {
+        merged[subjectId][deckId] = clientDeck;
+      } else {
+        const clientTime = new Date(clientDeck.completedAt || clientDeck.date || 0).getTime();
+        const serverTime = new Date(serverDeck.completedAt || serverDeck.date || 0).getTime();
+        if (clientTime >= serverTime) {
+          merged[subjectId][deckId] = clientDeck;
+        }
+      }
+    }
+  }
+  return merged;
+}
+
+export function mergeMistakes(serverMistakes = [], clientMistakes = []) {
+  const map = new Map();
+  (serverMistakes || []).forEach(m => {
+    const id = String(m?.id || m?.questionId || '');
+    if (id) map.set(id, m);
+  });
+  (clientMistakes || []).forEach(m => {
+    const id = String(m?.id || m?.questionId || '');
+    if (!id) return;
+    if (!map.has(id)) {
+      map.set(id, m);
+    } else {
+      const existing = map.get(id);
+      const clientTime = new Date(m.date || 0).getTime();
+      const existingTime = new Date(existing.date || 0).getTime();
+      if (clientTime >= existingTime) {
+        map.set(id, m);
+      }
+    }
+  });
+  return Array.from(map.values());
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -76,9 +136,38 @@ export function AuthProvider({ children }) {
     }
     fetch('/api/auth/me', { credentials: 'include' })
       .then(async response => response.ok ? response.json() : null)
-      .then(data => {
+      .then(async data => {
         if (!data?.user) return setUser(null);
-        const verifiedUser = mergeVerifiedUser(cachedProfile, { ...data.user, isAuthenticated: true });
+        let verifiedUser = mergeVerifiedUser(cachedProfile, { ...data.user, isAuthenticated: true });
+
+        // Tự động đồng bộ tiến độ đám mây giữa các thiết bị (Mobile <-> PC)
+        try {
+          const progRes = await fetch('/api/user/progress', { credentials: 'include' });
+          if (progRes.ok) {
+            const progData = await progRes.json();
+            if (progData.success) {
+              const mergedP = mergeProgress(progData.progress, verifiedUser.progress);
+              const mergedM = mergeMistakes(progData.mistakes, verifiedUser.mistakes);
+
+              verifiedUser = {
+                ...verifiedUser,
+                progress: mergedP,
+                mistakes: mergedM
+              };
+              saveUserData(verifiedUser.phone, mergedP, mergedM);
+
+              // Nếu local có dữ liệu chưa được nạp lên server thì gửi lên để đồng bộ
+              const serverDeckCount = Object.keys(progData.progress || {}).length;
+              const localDeckCount = Object.keys(mergedP || {}).length;
+              if (localDeckCount > serverDeckCount || (progData.mistakes || []).length < mergedM.length) {
+                syncUserDataToCloud(mergedP, mergedM);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[Fetch Cloud Progress Failed]', e);
+        }
+
         localStorage.setItem('y_khoa_user', JSON.stringify(verifiedUser));
         setUser(verifiedUser);
       })
@@ -90,6 +179,22 @@ export function AuthProvider({ children }) {
     const newUser = mergeVerifiedUser(user, userData);
     localStorage.setItem('y_khoa_user', JSON.stringify(newUser));
     setUser(newUser);
+
+    // Đồng bộ từ đám mây ngay khi đăng nhập
+    fetch('/api/user/progress', { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(progData => {
+        if (progData?.success) {
+          const mergedP = mergeProgress(progData.progress, newUser.progress);
+          const mergedM = mergeMistakes(progData.mistakes, newUser.mistakes);
+          const syncedUser = { ...newUser, progress: mergedP, mistakes: mergedM };
+          saveUserData(syncedUser.phone, mergedP, mergedM);
+          localStorage.setItem('y_khoa_user', JSON.stringify(syncedUser));
+          setUser(syncedUser);
+          syncUserDataToCloud(mergedP, mergedM);
+        }
+      })
+      .catch(() => {});
   };
 
   const updateProfile = (profileChanges) => {
@@ -157,6 +262,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
     saveUserData(user.phone, updatedUser.progress, updatedUser.mistakes);
     setUser(updatedUser);
+    syncUserDataToCloud(updatedUser.progress, updatedUser.mistakes);
   };
 
   const removeMistake = (questionId) => {
@@ -168,6 +274,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
     saveUserData(user.phone, null, updatedUser.mistakes);
     setUser(updatedUser);
+    syncUserDataToCloud(updatedUser.progress, updatedUser.mistakes);
   };
 
   const clearMistakes = (subjectId = null) => {
@@ -181,6 +288,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
     saveUserData(user.phone, null, updatedUser.mistakes);
     setUser(updatedUser);
+    syncUserDataToCloud(updatedUser.progress, updatedUser.mistakes);
   };
 
   // Thuật toán Spaced Repetition (SM-2)
@@ -234,6 +342,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
     saveUserData(user.phone, null, updatedUser.mistakes);
     setUser(updatedUser);
+    syncUserDataToCloud(updatedUser.progress, updatedUser.mistakes);
   };
 
   // Chỉ áp dụng entitlement sau khi mã đã được Google Apps Script xác thực.
@@ -307,7 +416,8 @@ export function AuthProvider({ children }) {
       reviewMistake,
       applyVerifiedEntitlement,
       refreshAccess,
-      isSubjectUnlocked
+      isSubjectUnlocked,
+      syncToCloud: () => syncUserDataToCloud(user?.progress, user?.mistakes)
     }}>
       {children}
     </AuthContext.Provider>

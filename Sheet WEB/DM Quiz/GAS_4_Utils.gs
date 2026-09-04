@@ -191,8 +191,23 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
         const match = (helpText + " " + titleText).match(/https?:\/\/[^\s"'<>]+/);
         if (match) {
           globalFormImage = match[0];
+        } else if (imgFolder) {
+          const blob = imageItem.getImage();
+          if (blob) {
+            const fileName = `IMG_${formId}_ITEM_${index + 1}.jpg`;
+            const existingFiles = imgFolder.getFilesByName(fileName);
+            if (existingFiles.hasNext()) {
+              globalFormImage = `https://drive.google.com/thumbnail?id=${existingFiles.next().getId()}&sz=w1200`;
+            } else {
+              const newFile = imgFolder.createFile(blob.setName(fileName));
+              newFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+              globalFormImage = `https://drive.google.com/thumbnail?id=${newFile.getId()}&sz=w1200`;
+            }
+          }
         }
-      } catch (e) {}
+      } catch (e) {
+        Logger.log("Lỗi trích xuất ImageItem blob: " + e.message);
+      }
       return;
     }
 
