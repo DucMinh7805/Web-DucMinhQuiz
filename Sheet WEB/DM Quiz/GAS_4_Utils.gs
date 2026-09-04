@@ -54,16 +54,16 @@ function getOrCreateImagesFolder() {
 }
 
 /**
- * Tối ưu đường link ảnh vĩnh viễn tốc độ cao từ Google Form
- * - Sử dụng trực tiếp Google CDN (lh3.googleusercontent.com / drive thumbnail)
- * - Tốc độ đồng bộ siêu tốc 0.5s/đề, loại bỏ hoàn toàn lỗi timeout quá 6 phút của Google Apps Script
+ * Lưu trữ ảnh vĩnh viễn trên Google Drive (Luồng 2 - thư mục MedQuiz_Form_Images)
+ * - Tự động tải ảnh từ Google Form về thư mục Google Drive của chủ sở hữu
+ * - Cấp quyền xem công khai
+ * - Tạo link Google Drive Thumbnail chất lượng cao, vĩnh viễn không bao giờ 403
  */
-function saveFormImageToDrive(rawImgUrl, formId, qIndex, folder) {
+function saveFormImageToDrive(rawImgUrl, formId, qIndex, folder, fileCache = null) {
   if (!rawImgUrl || typeof rawImgUrl !== 'string') return '';
 
-  // 1. Nếu đã là link Google Drive Thumbnail hoặc Google CDN tốc độ cao (lh3.googleusercontent.com)
-  // Sử dụng trực tiếp ngay lập tức, cực kỳ nhanh (<50ms), không tốn dung lượng Drive và loại bỏ triệt để timeout 6 phút
-  if (rawImgUrl.includes('drive.google.com/thumbnail') || rawImgUrl.includes('googleusercontent.com')) {
+  // 1. Nếu đã là link Google Drive Thumbnail có sẵn -> Dùng trực tiếp ngay
+  if (rawImgUrl.includes('drive.google.com/thumbnail')) {
     return rawImgUrl;
   }
 
@@ -72,10 +72,17 @@ function saveFormImageToDrive(rawImgUrl, formId, qIndex, folder) {
   const fileName = `IMG_${formId}_Q${qIndex}.jpg`;
 
   try {
+    // 2. Tra cứu trong fileCache bộ nhớ để không phải quét Drive chậm lặp đi lặp lại
+    if (fileCache && fileCache[fileName]) {
+      return `https://drive.google.com/thumbnail?id=${fileCache[fileName]}&sz=w1200`;
+    }
+
     const existingFiles = folder.getFilesByName(fileName);
     if (existingFiles.hasNext()) {
       const existingFile = existingFiles.next();
-      return `https://drive.google.com/thumbnail?id=${existingFile.getId()}&sz=w1200`;
+      const fileId = existingFile.getId();
+      if (fileCache) fileCache[fileName] = fileId;
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
     }
 
     const response = UrlFetchApp.fetch(rawImgUrl, {
@@ -89,7 +96,9 @@ function saveFormImageToDrive(rawImgUrl, formId, qIndex, folder) {
       const blob = response.getBlob().setName(fileName);
       const newFile = folder.createFile(blob);
       newFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      return `https://drive.google.com/thumbnail?id=${newFile.getId()}&sz=w1200`;
+      const fileId = newFile.getId();
+      if (fileCache) fileCache[fileName] = fileId;
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
     }
   } catch (err) {
     Logger.log(`[Drive Upload] Lỗi tải ảnh Q${qIndex} từ Form ${formId}: ${err.message}`);
@@ -98,7 +107,7 @@ function saveFormImageToDrive(rawImgUrl, formId, qIndex, folder) {
   return rawImgUrl;
 }
 
-function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = "", baremMap = null) {
+function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = "", baremMap = null, fileCache = null) {
   const form = FormApp.openByUrl(formUrl);
   const formId = form.getId();
   const items = form.getItems();
@@ -240,9 +249,9 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
       const answerVal = correctChoice ? correctChoice.getValue().trim() : (answerMapByIndex[questionIndex] || "");
       const feedback = mcItem.getFeedbackForCorrect() || mcItem.getFeedbackForIncorrect();
 
-      // Convert ảnh sang Google Drive vĩnh viễn (nếu chưa là CDN)
+      // Convert ảnh sang Google Drive vĩnh viễn (Luồng 2)
       if (itemImageUrl && imgFolder) {
-        itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder);
+        itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder, fileCache);
       }
 
       let finalMcAnswer = answerVal;
@@ -276,7 +285,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
       const feedback = cbItem.getFeedbackForCorrect() || cbItem.getFeedbackForIncorrect();
 
       if (itemImageUrl && imgFolder) {
-        itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder);
+        itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder, fileCache);
       }
 
       let finalCbAnswer = answerVal;
@@ -311,7 +320,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
       const answerVal = answerMapByIndex[questionIndex] || "";
 
       if (itemImageUrl && imgFolder) {
-        itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder);
+        itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder, fileCache);
       }
 
       let finalShortAnswer = answerVal;

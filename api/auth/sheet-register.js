@@ -31,50 +31,45 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Chỉ gọi GAS 1 lần duy nhất để tạo dòng mới và gửi email xác nhận trong background
-    const registered = await callAuthSheet('register', { phone, password, name, email }, { internal: true, timeoutMs: 25000 });
-    if (!registered?.success) {
-      return res.status(400).json({ success: false, message: registered?.error || 'Không thể đăng ký.' });
+    // 1. Kiểm tra tài khoản đã tồn tại trong MongoDB Atlas siêu tốc (~15ms)
+    await connectToDatabase();
+    const existing = await User.findOne({ phone }).lean();
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Số Điện Thoại này đã được đăng ký tài khoản!' });
     }
 
-    const displayName = registered.user?.name || name || `Học viên ${phone.slice(-4)}`;
-    const userEmail = registered.user?.email || email;
-
+    const displayName = name || `Học viên ${phone.slice(-4)}`;
+    const passwordHash = computeFastHash(phone, password);
     const userPayload = {
       phone,
       name: displayName,
-      email: userEmail,
+      email,
       role: 'user',
       entitlements: []
     };
 
-    // 2. Tự động lưu cache người dùng vào MongoDB Atlas để đăng nhập siêu tốc (15ms)
-    try {
-      await connectToDatabase();
-      await User.updateOne(
-        { phone },
-        {
-          $set: {
-            fullName: displayName,
-            passwordHash: computeFastHash(phone, password),
-            role: 'user',
-            entitlements: [],
-            isActive: true,
-            createdAt: new Date(),
-            lastLoginAt: new Date()
-          }
-        },
-        { upsert: true }
-      );
-    } catch (cacheErr) {
-      console.warn('[Register DB Cache]', cacheErr.message);
-    }
+    // 2. Lưu ngay tài khoản vào MongoDB Atlas (~20ms)
+    await User.create({
+      phone,
+      fullName: displayName,
+      passwordHash,
+      role: 'user',
+      entitlements: [],
+      isActive: true,
+      createdAt: new Date(),
+      lastLoginAt: new Date()
+    });
 
-    // 3. Đặt HttpOnly session cookie và đăng nhập ngay lập tức cho người dùng
+    // 3. Đặt HttpOnly session cookie và đăng nhập ngay lập tức cho người dùng (tổng thời gian < 50ms)
     const user = setSheetSessionCookie(res, userPayload);
+
+    // 4. Đồng bộ ngầm sang Google Apps Script để ghi Sheet và gửi email (không làm người dùng phải đợi)
+    callAuthSheet('register', { phone, password, name, email }, { internal: true, timeoutMs: 30000 })
+      .catch((err) => console.warn('[Background Sheet Register]', err.message));
+
     return res.status(201).json({ success: true, user });
   } catch (error) {
-    console.error('[Sheet Register]', error);
-    return res.status(502).json({ success: false, message: 'Máy chủ đăng ký tạm thời không phản hồi. Vui lòng thử lại sau vài giây.' });
+    console.error('[Instant Register]', error);
+    return res.status(500).json({ success: false, message: 'Lỗi đăng ký tài khoản: ' + error.message });
   }
 }

@@ -143,6 +143,21 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
     }
   }
 
+  // Khởi tạo fileCache từ thư mục MedQuiz_Form_Images để tra cứu ảnh Drive trong bộ nhớ siêu tốc (Luồng 2)
+  const fileCache = {};
+  try {
+    const imgFolder = getOrCreateImagesFolder();
+    if (imgFolder) {
+      const files = imgFolder.getFiles();
+      let count = 0;
+      while (files.hasNext() && count < 2500) {
+        const f = files.next();
+        fileCache[f.getName()] = f.getId();
+        count++;
+      }
+    }
+  } catch(e) {}
+
   // Làm sạch danh sách decks trong manifest để nạp lại chuẩn
   manifest.subjects.forEach(sub => {
     sub.decks = [];
@@ -194,7 +209,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
           if (isTarget) {
             try {
               ss.toast(`Đang nạp (${fetched + 1}/${targetUrls.size}): ${deckName}...`, '⚡ Đang xử lý', 10);
-              const questions = extractQuestionsFromForm(formUrl, deckImgUrl, deckName, baremMap);
+              const questions = extractQuestionsFromForm(formUrl, deckImgUrl, deckName, baremMap, fileCache);
               newAllDecksData[deckPath] = JSON.stringify(questions);
               changedDeckPaths.push(deckPath);
               fetched++;
@@ -218,7 +233,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
           }
           
           try {
-            const questions = extractQuestionsFromForm(formUrl, deckImgUrl, deckName, baremMap);
+            const questions = extractQuestionsFromForm(formUrl, deckImgUrl, deckName, baremMap, fileCache);
             newAllDecksData[deckPath] = JSON.stringify(questions);
             changedDeckPaths.push(deckPath);
             fetched++;
