@@ -3,16 +3,54 @@ import { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
 
+function getUserData(phone) {
+  if (!phone) return { progress: {}, mistakes: [] };
+  try {
+    const progress = JSON.parse(localStorage.getItem(`y_khoa_progress_${phone}`) || '{}');
+    const mistakes = JSON.parse(localStorage.getItem(`y_khoa_mistakes_${phone}`) || '[]');
+    return { progress, mistakes };
+  } catch {
+    return { progress: {}, mistakes: [] };
+  }
+}
+
+function saveUserData(phone, progress, mistakes) {
+  if (!phone) return;
+  try {
+    if (progress !== undefined && progress !== null) {
+      localStorage.setItem(`y_khoa_progress_${phone}`, JSON.stringify(progress));
+    }
+    if (mistakes !== undefined && mistakes !== null) {
+      localStorage.setItem(`y_khoa_mistakes_${phone}`, JSON.stringify(mistakes));
+    }
+  } catch (e) {
+    console.warn('[Save User Data]', e);
+  }
+}
+
 function mergeVerifiedUser(previousUser, userData) {
+  const phone = userData?.phone || previousUser?.phone;
   const sameAccount = previousUser?.phone === userData?.phone ? previousUser : null;
   const entitlements = Array.isArray(userData?.entitlements) ? userData.entitlements : [];
   const entitlementKeys = entitlements.map(item => item.itemKey).filter(Boolean);
   const entitlementExpirations = Object.fromEntries(
     entitlements.filter(item => item?.itemKey && item?.expiresAt).map(item => [item.itemKey, item.expiresAt])
   );
+
+  // Nạp tiến độ và sổ tay câu sai độc lập theo đúng ID/SĐT tài khoản
+  const isolatedData = getUserData(phone);
+  const progress = (sameAccount && sameAccount.progress && Object.keys(sameAccount.progress).length > 0)
+    ? sameAccount.progress
+    : (isolatedData.progress || userData?.progress || {});
+  const mistakes = (sameAccount && sameAccount.mistakes && sameAccount.mistakes.length > 0)
+    ? sameAccount.mistakes
+    : (isolatedData.mistakes || userData?.mistakes || []);
+
   return {
     ...(sameAccount || {}),
     ...userData,
+    progress,
+    mistakes,
     entitlementKeys,
     // Hai trường dưới chỉ phục vụ hiển thị tương thích ở trang hồ sơ.
     // API vẫn xác minh lại entitlement trong cookie HttpOnly cho mọi nội dung PRO.
@@ -117,6 +155,7 @@ export function AuthProvider({ children }) {
     }
 
     localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
+    saveUserData(user.phone, updatedUser.progress, updatedUser.mistakes);
     setUser(updatedUser);
   };
 
@@ -127,6 +166,7 @@ export function AuthProvider({ children }) {
       mistakes: user.mistakes.filter(m => (m.id || m.questionId) !== questionId)
     };
     localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
+    saveUserData(user.phone, null, updatedUser.mistakes);
     setUser(updatedUser);
   };
 
@@ -139,6 +179,7 @@ export function AuthProvider({ children }) {
       updatedUser.mistakes = [];
     }
     localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
+    saveUserData(user.phone, null, updatedUser.mistakes);
     setUser(updatedUser);
   };
 
@@ -191,6 +232,7 @@ export function AuthProvider({ children }) {
     };
 
     localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
+    saveUserData(user.phone, null, updatedUser.mistakes);
     setUser(updatedUser);
   };
 

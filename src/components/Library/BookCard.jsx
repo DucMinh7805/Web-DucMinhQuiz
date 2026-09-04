@@ -105,15 +105,28 @@ export default function BookCard({ book, onAskAi, onUnlock, isUnlocked }) {
             <span>Mở Khóa</span>
           </button>
         ) : book.id ? (
-          <a
-            href={`/api/library/book-link?id=${encodeURIComponent(book.id)}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const res = await fetch(`/api/library/book-link?id=${encodeURIComponent(book.id)}&format=json`);
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data?.url) {
+                    window.open(data.url, '_blank', 'noopener,noreferrer');
+                    return;
+                  }
+                }
+              } catch (err) {
+                console.warn('[Safe Book Open]', err);
+              }
+              window.open(`/api/library/book-link?id=${encodeURIComponent(book.id)}`, '_blank', 'noopener,noreferrer');
+            }}
             className="flex-1 py-1.5 sm:py-2.5 px-2 sm:px-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-extrabold text-[11px] sm:text-xs flex items-center justify-center shadow-sm shadow-teal-500/20 transition-all group/btn"
           >
             <span>Đọc Sách</span>
             <ArrowUpRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 ml-1 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
-          </a>
+          </button>
         ) : (
           <span className="flex-1 py-1.5 sm:py-2.5 px-1.5 sm:px-3 rounded-lg sm:rounded-xl bg-slate-100 dark:bg-white/5 text-slate-400 text-[10px] sm:text-xs font-semibold text-center truncate">
             Đang cập nhật

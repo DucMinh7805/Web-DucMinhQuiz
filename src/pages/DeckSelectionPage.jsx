@@ -136,10 +136,11 @@ export default function DeckSelectionPage() {
         <div className="relative z-10">
           <button 
             onClick={() => navigate(subject.categoryId ? `/category/${subject.categoryId}` : '/')} 
-            className="group flex items-center text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 mb-6 transition-colors w-fit bg-slate-100 dark:bg-white/5 px-3.5 py-1.5 rounded-xl border border-slate-200/80 dark:border-white/10"
+            className="group inline-flex items-center text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 mb-3 sm:mb-4 transition-colors w-fit bg-slate-100/80 dark:bg-white/5 hover:bg-slate-200/60 dark:hover:bg-white/10 px-2.5 py-1 rounded-lg border border-slate-200/80 dark:border-white/10 shadow-2xs"
+            title={`Trở về ${subject.categoryName || 'Danh mục'}`}
           >
-            <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" />
-            Trở về {subject.categoryName || 'Danh mục'}
+            <ChevronLeft className="h-3.5 w-3.5 mr-1 group-hover:-translate-x-0.5 transition-transform text-slate-400 group-hover:text-teal-500" />
+            <span>Quay lại</span>
           </button>
           
           <motion.div
@@ -217,7 +218,7 @@ export default function DeckSelectionPage() {
       </div>
 
       {/* Bộ Lọc Theo Tag (Cột F tab Upde) */}
-      {availableTags.length > 2 && (
+      {availableTags.length > 1 && (
         <div className="space-y-2.5">
           <div className="flex items-center space-x-2">
             <Sparkles className="w-3.5 h-3.5 text-teal-500" />

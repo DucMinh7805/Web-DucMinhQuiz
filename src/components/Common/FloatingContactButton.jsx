@@ -1,7 +1,27 @@
+import { useLocation } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function FloatingContactButton() {
+  const location = useLocation();
+  const path = location.pathname;
+
+  // 1. Tuyệt đối KHÔNG hiển thị trong phòng thi (/quiz/*) và trang cá nhân (/profile)
+  if (path.startsWith('/quiz') || path === '/profile') {
+    return null;
+  }
+
+  // 2. Chỉ hiển thị ở các trang được chỉ định: trang chủ (/), bản đồ tri thức (/graph), trị số lab (/lab-values), tài liệu (/library)
+  const isAllowed = path === '/' || 
+                    path === '/graph' || 
+                    path === '/lab-values' || 
+                    path === '/library' || 
+                    path.startsWith('/category/') || 
+                    path.startsWith('/subject/');
+
+  if (!isAllowed) {
+    return null;
+  }
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}

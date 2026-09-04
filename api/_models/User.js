@@ -35,6 +35,10 @@ const userSchema = new mongoose.Schema({
     type: Date, 
     default: null 
   },
+  entitlements: [{
+    itemKey: { type: String, trim: true },
+    expiresAt: { type: Date }
+  }],
 
   isActive: { 
     type: Boolean, 

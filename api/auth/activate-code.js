@@ -19,6 +19,17 @@ export default async function handler(req, res) {
     const profile = await callAuthSheet('sessionprofile', { phone: session.phone }, { internal: true });
     if (!profile?.success || !profile?.user) throw new Error('Không thể làm mới quyền sau kích hoạt.');
     const user = setSheetSessionCookie(res, profile.user);
+    try {
+      const { connectToDatabase } = await import('../_utils/db.js');
+      const { User } = await import('../_models/index.js');
+      await connectToDatabase();
+      await User.updateOne(
+        { phone: session.phone },
+        { $set: { entitlements: Array.isArray(profile.user.entitlements) ? profile.user.entitlements : [] } }
+      );
+    } catch (dbErr) {
+      console.warn('[Activate Code DB Cache]', dbErr.message);
+    }
     return res.status(200).json({ success: true, user, expiresAt: activated.expiresAt });
   } catch (error) {
     console.error('[Activate Code]', error);

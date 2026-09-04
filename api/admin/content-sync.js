@@ -87,9 +87,11 @@ function normalizeQuestion(raw, index, deckId, deckPath) {
     const matched = byText || byLetter;
     if (matched && !correctOptionIds.includes(matched.id)) correctOptionIds.push(matched.id);
   });
+  const qText = String(raw?.question || '');
+  const hasMultiKeyword = /\(chọn nhiều|\(nhiều đáp án|chọn các đáp án/i.test(qText);
   const type = ['single', 'multiple', 'short_answer'].includes(raw?.type)
-    ? raw.type
-    : (options.length ? (correctOptionIds.length > 1 ? 'multiple' : 'single') : 'short_answer');
+    ? (hasMultiKeyword ? 'multiple' : raw.type)
+    : (options.length ? ((correctOptionIds.length > 1 || hasMultiKeyword) ? 'multiple' : 'single') : 'short_answer');
   const imageUrl = String(raw?.imageUrl || raw?.image?.fullResUrl || raw?.image?.thumbnailUrl || '');
   return {
     deckId,
@@ -192,7 +194,11 @@ async function syncManifest(manifest, { prune = false } = {}) {
               title: String(d.name || d.title || path),
               path,
               stage: ['y1_y3', 'y4_y6', 'sau_dai_hoc', 'noi_tru'].includes(d.stage) ? d.stage : 'y1_y3',
-              tags: Array.isArray(d.tags) ? d.tags : [],
+              tags: Array.isArray(d.tags)
+                ? d.tags.map(t => String(t).trim()).filter(Boolean)
+                : (typeof d.tags === 'string' || typeof d.tag === 'string'
+                    ? String(d.tags || d.tag || '').split(/[,;|]/).map(t => t.trim()).filter(Boolean)
+                    : []),
               totalQuestions: Math.max(0, Number(d.questionCount) || 0),
               timeLimitMinutes: Math.max(1, Number(d.timeLimitMinutes) || Math.ceil((Number(d.questionCount) || 20) * 1.5)),
               orderIndex: dIdx,

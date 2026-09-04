@@ -43,8 +43,13 @@ export default function QuestionCard({
     return String(question.answer).split('|').map(s => s.trim()).filter(Boolean);
   }, [question]);
 
-  // Tự động nhận diện câu hỏi nhiều đáp án
-  const isMultiple = (question?.type === 'multiple') || correctAnswers.length > 1;
+  // Tự động nhận diện câu hỏi nhiều đáp án đúng (Checkbox)
+  const isMultiple = useMemo(() => {
+    if (question?.type === 'multiple' || question?.type === 'checkbox') return true;
+    if (correctAnswers.length > 1) return true;
+    const text = String(question?.question || '').toLowerCase();
+    return text.includes('(chọn nhiều') || text.includes('(nhiều đáp án') || text.includes('chọn các đáp án');
+  }, [question, correctAnswers]);
 
   // Danh sách đáp án người dùng đã chọn
   const userAnswersList = useMemo(() => {

@@ -27,6 +27,17 @@ export default async function handler(req, res) {
       return res.status(403).json({ success: false, message: data?.error || 'Không thể làm mới quyền tài khoản.' });
     }
     const user = setSheetSessionCookie(res, data.user);
+    try {
+      const { connectToDatabase } = await import('../_utils/db.js');
+      const { User } = await import('../_models/index.js');
+      await connectToDatabase();
+      await User.updateOne(
+        { phone: session.phone },
+        { $set: { entitlements: Array.isArray(data.user.entitlements) ? data.user.entitlements : [] } }
+      );
+    } catch (dbErr) {
+      console.warn('[Refresh Access DB Cache]', dbErr.message);
+    }
     return res.status(200).json({ success: true, user });
   } catch (error) {
     console.error('[Refresh Access]', error);

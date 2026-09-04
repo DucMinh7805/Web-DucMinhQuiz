@@ -4,7 +4,7 @@ import { SECURITY_CONFIG, requireSecurityValue } from '../_config/security.js';
 export async function callAuthSheet(action, params = {}, options = {}) {
   const url = requireSecurityValue('AUTH_SHEET_WEB_APP_URL', SECURITY_CONFIG.authSheetUrl);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 10000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 25000);
   const body = new URLSearchParams({ action, ...params });
   if (options.internal) {
     body.set('internalSecret', requireSecurityValue(

@@ -85,38 +85,41 @@ export default function LabValuesPage() {
         <div className="space-y-4">
           
           {/* Thanh Điều Hướng: Nút Quay Lại + Tên Nhóm + Nút Mở Tất Cả */}
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedCategory(null);
-                setOpenTests({});
-              }}
-              className="flex items-center space-x-1.5 text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-teal-600 dark:hover:text-teal-400 bg-white/80 dark:bg-[#0c1222]/80 px-4 py-2 rounded-2xl border border-slate-200/80 dark:border-white/10 transition-colors shrink-0 shadow-2xs"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span>Trở về</span>
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+            <div className="flex items-center space-x-2 min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory(null);
+                  setOpenTests({});
+                }}
+                className="flex items-center space-x-1 text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-teal-600 dark:hover:text-teal-400 bg-white/80 dark:bg-[#0c1222]/80 px-2.5 sm:px-3.5 py-1.5 rounded-xl border border-slate-200/80 dark:border-white/10 transition-colors shrink-0 shadow-2xs"
+                title="Trở về danh mục"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span className="hidden xs:inline">Trở về</span>
+              </button>
 
-            {/* Tiêu đề nhóm hiển thị gọn gàng */}
-            {activeCategoryObj && (
-              <div className="flex items-center space-x-2 min-w-0">
-                <span className="font-black text-base sm:text-lg text-slate-900 dark:text-white truncate">
-                  {activeCategoryObj.name}
-                </span>
-                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20 shrink-0">
-                  {activeCategoryObj.tests.length} chỉ số
-                </span>
-              </div>
-            )}
+              {/* Tiêu đề nhóm hiển thị đầy đủ, không bị cắt cụt */}
+              {activeCategoryObj && (
+                <div className="flex items-center space-x-1.5 min-w-0">
+                  <span className="font-black text-sm sm:text-lg text-slate-900 dark:text-white leading-tight">
+                    {activeCategoryObj.name}
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20 shrink-0">
+                    {activeCategoryObj.tests.length} chỉ số
+                  </span>
+                </div>
+              )}
+            </div>
 
             {/* Nút Mở Tất Cả / Thu Gọn Tất Cả */}
             <button
               type="button"
               onClick={toggleAllTests}
-              className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 bg-teal-500/10 px-3.5 py-2 rounded-2xl border border-teal-500/20 transition-all shrink-0"
+              className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 bg-teal-500/10 px-3 py-1.5 rounded-xl border border-teal-500/20 transition-all shrink-0"
             >
-              {areAllOpen ? 'Thu gọn tất cả' : 'Mở tất cả'}
+              {areAllOpen ? 'Thu gọn' : 'Mở tất cả'}
             </button>
           </div>
 
@@ -252,7 +255,7 @@ export default function LabValuesPage() {
                 {/* Phần Tiêu Đề Khối */}
                 <div className="p-3.5 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
                   <div>
-                    <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors line-clamp-1">
+                    <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors line-clamp-2 min-h-[2.5rem] leading-snug">
                       {cat.name}
                     </h3>
                     <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 line-clamp-2 leading-snug">
