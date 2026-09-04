@@ -61,8 +61,9 @@ function getOrCreateImagesFolder() {
 function saveFormImageToDrive(rawImgUrl, formId, qIndex, folder) {
   if (!rawImgUrl || typeof rawImgUrl !== 'string') return '';
 
-  // 1. Nếu đã là link Google Drive Thumbnail có sẵn -> Dùng trực tiếp ngay
-  if (rawImgUrl.includes('drive.google.com/thumbnail')) {
+  // 1. Nếu đã là link Google Drive Thumbnail hoặc Google CDN tốc độ cao (lh3.googleusercontent.com)
+  // Sử dụng trực tiếp ngay lập tức, cực kỳ nhanh (<50ms), không tốn dung lượng Drive và loại bỏ triệt để timeout 6 phút
+  if (rawImgUrl.includes('drive.google.com/thumbnail') || rawImgUrl.includes('googleusercontent.com')) {
     return rawImgUrl;
   }
 
@@ -97,7 +98,7 @@ function saveFormImageToDrive(rawImgUrl, formId, qIndex, folder) {
   return rawImgUrl;
 }
 
-function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
+function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = "", baremMap = null) {
   const form = FormApp.openByUrl(formUrl);
   const formId = form.getId();
   const items = form.getItems();
@@ -239,9 +240,15 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
       const answerVal = correctChoice ? correctChoice.getValue().trim() : (answerMapByIndex[questionIndex] || "");
       const feedback = mcItem.getFeedbackForCorrect() || mcItem.getFeedbackForIncorrect();
 
-      // Convert ảnh sang Google Drive vĩnh viễn
+      // Convert ảnh sang Google Drive vĩnh viễn (nếu chưa là CDN)
       if (itemImageUrl && imgFolder) {
         itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder);
+      }
+
+      let finalMcAnswer = answerVal;
+      if (!finalMcAnswer && baremMap && deckName) {
+        const baremKey = `${normalizeName(deckName)}_${questionIndex + 1}`;
+        if (baremMap[baremKey]) finalMcAnswer = baremMap[baremKey];
       }
 
       questions.push({
@@ -251,7 +258,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
         vignette: helpText,
         imageUrl: itemImageUrl,
         options: optionsList.join('|'),
-        answer: answerVal,
+        answer: finalMcAnswer,
         explanation: feedback ? feedback.getText() : ""
       });
       questionIndex++;
@@ -272,6 +279,12 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
         itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder);
       }
 
+      let finalCbAnswer = answerVal;
+      if (!finalCbAnswer && baremMap && deckName) {
+        const baremKey = `${normalizeName(deckName)}_${questionIndex + 1}`;
+        if (baremMap[baremKey]) finalCbAnswer = baremMap[baremKey];
+      }
+
       questions.push({
         id: `${formId}-${questionIndex + 1}`,
         type: 'multiple',
@@ -279,7 +292,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
         vignette: helpText,
         imageUrl: itemImageUrl,
         options: optionsList.join('|'),
-        answer: answerVal,
+        answer: finalCbAnswer,
         explanation: feedback ? feedback.getText() : ""
       });
       questionIndex++;
@@ -301,6 +314,12 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
         itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder);
       }
 
+      let finalShortAnswer = answerVal;
+      if (!finalShortAnswer && baremMap && deckName) {
+        const baremKey = `${normalizeName(deckName)}_${questionIndex + 1}`;
+        if (baremMap[baremKey]) finalShortAnswer = baremMap[baremKey];
+      }
+
       questions.push({
         id: `${formId}-${questionIndex + 1}`,
         type: 'short_answer',
@@ -308,7 +327,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "") {
         vignette: helpText,
         imageUrl: itemImageUrl,
         options: "",
-        answer: answerVal,
+        answer: finalShortAnswer,
         explanation: feedback
       });
       questionIndex++;

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -27,7 +27,15 @@ function normalizePhoneNumber(rawPhone) {
 
 export default function LoginPage() {
   usePageTitle('Đăng nhập');
-  const [isSignUpMode, setIsSignUpMode] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [isSignUpMode, setIsSignUpMode] = useState(() => searchParams.get('mode') === 'register');
+
+  useEffect(() => {
+    if (searchParams.get('mode') === 'register') {
+      setIsSignUpMode(true);
+    }
+  }, [searchParams]);
+
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

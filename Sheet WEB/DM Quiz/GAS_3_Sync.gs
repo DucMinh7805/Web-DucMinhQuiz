@@ -118,6 +118,31 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
   const changedDeckPaths = [];
   const deckData = deckSheet.getDataRange().getValues();
   
+  // Tự động tải barem đáp án từ Tab Barem / Đáp Án (nếu người dùng có nhập)
+  const baremSheet = findSheetByAliases(ss, ["Barem", "BaremDapAn", "Đáp Án", "DapAn", "Dap An", "AnswerKey"]);
+  const baremMap = {};
+  if (baremSheet) {
+    const baremData = baremSheet.getDataRange().getValues();
+    for (let b = 1; b < baremData.length; b++) {
+      const bRow = baremData[b];
+      let bDeck = '';
+      let bQNum = 0;
+      let bAns = '';
+      if (bRow.length >= 4) {
+        bDeck = normalizeName(bRow[1]);
+        bQNum = parseInt(String(bRow[2]).replace(/[^0-9]/g, ''), 10);
+        bAns = String(bRow[3] || '').trim();
+      } else if (bRow.length >= 3) {
+        bDeck = normalizeName(bRow[0]);
+        bQNum = parseInt(String(bRow[1]).replace(/[^0-9]/g, ''), 10);
+        bAns = String(bRow[2] || '').trim();
+      }
+      if (bDeck && bQNum && bAns) {
+        baremMap[`${bDeck}_${bQNum}`] = bAns;
+      }
+    }
+  }
+
   // Làm sạch danh sách decks trong manifest để nạp lại chuẩn
   manifest.subjects.forEach(sub => {
     sub.decks = [];
@@ -169,7 +194,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
           if (isTarget) {
             try {
               ss.toast(`Đang nạp (${fetched + 1}/${targetUrls.size}): ${deckName}...`, '⚡ Đang xử lý', 10);
-              const questions = extractQuestionsFromForm(formUrl, deckImgUrl);
+              const questions = extractQuestionsFromForm(formUrl, deckImgUrl, deckName, baremMap);
               newAllDecksData[deckPath] = JSON.stringify(questions);
               changedDeckPaths.push(deckPath);
               fetched++;
@@ -193,7 +218,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
           }
           
           try {
-            const questions = extractQuestionsFromForm(formUrl, deckImgUrl);
+            const questions = extractQuestionsFromForm(formUrl, deckImgUrl, deckName, baremMap);
             newAllDecksData[deckPath] = JSON.stringify(questions);
             changedDeckPaths.push(deckPath);
             fetched++;
