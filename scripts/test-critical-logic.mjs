@@ -50,6 +50,7 @@ const sheetRegisterApi = fs.readFileSync(new URL('../api/auth/sheet-register.js'
 const databaseUtils = fs.readFileSync(new URL('../api/_utils/db.js', import.meta.url), 'utf8');
 const questionCard = fs.readFileSync(new URL('../src/components/Quiz/QuestionCard.jsx', import.meta.url), 'utf8');
 const authMeApi = fs.readFileSync(new URL('../api/auth/me.js', import.meta.url), 'utf8');
+const appSource = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const quizClient = fs.readFileSync(new URL('../src/services/quizApi.js', import.meta.url), 'utf8');
 const networkStatusBanner = fs.readFileSync(new URL('../src/components/Common/NetworkStatusBanner.jsx', import.meta.url), 'utf8');
 const refreshAccessApi = fs.readFileSync(new URL('../api/auth/refresh-access.js', import.meta.url), 'utf8');
@@ -108,6 +109,21 @@ assert.deepEqual(
 );
 assert.equal(gasContext.parsePricingCell('Giảm 20%').valid, false);
 assert.equal(gasContext.getFormEntryId_([null, null, null, null, [[123456789]]]), '123456789');
+const mockCorrectChoices = [
+  { isCorrectAnswer: () => true, getValue: () => 'Ho ra máu → Thuyên tắc phổi' },
+  { isCorrectAnswer: () => true, getValue: () => 'Khò khè → Hen hoặc COPD' },
+  { isCorrectAnswer: () => false, getValue: () => 'Đau đầu → Ngộ độc paracetamol' }
+];
+assert.deepEqual(
+  JSON.parse(JSON.stringify(gasContext.getCorrectChoiceValues_(mockCorrectChoices))),
+  ['Ho ra máu → Thuyên tắc phổi', 'Khò khè → Hen hoặc COPD'],
+  'A Google Form item with multiple marked answers must retain every correct choice'
+);
+assert.equal(
+  gasContext.isMultipleAnswerQuestion_('Triệu chứng đi kèm giúp hướng nguyên nhân khó thở nào? Chọn nhiều đáp án.', 'A|B'),
+  true,
+  'Multiple-answer wording and answer keys must force checkbox rendering'
+);
 assert.equal(
   gasContext.findScrapedImageUrl_([['1AbCdEfGhIjKlMnOpQrStUv']], 0),
   'https://lh3.googleusercontent.com/d/1AbCdEfGhIjKlMnOpQrStUv=w1200'
@@ -123,6 +139,9 @@ assert.equal(gasUtils.includes('fileCache = null'), true, 'Drive image lookup mu
 assert.equal(gasMenu.includes('Đồng bộ các đề đang bôi đen (khuyên dùng)'), true, 'Selective sync must be visible inside the data-sync menu');
 assert.equal(gasSync.includes('MAX_SELECTED_DECKS_PER_RUN = 10'), true, 'Selective sync must cap batches before Apps Script times out');
 assert.equal(gasSync.includes('if (elapsed > 210)'), true, 'Selective sync must save completed decks before the Apps Script execution limit');
+assert.equal(gasSync.includes('count < 2500'), false, 'Selective sync must not scan thousands of Drive images before processing a deck');
+assert.equal(gasSync.includes('Đang chuẩn bị đồng bộ'), true, 'Selected rows must show immediate progress in column E');
+assert.equal(gasSync.includes("SpreadsheetApp.getUi().alert(timedOutEarly"), false, 'Completion feedback must not block Apps Script until its six-minute timeout');
 assert.equal(sheetLoginApi.includes('if (cachedUser.passwordHash)'), true, 'Wrong cached passwords must not invoke the slow Sheet login fallback');
 assert.equal(sheetLoginApi.includes('Grace period'), false, 'Login must never create a session without verifying a password');
 assert.equal(sheetRegisterApi.includes('scheduleBackgroundTask'), true, 'Registration Sheet sync must use the Vercel background lifecycle');
@@ -201,7 +220,8 @@ assert.equal(questionsApi.includes('authenticateSheetSession(req)'), true, 'Ques
 assert.equal(questionsApi.includes("sessionHasEntitlement(session, 'subject', subject.id)"), true, 'Questions API must authorize the exact subject');
 assert.equal(questionsApi.includes('subject.pricingSynced !== true'), true, 'Unsynced pricing must fail closed');
 assert.equal(questionsApi.includes("Cache-Control', 'private, no-store"), true, 'Question responses must never enter a shared cache');
-assert.equal(questionsApi.includes("Cache-Control', 'public, max-age=0, s-maxage=60"), true, 'Only free questions may use a short shared edge cache');
+assert.equal(questionsApi.includes('hasRevision'), true, 'Versioned free questions must use a cache key that changes after synchronization');
+assert.equal(questionsApi.includes("'public, max-age=0, s-maxage=10'"), true, 'Unversioned clients must not receive stale questions for several minutes');
 assert.equal(questionsApi.includes('deckId: deck._id'), true, 'Question lookup must use the indexed deck ID');
 assert.equal(questionsApi.includes('$regex'), false, 'Quiz reads must not use case-insensitive regex scans');
 assert.equal(authMeApi.includes("Cache-Control', 'private, no-store"), true, 'Authenticated profile responses must never enter a shared cache');
@@ -211,10 +231,16 @@ assert.equal(manifestApi.includes('item.pricingSynced !== true'), true, 'Manifes
 assert.equal(quizClient.includes('action=getDeck'), false, 'Client must not bypass authorization through the public GAS deck fallback');
 assert.equal(quizClient.includes('DEFAULT_SAMPLE_MANIFEST'), false, 'Production manifest must not silently fall back to stale sample data');
 assert.equal(manifestApi.includes('Promise.all(['), true, 'Independent manifest collections must be loaded in parallel');
-assert.equal(manifestApi.includes("s-maxage=60"), true, 'Public manifest must use a short Vercel edge cache');
+assert.equal(manifestApi.includes("s-maxage=10"), true, 'Public manifest must expose synchronized deck revisions quickly');
+assert.equal(manifestApi.includes('revision: new Date(deck.updatedAt'), true, 'Every deck must expose a revision for cache busting');
+assert.equal(quizClient.includes("params.set('revision'"), true, 'Question requests must include the synchronized deck revision');
+assert.equal(appSource.includes("queryKey: ['deck', deckPath, deckRevision]"), true, 'React Query must separate old and newly synchronized deck versions');
+assert.equal(appSource.includes("refetchOnWindowFocus: true"), true, 'Returning from Sheets must refresh a stale manifest');
 assert.equal(quizClient.includes('_t=${Date.now()}'), false, 'Client must not defeat safe CDN caching with timestamp query strings');
 assert.equal(networkStatusBanner.includes("window.addEventListener('offline'"), true, 'The UI must notify users immediately when connectivity is lost');
 assert.equal(networkStatusBanner.includes("window.addEventListener('online'"), true, 'The UI must confirm when connectivity returns');
+assert.equal(networkStatusBanner.includes('fixed inset-0 z-[9999]'), true, 'Offline mode must block the full application surface');
+assert.equal(networkStatusBanner.includes('src="/diamond_quiz.png"'), true, 'Offline mode must show the full DiamondQuiz brand asset');
 assert.equal(knowledgeGraphPage.includes('subjects={subjects}'), true, 'Graph must receive normalized subjects so stage filters stay accurate');
 assert.equal(obsidianGraph.includes(".distance(link => link.distance || 70)"), true, 'Graph simulation must apply the computed relationship distance');
 assert.equal(obsidianGraph.includes('const activeNode = hoverNode || selectedNode'), true, 'Selected graph relationships must remain highlighted after hover ends');

@@ -88,10 +88,15 @@ function normalizeQuestion(raw, index, deckId, deckPath) {
     if (matched && !correctOptionIds.includes(matched.id)) correctOptionIds.push(matched.id);
   });
   const qText = String(raw?.question || '');
-  const hasMultiKeyword = /\(chọn nhiều|\(nhiều đáp án|chọn các đáp án/i.test(qText);
-  const type = ['single', 'multiple', 'short_answer'].includes(raw?.type)
-    ? (hasMultiKeyword ? 'multiple' : raw.type)
-    : (options.length ? ((correctOptionIds.length > 1 || hasMultiKeyword) ? 'multiple' : 'single') : 'short_answer');
+  const hasMultiKeyword = /(?:chọn\s+(?:nhiều|các)\s+đáp\s+án|nhiều\s+đáp\s+án)/i.test(qText);
+  let type = 'short_answer';
+  if (options.length && raw?.type !== 'short_answer') {
+    // Barem thực tế quan trọng hơn nhãn item của Google Form. Một item bị để
+    // nhầm "Trắc nghiệm" nhưng có 2+ đáp án đúng vẫn phải hiện checkbox.
+    type = raw?.type === 'multiple' || correctOptionIds.length > 1 || hasMultiKeyword
+      ? 'multiple'
+      : 'single';
+  }
   const imageUrl = String(raw?.imageUrl || raw?.image?.fullResUrl || raw?.image?.thumbnailUrl || '');
   return {
     deckId,

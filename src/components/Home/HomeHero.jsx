@@ -128,7 +128,7 @@ export default function HomeHero({ subjectsCount = 0, totalDecks = 0, totalQuest
               height="1024"
               loading="eager"
               decoding="async"
-              fetchPriority="high"
+              fetchpriority="high"
               draggable="false"
               className="w-32 sm:w-44 lg:w-52 max-w-[240px] object-contain drop-shadow-[0_10px_20px_rgba(13,148,136,0.3)] transition-transform select-none"
             />

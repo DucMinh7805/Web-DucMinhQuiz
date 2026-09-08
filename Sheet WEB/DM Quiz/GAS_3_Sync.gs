@@ -67,6 +67,14 @@ function syncDecksOnly() {
   runUpDeSync(true);
 }
 
+function compactSyncMessage_(value, maxLength) {
+  const text = String(value && value.message ? value.message : value || 'Lỗi không xác định')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const limit = maxLength || 110;
+  return text.length > limit ? text.substring(0, limit - 1) + '…' : text;
+}
+
 // Cập nhật các dòng đang bôi đen (1 dòng hoặc nhiều dòng cùng lúc)
 function syncSelectedDecks() {
   const ui = SpreadsheetApp.getUi();
@@ -106,6 +114,17 @@ function syncSelectedDecks() {
       ui.ButtonSet.OK
     );
   }
+
+  // Phản hồi ngay trên từng dòng, trước cả bước đọc Database_JSON/Drive.
+  // Nhờ vậy người dùng biết lệnh đã nhận, kể cả Form nặng cần vài phút.
+  const preparingStatuses = selectedValues.map((row, offset) => {
+    const currentRow = startRow + offset;
+    const formUrl = String(row[2] || '').trim();
+    if (currentRow > 1 && targetUrls.has(formUrl)) return ['⏳ Đang chuẩn bị đồng bộ...'];
+    return [String(row[4] || '')];
+  });
+  sheet.getRange(startRow, 5, numRows, 1).setValues(preparingStatuses);
+  SpreadsheetApp.flush();
   
   SpreadsheetApp.getActiveSpreadsheet().toast(`Bắt đầu nạp ${targetUrls.size} đề thi được chọn...`, 'Đang xử lý', 5);
   runUpDeSync(true, targetUrls);
@@ -124,6 +143,9 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
   const newAllDecksData = Object.assign({}, allDecksData);
   let fetched = 0, reused = 0;
   const changedDeckPaths = [];
+  const deckRowsByPath = {};
+  const deckSyncResults = {};
+  const deckReadErrors = {};
   const deckData = deckSheet.getDataRange().getValues();
   
   // Tự động tải barem đáp án từ Tab Barem / Đáp Án (nếu người dùng có nhập)
@@ -151,20 +173,9 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
     }
   }
 
-  // Khởi tạo fileCache từ thư mục MedQuiz_Form_Images để tra cứu ảnh Drive trong bộ nhớ siêu tốc (Luồng 2)
+  // Cache ảnh theo nhu cầu. Không quét trước tới 2.500 file Drive vì riêng bước
+  // này có thể ngốn vài phút dù đề không có ảnh cần tải lại.
   const fileCache = {};
-  try {
-    const imgFolder = getOrCreateImagesFolder();
-    if (imgFolder) {
-      const files = imgFolder.getFiles();
-      let count = 0;
-      while (files.hasNext() && count < 2500) {
-        const f = files.next();
-        fileCache[f.getName()] = f.getId();
-        count++;
-      }
-    }
-  } catch(e) {}
 
   // Làm sạch danh sách decks trong manifest để nạp lại chuẩn
   manifest.subjects.forEach(sub => {
@@ -187,6 +198,7 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
         const subjectId = newSubjectsMap[subKey].id;
         const deckId = generateSlug(deckName, `DE_${i}`);
         const deckPath = `${subjectId}/${deckId}`;
+        deckRowsByPath[deckPath] = i + 1;
         
         const tagsStr = String(row[5] || '').trim(); // Cột F là Tags
         const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(t => t) : [];
@@ -223,13 +235,20 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
               break;
             }
             try {
+              deckSheet.getRange(i + 1, 5).setValue(`⏳ Đang đọc Google Form: ${deckName}`);
+              SpreadsheetApp.flush();
               ss.toast(`Đang nạp (${fetched + 1}/${targetUrls.size}): ${deckName}...`, '⚡ Đang xử lý', 10);
               const questions = extractQuestionsFromForm(formUrl, deckImgUrl, deckName, baremMap, fileCache);
               newAllDecksData[deckPath] = JSON.stringify(questions);
               changedDeckPaths.push(deckPath);
               fetched++;
+              deckSheet.getRange(i + 1, 5).setValue(`⏳ Đã đọc ${questions.length} câu, đang đưa lên web...`);
+              SpreadsheetApp.flush();
             } catch(err) {
               newAllDecksData[deckPath] = JSON.stringify({ error: err.message });
+              deckReadErrors[deckPath] = compactSyncMessage_(err, 90);
+              deckSheet.getRange(i + 1, 5).setValue(`❌ Lỗi đọc Form: ${deckReadErrors[deckPath]}`);
+              SpreadsheetApp.flush();
             }
           }
           continue;
@@ -274,7 +293,16 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
         deckPath: path,
         questions: parseDeckQuestions_(newAllDecksData[path])
       });
+      deckSyncResults[path] = deckSync;
       if (!deckSync.success) webSyncWarnings.push(path + ': ' + deckSync.message);
+      if (targetUrls && deckRowsByPath[path]) {
+        const parsedQuestions = parseDeckQuestions_(newAllDecksData[path]);
+        const statusText = deckSync.success
+          ? `✅ Đã lên app (${parsedQuestions.length} câu)`
+          : `❌ Web chưa nhận: ${compactSyncMessage_(deckSync.message, 90)}`;
+        deckSheet.getRange(deckRowsByPath[path], 5).setValue(statusText);
+        SpreadsheetApp.flush();
+      }
     });
   }
 
@@ -298,6 +326,20 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
         const subId = newSubjectsMap[subKey] ? newSubjectsMap[subKey].id : generateSlug(subKey);
         const deckId = generateSlug(deckName, `DE_${i}`);
         const deckPath = `${subId}/${deckId}`;
+
+        if (deckReadErrors[deckPath]) {
+          statusValues.push([`❌ Lỗi đọc Form: ${deckReadErrors[deckPath]}`]);
+          continue;
+        }
+        if (deckSyncResults[deckPath] && !deckSyncResults[deckPath].success) {
+          statusValues.push([`❌ Web chưa nhận: ${compactSyncMessage_(deckSyncResults[deckPath].message, 90)}`]);
+          continue;
+        }
+        const selectedThisRun = targetUrls && targetUrls.has(String(deckData[i][2] || '').trim());
+        if (selectedThisRun && changedDeckPaths.indexOf(deckPath) < 0) {
+          statusValues.push(['⏳ Chưa chạy xong; hãy bôi đen dòng này và đồng bộ lại']);
+          continue;
+        }
         
         if (newAllDecksData[deckPath]) {
           try {
@@ -332,18 +374,36 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
   
   if (showToast) {
     if (targetUrls) {
+      const webSuccessCount = notifyWeb
+        ? changedDeckPaths.filter(path => deckSyncResults[path] && deckSyncResults[path].success).length
+        : fetched;
+      const failedCount = Math.max(0, targetUrls.size - webSuccessCount);
       const message = timedOutEarly
-        ? `Đã lưu an toàn ${fetched}/${targetUrls.size} đề được chọn.\nCác đề còn lại chưa có dấu ✅ cần được bôi đen và đồng bộ lại.`
-        : `Đã nạp xong ${fetched}/${targetUrls.size} đề được chọn.\n(Xem Cột E để kiểm tra trạng thái)`;
-      SpreadsheetApp.getUi().alert(timedOutEarly ? 'Tạm dừng an toàn' : 'Thành công', message, SpreadsheetApp.getUi().ButtonSet.OK);
+        ? `Đã đưa lên web ${webSuccessCount}/${targetUrls.size} đề được chọn.\nCác đề còn lại chưa có dấu ✅ cần được bôi đen và đồng bộ lại.`
+        : `Đã đưa lên web ${webSuccessCount}/${targetUrls.size} đề được chọn.${failedCount ? `\nCó ${failedCount} đề lỗi; xem chi tiết ngay tại Cột E.` : '\nTất cả đã hoàn tất; xem số câu tại Cột E.'}`;
+      // Không dùng ui.alert ở cuối lượt chạy: hộp thoại chờ Admin bấm OK có thể
+      // giữ execution sống đến đúng giới hạn 6 phút dù dữ liệu đã lên web.
+      SpreadsheetApp.getActiveSpreadsheet().toast(
+        message.replace(/\n/g, ' '),
+        timedOutEarly ? 'Tạm dừng an toàn' : (failedCount ? 'Hoàn tất có lỗi' : 'Thành công'),
+        10
+      );
     } else if (timedOutEarly) {
-      SpreadsheetApp.getUi().alert('Tự động lưu an toàn', `Đã nạp được ${fetched} đề mới và lưu vào bộ nhớ thành công.\n(Các đề đã nạp có dấu ✅ ở Cột E)\n\nVui lòng bấm lại nút "2. Đồng bộ Đề Thi" một lần nữa để nạp tiếp các đề còn lại nhé!`, SpreadsheetApp.getUi().ButtonSet.OK);
+      SpreadsheetApp.getActiveSpreadsheet().toast(
+        `Đã nạp ${fetched} đề và lưu an toàn. Hãy chạy lại để nạp các đề còn lại.`,
+        'Tạm dừng an toàn',
+        10
+      );
     } else {
-      SpreadsheetApp.getUi().alert('Thành công', `Đồng bộ Đề Thi hoàn tất! (Cào mới: ${fetched}, Đã có sẵn: ${reused})\n(Tất cả đề đã được đánh dấu ✅ ở Cột E)`, SpreadsheetApp.getUi().ButtonSet.OK);
+      SpreadsheetApp.getActiveSpreadsheet().toast(
+        `Đồng bộ hoàn tất — cào mới: ${fetched}, đã có sẵn: ${reused}.`,
+        'Thành công',
+        10
+      );
     }
   }
   if (webSyncWarnings.length) SpreadsheetApp.getActiveSpreadsheet().toast('Sheet đã lưu; MongoDB chưa đồng bộ: ' + webSyncWarnings[0], 'Cần kiểm tra');
-  return { manifest, allDecksData: newAllDecksData, changedDeckPaths, webSyncWarnings };
+  return { manifest, allDecksData: newAllDecksData, changedDeckPaths, webSyncWarnings, deckSyncResults };
 }
 
 // -------------------------------------------------------------------------

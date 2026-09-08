@@ -48,9 +48,15 @@ export default async function handler(req, res) {
         return res.status(403).json({ success: false, message: 'Tài khoản chưa được cấp quyền cho môn học này.' });
       }
     } else {
-      // Chỉ câu hỏi miễn phí mới được cache dùng chung. TTL ngắn để khi đổi giá
-      // hoặc cập nhật đề, dữ liệu cũ tự hết hiệu lực nhanh.
-      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+      // URL có revision thay đổi sau mỗi lần đồng bộ nên có thể cache lâu mà
+      // không trả nhầm bản cũ. Client cũ không gửi revision chỉ được cache 10s.
+      const hasRevision = String(req.query.revision || '').trim() !== '';
+      res.setHeader(
+        'Cache-Control',
+        hasRevision
+          ? 'public, max-age=0, s-maxage=3600, stale-while-revalidate=86400'
+          : 'public, max-age=0, s-maxage=10'
+      );
       res.removeHeader('Vary');
     }
 

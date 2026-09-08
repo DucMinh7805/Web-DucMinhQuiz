@@ -3,8 +3,9 @@ import { Subject, Deck, Book } from '../_models/index.js';
 
 export default async function handler(req, res) {
   // Danh mục là dữ liệu công khai, giống nhau cho mọi người. Giữ trình duyệt
-  // luôn kiểm tra lại nhưng cho phép Vercel Edge phục vụ tức thì trong 60 giây.
-  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+  // luôn kiểm tra lại. Chỉ giữ manifest 10 giây để đề vừa đồng bộ không bị
+  // CDN trả bản cũ trong nhiều phút; nội dung câu hỏi dùng revision riêng.
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=10');
   // Manifest là công khai và không dùng cookie; wildcard rõ ràng an toàn hơn
   // việc phản chiếu Origin bất kỳ kèm Access-Control-Allow-Credentials.
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -43,6 +44,7 @@ export default async function handler(req, res) {
         title: deck.title,
         name: deck.title, // Bảo toàn trường name cho UI cũ và title cho UI mới
         path: deck.path,
+        revision: new Date(deck.updatedAt || 0).getTime() || 0,
         stage: deck.stage,
         tags: deck.tags || [],
         questionCount: deck.totalQuestions,
@@ -73,6 +75,7 @@ export default async function handler(req, res) {
           title: d.title,
           name: d.title,
           path: d.path,
+          revision: new Date(d.updatedAt || 0).getTime() || 0,
           stage: d.stage,
           tags: d.tags || [],
           questionCount: d.totalQuestions,
@@ -128,7 +131,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      revision: subjects.reduce((latest, item) => {
+      revision: [...subjects, ...decks, ...books].reduce((latest, item) => {
         const time = new Date(item.updatedAt || 0).getTime();
         return Number.isFinite(time) && time > latest ? time : latest;
       }, 0),

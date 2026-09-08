@@ -138,6 +138,23 @@ function findScrapedImageUrl_(value, depth) {
   return '';
 }
 
+/**
+ * Google Forms đôi khi vẫn trả item MULTIPLE_CHOICE dù Answer Key có nhiều
+ * lựa chọn được đánh đúng. Không dùng .find() vì sẽ làm rơi mọi đáp án sau
+ * đáp án đầu tiên.
+ */
+function getCorrectChoiceValues_(choices) {
+  return (choices || [])
+    .filter(choice => choice.isCorrectAnswer && choice.isCorrectAnswer())
+    .map(choice => String(choice.getValue() || '').trim())
+    .filter(Boolean);
+}
+
+function isMultipleAnswerQuestion_(questionText, answerValue) {
+  const answers = String(answerValue || '').split('|').map(value => value.trim()).filter(Boolean);
+  return answers.length > 1 || /(?:chọn\s+(?:nhiều|các)\s+đáp\s+án|nhiều\s+đáp\s+án)/i.test(String(questionText || ''));
+}
+
 function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = "", baremMap = null, fileCache = null) {
   const form = FormApp.openByUrl(formUrl);
   const formId = form.getId();
@@ -286,12 +303,12 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
     if (itemType === FormApp.ItemType.MULTIPLE_CHOICE) {
       const mcItem = item.asMultipleChoiceItem();
       const choices = mcItem.getChoices();
-      const correctChoice = choices.find(choice => choice.isCorrectAnswer && choice.isCorrectAnswer());
+      const correctChoices = getCorrectChoiceValues_(choices);
       
       const optionsList = choices.map(choice => choice.getValue().trim());
       // Không được tự lấy lựa chọn đầu tiên làm đáp án khi Form chưa cấu hình
       // grading; để trống còn an toàn hơn ghi một đáp án sai vào hệ thống.
-      const answerVal = correctChoice ? correctChoice.getValue().trim() : scrapedAnswer;
+      const answerVal = correctChoices.length ? correctChoices.join('|') : scrapedAnswer;
       const feedback = mcItem.getFeedbackForCorrect() || mcItem.getFeedbackForIncorrect();
 
       // Convert ảnh sang Google Drive vĩnh viễn (Luồng 2)
@@ -305,9 +322,13 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
         if (baremMap[baremKey]) finalMcAnswer = baremMap[baremKey];
       }
 
+      // Nếu Answer Key có từ hai đáp án đúng, web phải render checkbox ngay cả
+      // khi người soạn Form để nhầm loại câu là "Trắc nghiệm".
+      const finalMcType = isMultipleAnswerQuestion_(titleText, finalMcAnswer) ? 'multiple' : 'single';
+
       questions.push({
         id: `${formId}-${questionIndex + 1}`,
-        type: 'single',
+        type: finalMcType,
         question: titleText,
         vignette: helpText,
         imageUrl: itemImageUrl,
@@ -321,11 +342,11 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
     else if (itemType === FormApp.ItemType.CHECKBOX) {
       const cbItem = item.asCheckboxItem();
       const choices = cbItem.getChoices();
-      const correctChoices = choices.filter(choice => choice.isCorrectAnswer && choice.isCorrectAnswer());
+      const correctChoices = getCorrectChoiceValues_(choices);
       
       const optionsList = choices.map(choice => choice.getValue().trim());
       const answerVal = correctChoices.length > 0 
-        ? correctChoices.map(c => c.getValue().trim()).join('|')
+        ? correctChoices.join('|')
         : scrapedAnswer;
       const feedback = cbItem.getFeedbackForCorrect() || cbItem.getFeedbackForIncorrect();
 

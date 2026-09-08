@@ -44,9 +44,9 @@ function AppDataWrapper({ children }) {
       }
       return data;
     },
-    staleTime: 5 * 60 * 1000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     retry: 2,
   });
 
@@ -80,15 +80,19 @@ function QuizDataLoader({ _manifest }) {
   const location = useLocation();
   const rawPath = location.pathname.replace(/^\/quiz\/?/, '');
   const deckPath = decodeURIComponent(rawPath);
+  const deckRevision = (_manifest?.subjects || [])
+    .flatMap(subject => subject.decks || [])
+    .find(deck => String(deck.path || '').toLowerCase() === deckPath.toLowerCase())
+    ?.revision || _manifest?.revision || 0;
 
   const { data: questions, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['deck', deckPath],
+    queryKey: ['deck', deckPath, deckRevision],
     queryFn: async () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // Timeout 15 giây
 
       try {
-        const data = await fetchDeckQuestions(deckPath, controller.signal);
+        const data = await fetchDeckQuestions(deckPath, controller.signal, deckRevision);
         clearTimeout(timeoutId);
         return data;
       } catch (err) {
@@ -100,8 +104,8 @@ function QuizDataLoader({ _manifest }) {
       }
     },
     enabled: !!deckPath,
-    staleTime: 5 * 60 * 1000,
-    refetchOnMount: false,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const getQuestionsByDeckPath = () => questions;

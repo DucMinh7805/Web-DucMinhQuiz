@@ -29,17 +29,17 @@ export default defineConfig(({ mode }) => {
           display: 'standalone',
           icons: [
             {
-              src: 'icons/icon-192.png',
+              src: 'icons/diamondquiz-full-192-v3.png',
               sizes: '192x192',
               type: 'image/png'
             },
             {
-              src: 'icons/icon-512.png',
+              src: 'icons/diamondquiz-full-512-v3.png',
               sizes: '512x512',
               type: 'image/png'
             },
             {
-              src: 'icons/icon-512.png',
+              src: 'icons/diamondquiz-full-512-v3.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable'

@@ -39,11 +39,13 @@ export async function fetchManifest() {
  * @param {string} actualPath - Đường dẫn bộ đề
  * @param {AbortSignal} signal 
  */
-export async function fetchDeckQuestions(actualPath, signal) {
+export async function fetchDeckQuestions(actualPath, signal, revision = 0) {
   if (!actualPath) throw new Error("Đường dẫn không hợp lệ");
 
   // Không fallback sang GAS công khai: fallback đó sẽ bỏ qua kiểm tra quyền PRO.
-  const apiRes = await fetch(`/api/quiz/questions?deckPath=${encodeURIComponent(actualPath)}`, {
+  const params = new URLSearchParams({ deckPath: actualPath });
+  if (revision) params.set('revision', String(revision));
+  const apiRes = await fetch(`/api/quiz/questions?${params.toString()}`, {
     signal,
     credentials: 'include'
   });
