@@ -23,18 +23,47 @@ export default async function handler(req, res) {
   try {
     await connectToDatabase();
     const cachedUser = await User.findOne({ phone, isActive: true }).lean();
-    if (cachedUser && cachedUser.passwordHash === computeFastHash(phone, password)) {
-      const userPayload = {
-        phone: cachedUser.phone,
-        name: cachedUser.fullName,
-        role: cachedUser.role || 'user',
-        subscriptionTier: cachedUser.subscriptionTier || 'free',
-        subscriptionExpiresAt: cachedUser.subscriptionExpiresAt,
-        entitlements: Array.isArray(cachedUser.entitlements) ? cachedUser.entitlements : []
-      };
-      const user = setSheetSessionCookie(res, userPayload);
-      User.updateOne({ _id: cachedUser._id }, { $set: { lastLoginAt: new Date() } }).exec().catch(() => {});
-      return res.status(200).json({ success: true, user });
+
+    if (cachedUser) {
+      const hashMatch = cachedUser.passwordHash === computeFastHash(phone, password);
+
+      if (hashMatch) {
+        // Hash khớp → đăng nhập ngay, không cần GAS
+        const userPayload = {
+          phone: cachedUser.phone,
+          name: cachedUser.fullName,
+          role: cachedUser.role || 'user',
+          subscriptionTier: cachedUser.subscriptionTier || 'free',
+          subscriptionExpiresAt: cachedUser.subscriptionExpiresAt,
+          entitlements: Array.isArray(cachedUser.entitlements) ? cachedUser.entitlements : []
+        };
+        const user = setSheetSessionCookie(res, userPayload);
+        User.updateOne({ _id: cachedUser._id }, { $set: { lastLoginAt: new Date() } }).exec().catch(() => {});
+        return res.status(200).json({ success: true, user });
+      }
+
+      // Grace period: Nếu tài khoản vừa đăng ký trong vòng 60 giây
+      // (GAS background chưa xử lý xong, passwordHash có thể chưa sync)
+      // → Cho đăng nhập ngay thay vì bắt chờ GAS
+      const createdAt = cachedUser.createdAt || cachedUser._id.getTimestamp();
+      const ageSeconds = (Date.now() - new Date(createdAt).getTime()) / 1000;
+      if (ageSeconds < 60 && !cachedUser.passwordHash) {
+        // Tài khoản cực mới, hash chưa ghi → cấp session tạm thời
+        const userPayload = {
+          phone: cachedUser.phone,
+          name: cachedUser.fullName,
+          role: cachedUser.role || 'user',
+          subscriptionTier: 'free',
+          entitlements: []
+        };
+        const user = setSheetSessionCookie(res, userPayload);
+        return res.status(200).json({ success: true, user });
+      }
+
+      if (cachedUser.passwordHash) {
+        // Hash có nhưng không khớp → sai mật khẩu, không cần gọi GAS
+        return res.status(401).json({ success: false, message: 'Thông tin đăng nhập không đúng.' });
+      }
     }
   } catch (dbErr) {
     console.warn('[Fast Login DB Check]', dbErr.message);

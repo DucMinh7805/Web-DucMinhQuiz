@@ -37,9 +37,13 @@ export async function connectToDatabase() {
       // URI trước đây không có /database nên MongoDB tự chọn "test" (trống).
       // Tách tên DB thành cấu hình rõ ràng để API và các script luôn cùng kho.
       dbName: process.env.MONGODB_DB_NAME || 'WebYKhoa',
-      maxPoolSize: 10,
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 45000
+      // Tăng pool để xử lý nhiều nick cùng đăng nhập đồng thời
+      maxPoolSize: 20,
+      minPoolSize: 2,
+      // Giảm timeout để fail nhanh và retry thay vì treo lâu
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 5000,
+      socketTimeoutMS: 30000
     };
 
     cached.promise = mongoose.connect(uri, opts).then((mongooseInstance) => {

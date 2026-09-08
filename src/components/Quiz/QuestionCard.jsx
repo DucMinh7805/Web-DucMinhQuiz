@@ -34,6 +34,7 @@ export default function QuestionCard({
 }) {
   const [zoomImage, setZoomImage] = useState(null);
   const [multiSelected, setMultiSelected] = useState([]);
+  const [shortAnswerText, setShortAnswerText] = useState('');
   const cardTopRef = useRef(null);
 
   // Danh sách đáp án chuẩn
@@ -74,6 +75,15 @@ export default function QuestionCard({
       setMultiSelected([]);
     }
   }, [questionIndex, selectedAnswer, isAnswered, userAnswersList]);
+
+  // Sync shortAnswerText với selectedAnswer khi chuyển câu (controlled input)
+  useEffect(() => {
+    // Nếu câu đã được trả lời → hiện lại đáp án đã nhập; nếu chưa → reset trống
+    setShortAnswerText(
+      (isAnswered && question?.type === 'short_answer') ? String(selectedAnswer) : ''
+    );
+  }, [questionIndex, question?.type]);
+
 
   // Thao tác vuốt cảm ứng trên Điện thoại / Tablet
   const touchStartXRef = useRef(null);
@@ -204,13 +214,9 @@ export default function QuestionCard({
                     onSubmit={(e) => {
                       e.preventDefault();
                       if (mode === 'tutor' && isAnswered) return;
-                      const val = e.target.elements.shortAnswer.value.trim();
-                      if (val) {
-                        onSelectOption(val);
-                      } else {
-                        // Nếu bỏ trống nhưng vẫn muốn nộp để xem đáp án
-                        onSelectOption("Không trả lời");
-                      }
+                      const val = shortAnswerText.trim();
+                      // Lưu câu trả lời vào answers state (kể cả khi bỏ trống)
+                      onSelectOption(val || "Không trả lời");
                     }}
                     className="flex flex-col space-y-3"
                   >
@@ -219,7 +225,8 @@ export default function QuestionCard({
                       rows="3"
                       placeholder="Nhập câu trả lời của bạn vào đây..."
                       disabled={mode === 'tutor' && isAnswered}
-                      defaultValue={selectedAnswer || ''}
+                      value={shortAnswerText}
+                      onChange={(e) => setShortAnswerText(e.target.value)}
                       className="w-full bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white p-4 rounded-2xl border border-slate-200 dark:border-slate-700 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none resize-none transition-all disabled:opacity-70 text-sm"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
