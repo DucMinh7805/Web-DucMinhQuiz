@@ -6,7 +6,6 @@ export default async function handler(req, res) {
   // Endpoint chỉ dùng cùng origin. Không phản chiếu Origin tùy ý kèm cookie.
   // Câu hỏi PRO tuyệt đối không được giữ trong CDN/shared browser cache.
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
-  res.setHeader('Vary', 'Cookie, Authorization');
   if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Chỉ hỗ trợ GET.' });
 
   try {
@@ -18,15 +17,14 @@ export default async function handler(req, res) {
     }
 
     const decodedPath = decodeURIComponent(deckPath).trim();
-    const escaped = decodedPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const normalizedPath = decodedPath.toLowerCase();
 
-    // Xác định môn sở hữu bộ đề trước khi đọc câu hỏi. Đây là điểm chặn PRO
-    // thực sự; khóa giao diện phía trình duyệt không được dùng làm căn cứ.
-    let deck = await Deck.findOne({ path: { $regex: new RegExp(`^${escaped}$`, 'i') }, isPublished: true }).lean();
+    // `path` được lưu lowercase và có index. Truy vấn exact giúp MongoDB dùng
+    // index trực tiếp thay vì phải xử lý regex không phân biệt hoa/thường.
+    let deck = await Deck.findOne({ path: normalizedPath, isPublished: true }).lean();
     if (!deck) {
-      const altPath = decodedPath.replace(/\//g, '-');
-      const altEscaped = altPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      deck = await Deck.findOne({ path: { $regex: new RegExp(`^${altEscaped}$`, 'i') }, isPublished: true }).lean();
+      const altPath = normalizedPath.replace(/\//g, '-');
+      deck = await Deck.findOne({ path: altPath, isPublished: true }).lean();
     }
     if (!deck) return res.status(404).json({ success: false, message: 'Không tìm thấy bộ đề.' });
 
@@ -42,16 +40,23 @@ export default async function handler(req, res) {
     }
     const isPro = Boolean(subject.isPro || Number(subject.price) > 0);
     if (isPro) {
+      res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+      res.setHeader('Vary', 'Cookie, Authorization');
       const session = authenticateSheetSession(req);
       if (!session) return res.status(401).json({ success: false, message: 'Vui lòng đăng nhập để mở nội dung PRO.' });
       if (!sessionHasEntitlement(session, 'subject', subject.id)) {
         return res.status(403).json({ success: false, message: 'Tài khoản chưa được cấp quyền cho môn học này.' });
       }
+    } else {
+      // Chỉ câu hỏi miễn phí mới được cache dùng chung. TTL ngắn để khi đổi giá
+      // hoặc cập nhật đề, dữ liệu cũ tự hết hiệu lực nhanh.
+      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+      res.removeHeader('Vary');
     }
 
     // Chỉ truy vấn câu hỏi sau khi đã kiểm tra quyền.
-    let questions = await Question.find({
-      deckPath: { $regex: new RegExp(`^${deck.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+    const questions = await Question.find({
+      deckId: deck._id,
       isPublished: true
     })
       .sort({ orderIndex: 1, createdAt: 1 })

@@ -1,6 +1,7 @@
 /**
- * In-memory sliding window Rate Limiter
- * Phù hợp cho Serverless & Node.js instance
+ * In-memory sliding window Rate Limiter.
+ * Đây là lớp bảo vệ best-effort trong từng instance, không phải giới hạn toàn
+ * hệ thống khi Vercel scale ngang. Production lớn cần Redis/WAF dùng chung.
  */
 const rateLimitMap = new Map();
 

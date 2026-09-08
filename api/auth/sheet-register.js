@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Kiểm tra tài khoản đã tồn tại trong MongoDB Atlas siêu tốc (~15ms)
+    // 1. Kiểm tra tài khoản đã tồn tại trong nguồn chính MongoDB Atlas.
     await connectToDatabase();
     const existing = await User.findOne({ phone }).lean();
     if (existing) {
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
       entitlements: []
     };
 
-    // 2. Lưu ngay tài khoản vào MongoDB Atlas (~20ms)
+    // 2. Lưu ngay tài khoản vào MongoDB Atlas.
     await User.create({
       phone,
       fullName: displayName,
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
       lastLoginAt: new Date()
     });
 
-    // 3. Đặt HttpOnly session cookie và đăng nhập ngay lập tức cho người dùng (tổng thời gian < 50ms)
+    // 3. Đặt HttpOnly session cookie và đăng nhập ngay cho người dùng.
     const user = setSheetSessionCookie(res, userPayload);
 
     // 4. Sheet tài khoản là nguồn quản trị riêng, không nằm trên đường phản hồi

@@ -2,7 +2,9 @@ import { connectToDatabase } from '../_utils/db.js';
 import { Subject, Deck, Book } from '../_models/index.js';
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  // Danh mục là dữ liệu công khai, giống nhau cho mọi người. Giữ trình duyệt
+  // luôn kiểm tra lại nhưng cho phép Vercel Edge phục vụ tức thì trong 60 giây.
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
   // Manifest là công khai và không dùng cookie; wildcard rõ ràng an toàn hơn
   // việc phản chiếu Origin bất kỳ kèm Access-Control-Allow-Credentials.
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -13,20 +15,12 @@ export default async function handler(req, res) {
   try {
     await connectToDatabase();
 
-    // 1. Lấy toàn bộ Môn học đang publish
-    const subjects = await Subject.find({ isPublished: true })
-      .sort({ orderIndex: 1, createdAt: 1 })
-      .lean();
-
-    // 2. Lấy toàn bộ Bộ đề đang publish
-    const decks = await Deck.find({ isPublished: true })
-      .sort({ orderIndex: 1, createdAt: 1 })
-      .lean();
-
-    // 3. Lấy toàn bộ Sách & Slide Y khoa
-    const books = await Book.find({ isPublished: true })
-      .sort({ createdAt: 1 })
-      .lean();
+    // Ba nhóm dữ liệu độc lập nên đọc song song, tránh cộng dồn ba lượt chờ DB.
+    const [subjects, decks, books] = await Promise.all([
+      Subject.find({ isPublished: true }).sort({ orderIndex: 1, createdAt: 1 }).lean(),
+      Deck.find({ isPublished: true }).sort({ orderIndex: 1, createdAt: 1 }).lean(),
+      Book.find({ isPublished: true }).sort({ createdAt: 1 }).lean()
+    ]);
 
     // Không đoán bản ghi cũ là miễn phí. Chặn toàn bộ manifest cho đến khi
     // quy trình đồng bộ giá mới đánh dấu rõ từng môn và tài liệu.

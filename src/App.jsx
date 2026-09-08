@@ -17,6 +17,7 @@ const ThankYouPage = lazy(() => import('./pages/ThankYouPage'));
 import AuthModalGuard from './components/Auth/AuthModalGuard';
 import AuthGuard from './components/Auth/AuthGuard';
 import AppErrorBoundary from './components/Common/AppErrorBoundary';
+import NetworkStatusBanner from './components/Common/NetworkStatusBanner';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { fetchManifest, fetchDeckQuestions } from './services/quizApi';
@@ -43,9 +44,9 @@ function AppDataWrapper({ children }) {
       }
       return data;
     },
-    staleTime: 5000,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
     retry: 2,
   });
 
@@ -99,8 +100,8 @@ function QuizDataLoader({ _manifest }) {
       }
     },
     enabled: !!deckPath,
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 5 * 60 * 1000,
+    refetchOnMount: false,
   });
 
   const getQuestionsByDeckPath = () => questions;
@@ -130,6 +131,7 @@ function QuizDataLoader({ _manifest }) {
 export default function App() {
   return (
     <AppErrorBoundary>
+      <NetworkStatusBanner />
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <AuthProvider>

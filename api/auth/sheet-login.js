@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   const limit = checkRateLimit(`sheet_login_${getClientIp(req)}_${phone}`, 5, 15 * 60 * 1000);
   if (!limit.allowed) return res.status(429).json({ success: false, message: 'Thử sai quá nhiều lần. Vui lòng chờ 15 phút.' });
 
-  // 1. Kiểm tra cache đăng nhập siêu tốc qua MongoDB Atlas (15 miligiây)
+  // 1. Kiểm tra nguồn xác thực chính trong MongoDB Atlas.
   try {
     await connectToDatabase();
     const cachedUser = await User.findOne({ phone, isActive: true }).lean();

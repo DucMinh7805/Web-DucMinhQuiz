@@ -7,9 +7,8 @@ export async function fetchManifest() {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
   try {
-    const apiRes = await fetch(`/api/quiz/manifest?_t=${Date.now()}`, {
+    const apiRes = await fetch('/api/quiz/manifest', {
       signal: controller.signal,
-      cache: 'no-store',
       credentials: 'same-origin',
       headers: { Accept: 'application/json' }
     });
@@ -24,6 +23,9 @@ export async function fetchManifest() {
       revision: data.revision
     };
   } catch (error) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      throw new Error('Bạn đang mất kết nối Internet. Hãy kiểm tra Wi-Fi hoặc dữ liệu di động rồi thử lại.');
+    }
     if (error?.name === 'AbortError') throw new Error('Máy chủ danh mục phản hồi quá lâu. Vui lòng thử lại.');
     throw error;
   } finally {
@@ -41,7 +43,7 @@ export async function fetchDeckQuestions(actualPath, signal) {
   if (!actualPath) throw new Error("Đường dẫn không hợp lệ");
 
   // Không fallback sang GAS công khai: fallback đó sẽ bỏ qua kiểm tra quyền PRO.
-  const apiRes = await fetch(`/api/quiz/questions?deckPath=${encodeURIComponent(actualPath)}&_t=${Date.now()}`, {
+  const apiRes = await fetch(`/api/quiz/questions?deckPath=${encodeURIComponent(actualPath)}`, {
     signal,
     credentials: 'include'
   });
