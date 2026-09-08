@@ -71,6 +71,7 @@ function syncDecksOnly() {
 function syncSelectedDecks() {
   const ui = SpreadsheetApp.getUi();
   const sheet = SpreadsheetApp.getActiveSheet();
+  const MAX_SELECTED_DECKS_PER_RUN = 10;
   if (!sheet.getName().toLowerCase().includes("up")) {
     return ui.alert('Lỗi', 'Vui lòng mở tab UpDe, dùng chuột bôi đen các dòng đề thi bạn muốn nạp rồi chạy lại.', ui.ButtonSet.OK);
   }
@@ -97,6 +98,13 @@ function syncSelectedDecks() {
   
   if (targetUrls.size === 0) {
     return ui.alert('Lỗi', 'Không tìm thấy link Google Form nào ở Cột C trong vùng bạn vừa bôi đen.', ui.ButtonSet.OK);
+  }
+  if (targetUrls.size > MAX_SELECTED_DECKS_PER_RUN) {
+    return ui.alert(
+      'Chia nhỏ để đồng bộ an toàn',
+      `Bạn đang chọn ${targetUrls.size} đề. Vui lòng đồng bộ tối đa ${MAX_SELECTED_DECKS_PER_RUN} đề/lần để tránh Google Apps Script dừng giữa chừng.`,
+      ui.ButtonSet.OK
+    );
   }
   
   SpreadsheetApp.getActiveSpreadsheet().toast(`Bắt đầu nạp ${targetUrls.size} đề thi được chọn...`, 'Đang xử lý', 5);
@@ -207,6 +215,13 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
         // 1. Chế độ bôi đen
         if (targetUrls) {
           if (isTarget) {
+            // Chừa thời gian cho bước ghi Sheet, đồng bộ MongoDB và cập nhật trạng thái.
+            // Nếu gặp Form quá nặng, các đề đã xử lý vẫn được lưu an toàn ở cuối lượt chạy.
+            const elapsed = (new Date().getTime() - startTime) / 1000;
+            if (elapsed > 210) {
+              timedOutEarly = true;
+              break;
+            }
             try {
               ss.toast(`Đang nạp (${fetched + 1}/${targetUrls.size}): ${deckName}...`, '⚡ Đang xử lý', 10);
               const questions = extractQuestionsFromForm(formUrl, deckImgUrl, deckName, baremMap, fileCache);
@@ -317,7 +332,10 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
   
   if (showToast) {
     if (targetUrls) {
-      SpreadsheetApp.getUi().alert('Thành công', 'Đã nạp xong Đề được chọn trong tích tắc!\n(Xem Cột E để kiểm tra trạng thái)', SpreadsheetApp.getUi().ButtonSet.OK);
+      const message = timedOutEarly
+        ? `Đã lưu an toàn ${fetched}/${targetUrls.size} đề được chọn.\nCác đề còn lại chưa có dấu ✅ cần được bôi đen và đồng bộ lại.`
+        : `Đã nạp xong ${fetched}/${targetUrls.size} đề được chọn.\n(Xem Cột E để kiểm tra trạng thái)`;
+      SpreadsheetApp.getUi().alert(timedOutEarly ? 'Tạm dừng an toàn' : 'Thành công', message, SpreadsheetApp.getUi().ButtonSet.OK);
     } else if (timedOutEarly) {
       SpreadsheetApp.getUi().alert('Tự động lưu an toàn', `Đã nạp được ${fetched} đề mới và lưu vào bộ nhớ thành công.\n(Các đề đã nạp có dấu ✅ ở Cột E)\n\nVui lòng bấm lại nút "2. Đồng bộ Đề Thi" một lần nữa để nạp tiếp các đề còn lại nhé!`, SpreadsheetApp.getUi().ButtonSet.OK);
     } else {

@@ -7,6 +7,8 @@ function onOpen() {
       .addItem('Up các đề đang bôi đen', 'syncSelectedDecks');
 
   const syncMenu = ui.createMenu('🔄 Đồng bộ dữ liệu')
+      .addItem('Đồng bộ các đề đang bôi đen (khuyên dùng)', 'syncSelectedDecks')
+      .addSeparator()
       .addItem('Đồng bộ tất cả đề trong UpDe', 'syncDecksOnly')
       .addItem('Đồng bộ chuyên khoa/môn', 'syncChuyenKhoa')
       .addItem('Đồng bộ hình ảnh', 'syncImagesOnly')

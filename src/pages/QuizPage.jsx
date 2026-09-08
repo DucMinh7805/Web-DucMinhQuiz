@@ -188,7 +188,15 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
   // Actions
   const handleSelectOption = (option) => {
     if (mode === 'tutor' && answers[currentIndex] !== undefined) return;
-    setAnswers(prev => ({ ...prev, [currentIndex]: option }));
+    setAnswers(prev => {
+      const isShortAnswer = currentQuestion?.type === 'short_answer' || currentQuestion?.type === 'fill_in_blank';
+      if (mode === 'exam' && isShortAnswer && option === '') {
+        const next = { ...prev };
+        delete next[currentIndex];
+        return next;
+      }
+      return { ...prev, [currentIndex]: option };
+    });
   };
 
   const toggleEliminate = (optIndex) => {

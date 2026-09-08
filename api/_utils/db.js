@@ -37,13 +37,15 @@ export async function connectToDatabase() {
       // URI trước đây không có /database nên MongoDB tự chọn "test" (trống).
       // Tách tên DB thành cấu hình rõ ràng để API và các script luôn cùng kho.
       dbName: process.env.MONGODB_DB_NAME || 'WebYKhoa',
-      // Tăng pool để xử lý nhiều nick cùng đăng nhập đồng thời
-      maxPoolSize: 20,
-      minPoolSize: 2,
-      // Giảm timeout để fail nhanh và retry thay vì treo lâu
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 5000,
-      socketTimeoutMS: 30000
+      // Vercel có thể tạo nhiều instance; mỗi instance có pool riêng. Giữ pool
+      // vừa phải và không neo connection khi rảnh để tránh chạm trần Atlas.
+      maxPoolSize: 10,
+      minPoolSize: 0,
+      maxIdleTimeMS: 30000,
+      waitQueueTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000
     };
 
     cached.promise = mongoose.connect(uri, opts).then((mongooseInstance) => {

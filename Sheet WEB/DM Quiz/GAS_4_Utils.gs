@@ -54,16 +54,14 @@ function getOrCreateImagesFolder() {
 }
 
 /**
- * Lưu trữ ảnh vĩnh viễn trên Google Drive (Luồng 2 - thư mục MedQuiz_Form_Images)
- * - Tự động tải ảnh từ Google Form về thư mục Google Drive của chủ sở hữu
- * - Cấp quyền xem công khai
- * - Tạo link Google Drive Thumbnail chất lượng cao, vĩnh viễn không bao giờ 403
+ * Tái sử dụng Google CDN khi có thể; chỉ lưu Drive khi URL ngoài cần dự phòng.
+ * fileCache giúp không quét lại thư mục Drive cho từng câu hỏi.
  */
 function saveFormImageToDrive(rawImgUrl, formId, qIndex, folder, fileCache = null) {
   if (!rawImgUrl || typeof rawImgUrl !== 'string') return '';
 
-  // 1. Nếu đã là link Google Drive Thumbnail có sẵn -> Dùng trực tiếp ngay
-  if (rawImgUrl.includes('drive.google.com/thumbnail')) {
+  // Link Drive thumbnail/Google CDN đã dùng trực tiếp được, không tải lại.
+  if (rawImgUrl.includes('drive.google.com/thumbnail') || rawImgUrl.includes('googleusercontent.com')) {
     return rawImgUrl;
   }
 
@@ -107,6 +105,39 @@ function saveFormImageToDrive(rawImgUrl, formId, qIndex, folder, fileCache = nul
   return rawImgUrl;
 }
 
+/**
+ * Mỗi câu hỏi trong FB_PUBLIC_LOAD_DATA_ có một entry ID ổn định. Dùng ID này
+ * để ghép dữ liệu scrape với FormApp thay vì vị trí câu hỏi, vì hai danh sách
+ * có thể chứa số lượng item phụ khác nhau (ảnh, tiêu đề phần, mô tả...).
+ */
+function getFormEntryId_(rawItem) {
+  const entryId = rawItem && rawItem[4] && rawItem[4][0] ? rawItem[4][0][0] : '';
+  return entryId === null || entryId === undefined ? '' : String(entryId).trim();
+}
+
+/** Chỉ nhận URL ảnh hoặc Google media ID, không lấy text tùy ý trong payload. */
+function normalizeScrapedImageUrl_(value) {
+  if (typeof value !== 'string') return '';
+  const candidate = value.trim();
+  if (/^https?:\/\//i.test(candidate)) return candidate;
+  if (/^[A-Za-z0-9_-]{20,}$/.test(candidate)) {
+    return 'https://lh3.googleusercontent.com/d/' + candidate + '=w1200';
+  }
+  return '';
+}
+
+function findScrapedImageUrl_(value, depth) {
+  if (depth > 3 || value === null || value === undefined) return '';
+  const direct = normalizeScrapedImageUrl_(value);
+  if (direct) return direct;
+  if (!Array.isArray(value)) return '';
+  for (let i = 0; i < value.length; i++) {
+    const found = findScrapedImageUrl_(value[i], depth + 1);
+    if (found) return found;
+  }
+  return '';
+}
+
 function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = "", baremMap = null, fileCache = null) {
   const form = FormApp.openByUrl(formUrl);
   const formId = form.getId();
@@ -121,9 +152,11 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
   }
 
   // 1. Cào danh sách hình ảnh & đáp án grading trực tiếp từ Google Form HTML
-  // KEY: Dùng Entry ID (it[4][0][0]) thay vì index số để tránh lệch khi có IMAGE item
-  const imageMapById = {};   // { entryId: imgUrl }
-  const answerMapById = {};  // { entryId: answerText }
+  const imageMapByEntryId = {};
+  const answerMapByEntryId = {};
+  // Giữ fallback cho Form cũ không lộ entry ID trong payload HTML.
+  const imageMapByIndex = {};
+  const answerMapByIndex = {};
   let globalFormImage = defaultDeckImageUrl || "";
 
   try {
@@ -149,47 +182,45 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
           const jsonStr = lastSemi !== -1 ? chunk.substring(0, lastSemi).trim() : chunk;
           const parsedData = JSON.parse(jsonStr);
           const formItems = (parsedData[1] && parsedData[1][1]) || [];
-
+          let qIdx = 0;
           for (let i = 0; i < formItems.length; i++) {
             const it = formItems[i];
-
-            // Lấy Entry ID duy nhất của item (it[4][0][0]) - không bao giờ lệch index
-            const entryId = (it[4] && it[4][0] && it[4][0][0]) ? String(it[4][0][0]) : null;
 
             // Tìm ảnh: ưu tiên it[9] (ảnh gắn vào câu hỏi) → it[6] (ảnh inline cũ)
             let foundImg = "";
             if (it[9] && Array.isArray(it[9]) && it[9][0] && it[9][0][0]) {
-              foundImg = it[9][0][0];
-              if (!foundImg.startsWith('http')) {
-                foundImg = 'https://lh3.googleusercontent.com/d/' + foundImg + '=w1200';
-              }
+              foundImg = normalizeScrapedImageUrl_(it[9][0][0]);
             } else if (it[6] && typeof it[6] === 'string' && it[6].startsWith('http')) {
               foundImg = it[6];
             }
 
+            // Ảnh của câu/đáp án có thể nằm trong payload grading thay vì it[9].
+            if (!foundImg && it[4] && it[4][0]) {
+              foundImg = findScrapedImageUrl_(it[4][0][1], 0);
+            }
+
             const itType = it[3];
-            // Loại có câu hỏi: 0=short_answer, 1=paragraph, 2=MC, 4=checkbox
+            const entryId = getFormEntryId_(it);
+            // 0: text, 1: paragraph, 2: multiple_choice, 4: checkbox
             if (itType === 0 || itType === 1 || itType === 2 || itType === 4) {
-              if (entryId) {
-                if (foundImg) {
-                  imageMapById[entryId] = foundImg;
-                }
-                // Đọc đáp án:
-                // - MC/Checkbox (itType 2/4): đáp án tại it[4][0][4] = [[answerText,...],...]
-                // - Short answer TEXT (itType 0): đáp án tại it[4][0][3] = [[answerText,cond,...],...]
-                if (it[4] && it[4][0]) {
-                  if (it[4][0][4] && Array.isArray(it[4][0][4]) && it[4][0][4].length > 0) {
-                    // MC / Checkbox
-                    answerMapById[entryId] = it[4][0][4].map(g => String(g[0] || '').trim()).filter(Boolean).join('|');
-                  } else if (it[4][0][3] && Array.isArray(it[4][0][3]) && it[4][0][3].length > 0) {
-                    // Short answer / Text (điều kiện chấm điểm)
-                    answerMapById[entryId] = it[4][0][3].map(cond => String(cond[0] || '').trim()).filter(Boolean).join('|');
-                  }
-                }
+              if (foundImg) {
+                if (entryId) imageMapByEntryId[entryId] = foundImg;
+                imageMapByIndex[qIdx] = foundImg;
               }
-            } else {
-              // Item không phải câu hỏi (section, image block) → cập nhật ảnh nền chung
-              if (foundImg) globalFormImage = foundImg;
+              // Quiz chọn đáp án dùng [4]; câu trả lời ngắn thường lưu điều kiện
+              // chấm ở [3]. Lưu cả hai theo entry ID để không lệch khi Form có item phụ.
+              const grading = it[4] && it[4][0] ? it[4][0] : null;
+              const gradingArr = grading && Array.isArray(grading[4]) && grading[4].length
+                ? grading[4]
+                : (grading && Array.isArray(grading[3]) ? grading[3] : []);
+              const scrapedAnswer = gradingArr.map(g => String(Array.isArray(g) ? g[0] : '').trim()).filter(Boolean).join('|');
+              if (scrapedAnswer) {
+                if (entryId) answerMapByEntryId[entryId] = scrapedAnswer;
+                answerMapByIndex[qIdx] = scrapedAnswer;
+              }
+              qIdx++;
+            } else if (foundImg) {
+              globalFormImage = foundImg;
             }
           }
         }
@@ -233,15 +264,9 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
       return; // IMAGE item không phải câu hỏi, không tăng questionIndex
     }
 
-    // Lấy Entry ID của item này để tra imageMapById / answerMapById
-    let itemEntryId = null;
-    try {
-      // Mọi loại QuestionItem đều có getId() trả về entry ID khớp với HTML JSON
-      itemEntryId = String(item.getId());
-    } catch(e) {}
-
-    // Tra ảnh theo Entry ID (chính xác tuyệt đối); fallback về ảnh nền chung của đề
-    let itemImageUrl = (itemEntryId && imageMapById[itemEntryId]) ? imageMapById[itemEntryId] : globalFormImage;
+    const entryId = item.getId ? String(item.getId()) : '';
+    let itemImageUrl = imageMapByEntryId[entryId] || imageMapByIndex[questionIndex] || globalFormImage;
+    const scrapedAnswer = answerMapByEntryId[entryId] || answerMapByIndex[questionIndex] || "";
     let helpText = item.getHelpText() ? item.getHelpText().trim() : "";
     let titleText = item.getTitle() ? item.getTitle().trim() : "";
 
@@ -264,8 +289,9 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
       const correctChoice = choices.find(choice => choice.isCorrectAnswer && choice.isCorrectAnswer());
       
       const optionsList = choices.map(choice => choice.getValue().trim());
-      // Ưu tiên: FormApp grading → HTML answerMapById → để trống (an toàn hơn ghi sai)
-      const answerVal = correctChoice ? correctChoice.getValue().trim() : ((itemEntryId && answerMapById[itemEntryId]) || "");
+      // Không được tự lấy lựa chọn đầu tiên làm đáp án khi Form chưa cấu hình
+      // grading; để trống còn an toàn hơn ghi một đáp án sai vào hệ thống.
+      const answerVal = correctChoice ? correctChoice.getValue().trim() : scrapedAnswer;
       const feedback = mcItem.getFeedbackForCorrect() || mcItem.getFeedbackForIncorrect();
 
       // Convert ảnh sang Google Drive vĩnh viễn (Luồng 2)
@@ -300,7 +326,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
       const optionsList = choices.map(choice => choice.getValue().trim());
       const answerVal = correctChoices.length > 0 
         ? correctChoices.map(c => c.getValue().trim()).join('|')
-        : ((itemEntryId && answerMapById[itemEntryId]) || "");
+        : scrapedAnswer;
       const feedback = cbItem.getFeedbackForCorrect() || cbItem.getFeedbackForIncorrect();
 
       if (itemImageUrl && imgFolder) {
@@ -326,7 +352,6 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
       questionIndex++;
     } 
     // C. TỰ LUẬN NGẮN / ĐIỀN TỪ (SHORT ANSWER)
-    // Đáp án đọc từ answerMapById[entryId] (path it[4][0][3] từ HTML scrape)
     else if (itemType === FormApp.ItemType.TEXT || itemType === FormApp.ItemType.PARAGRAPH_TEXT) {
       const textItem = itemType === FormApp.ItemType.TEXT ? item.asTextItem() : item.asParagraphTextItem();
       let feedback = "";
@@ -337,8 +362,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
         }
       } catch (e) {}
 
-      // Short answer: lấy từ answerMapById (HTML scrape path it[4][0][3])
-      const answerVal = (itemEntryId && answerMapById[itemEntryId]) || "";
+      const answerVal = scrapedAnswer;
 
       if (itemImageUrl && imgFolder) {
         itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder, fileCache);

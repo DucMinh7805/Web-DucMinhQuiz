@@ -78,11 +78,11 @@ export default function QuestionCard({
 
   // Sync shortAnswerText với selectedAnswer khi chuyển câu (controlled input)
   useEffect(() => {
-    // Nếu câu đã được trả lời → hiện lại đáp án đã nhập; nếu chưa → reset trống
+    const isShortAnswer = question?.type === 'short_answer' || question?.type === 'fill_in_blank';
     setShortAnswerText(
-      (isAnswered && question?.type === 'short_answer') ? String(selectedAnswer) : ''
+      (isAnswered && isShortAnswer) ? String(selectedAnswer) : ''
     );
-  }, [questionIndex, question?.type]);
+  }, [questionIndex, question?.type, selectedAnswer, isAnswered]);
 
 
   // Thao tác vuốt cảm ứng trên Điện thoại / Tablet
@@ -226,7 +226,13 @@ export default function QuestionCard({
                       placeholder="Nhập câu trả lời của bạn vào đây..."
                       disabled={mode === 'tutor' && isAnswered}
                       value={shortAnswerText}
-                      onChange={(e) => setShortAnswerText(e.target.value)}
+                      onChange={(e) => {
+                        const nextValue = e.target.value;
+                        setShortAnswerText(nextValue);
+                        // Thi thử cho phép chuyển câu tự do, nên lưu ngay từng lần
+                        // nhập để không mất đáp án nếu người dùng chưa bấm Nộp.
+                        if (mode === 'exam') onSelectOption(nextValue);
+                      }}
                       className="w-full bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white p-4 rounded-2xl border border-slate-200 dark:border-slate-700 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none resize-none transition-all disabled:opacity-70 text-sm"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {

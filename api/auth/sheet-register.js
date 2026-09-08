@@ -4,6 +4,7 @@ import { normalizePhone, isValidVietnamesePhone } from '../_utils/normalize.js';
 import { callAuthSheet } from '../_utils/sheetGateway.js';
 import { setSheetSessionCookie } from '../_utils/sheetSession.js';
 import { connectToDatabase } from '../_utils/db.js';
+import { scheduleBackgroundTask } from '../_utils/backgroundTask.js';
 import { User } from '../_models/index.js';
 
 function computeFastHash(phone, password) {
@@ -63,13 +64,25 @@ export default async function handler(req, res) {
     // 3. Đặt HttpOnly session cookie và đăng nhập ngay lập tức cho người dùng (tổng thời gian < 50ms)
     const user = setSheetSessionCookie(res, userPayload);
 
-    // 4. Đồng bộ ngầm sang Google Apps Script để ghi Sheet và gửi email (không làm người dùng phải đợi)
-    callAuthSheet('register', { phone, password, name, email }, { internal: true, timeoutMs: 30000 })
-      .catch((err) => console.warn('[Background Sheet Register]', err.message));
+    // 4. Sheet tài khoản là nguồn quản trị riêng, không nằm trên đường phản hồi
+    // đăng ký. waitUntil giữ tác vụ sống sau khi HTTP response đã được gửi.
+    scheduleBackgroundTask(async () => {
+      const synced = await callAuthSheet(
+        'register',
+        { phone, password, name: displayName, email },
+        { internal: true, timeoutMs: 30000 }
+      );
+      if (!synced?.success) {
+        throw new Error(synced?.error || 'Sheet tài khoản từ chối đồng bộ.');
+      }
+    }, 'Auth Sheet registration sync');
 
     return res.status(201).json({ success: true, user });
   } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(400).json({ success: false, message: 'Số Điện Thoại này đã được đăng ký tài khoản!' });
+    }
     console.error('[Instant Register]', error);
-    return res.status(500).json({ success: false, message: 'Lỗi đăng ký tài khoản: ' + error.message });
+    return res.status(500).json({ success: false, message: 'Không thể tạo tài khoản lúc này. Vui lòng thử lại.' });
   }
 }

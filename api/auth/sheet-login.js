@@ -42,24 +42,6 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, user });
       }
 
-      // Grace period: Nếu tài khoản vừa đăng ký trong vòng 60 giây
-      // (GAS background chưa xử lý xong, passwordHash có thể chưa sync)
-      // → Cho đăng nhập ngay thay vì bắt chờ GAS
-      const createdAt = cachedUser.createdAt || cachedUser._id.getTimestamp();
-      const ageSeconds = (Date.now() - new Date(createdAt).getTime()) / 1000;
-      if (ageSeconds < 60 && !cachedUser.passwordHash) {
-        // Tài khoản cực mới, hash chưa ghi → cấp session tạm thời
-        const userPayload = {
-          phone: cachedUser.phone,
-          name: cachedUser.fullName,
-          role: cachedUser.role || 'user',
-          subscriptionTier: 'free',
-          entitlements: []
-        };
-        const user = setSheetSessionCookie(res, userPayload);
-        return res.status(200).json({ success: true, user });
-      }
-
       if (cachedUser.passwordHash) {
         // Hash có nhưng không khớp → sai mật khẩu, không cần gọi GAS
         return res.status(401).json({ success: false, message: 'Thông tin đăng nhập không đúng.' });
@@ -69,7 +51,11 @@ export default async function handler(req, res) {
     console.warn('[Fast Login DB Check]', dbErr.message);
   }
 
-  // 2. Nếu chưa có trong cache hoặc mật khẩu mới -> Xác thực qua Google Apps Script
+  // 2. Cầu nối tạm cho tài khoản lịch sử chưa có hash trong MongoDB.
+  // Tài khoản mới luôn đi duy nhất qua MongoDB; xóa nhánh này sau migration.
+  if (process.env.AUTH_LEGACY_SHEET_FALLBACK === 'false') {
+    return res.status(401).json({ success: false, message: 'Thông tin đăng nhập không đúng.' });
+  }
   try {
     const data = await callAuthSheet('login', { phone, password }, { internal: true, timeoutMs: 25000 });
     if (!data?.success || !data?.user) {

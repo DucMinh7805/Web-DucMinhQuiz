@@ -42,8 +42,13 @@ const gasAuth = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_User_Auth.gs',
 const gasAccessAdmin = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_User_Access_Admin.gs', import.meta.url), 'utf8');
 const gasApi = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_5_Api.gs', import.meta.url), 'utf8');
 const gasContentAdmin = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_6_Content_Admin.gs', import.meta.url), 'utf8');
+const gasMenu = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_1_Menu.gs', import.meta.url), 'utf8');
 const questionsApi = fs.readFileSync(new URL('../api/quiz/questions.js', import.meta.url), 'utf8');
 const manifestApi = fs.readFileSync(new URL('../api/quiz/manifest.js', import.meta.url), 'utf8');
+const sheetLoginApi = fs.readFileSync(new URL('../api/auth/sheet-login.js', import.meta.url), 'utf8');
+const sheetRegisterApi = fs.readFileSync(new URL('../api/auth/sheet-register.js', import.meta.url), 'utf8');
+const databaseUtils = fs.readFileSync(new URL('../api/_utils/db.js', import.meta.url), 'utf8');
+const questionCard = fs.readFileSync(new URL('../src/components/Quiz/QuestionCard.jsx', import.meta.url), 'utf8');
 const authMeApi = fs.readFileSync(new URL('../api/auth/me.js', import.meta.url), 'utf8');
 const quizClient = fs.readFileSync(new URL('../src/services/quizApi.js', import.meta.url), 'utf8');
 const refreshAccessApi = fs.readFileSync(new URL('../api/auth/refresh-access.js', import.meta.url), 'utf8');
@@ -101,7 +106,33 @@ assert.deepEqual(
   { valid: true, value: 0 }
 );
 assert.equal(gasContext.parsePricingCell('Giảm 20%').valid, false);
+assert.equal(gasContext.getFormEntryId_([null, null, null, null, [[123456789]]]), '123456789');
+assert.equal(
+  gasContext.findScrapedImageUrl_([['1AbCdEfGhIjKlMnOpQrStUv']], 0),
+  'https://lh3.googleusercontent.com/d/1AbCdEfGhIjKlMnOpQrStUv=w1200'
+);
 assert.equal(gasSync.includes("d.name !== deckName"), false, 'Delete logic must not remove same-name decks in other subjects');
+assert.equal(gasUtils.includes('imageMapByEntryId'), true, 'Form images must be matched to the stable Google Form entry ID');
+assert.equal(gasUtils.includes('answerMapByEntryId'), true, 'Answer keys must be matched to the stable Google Form entry ID');
+assert.equal(gasUtils.includes('getFormEntryId_(it)'), true, 'Scraped Form payload must expose entry IDs for matching');
+assert.equal(gasUtils.includes('Array.isArray(grading[3])'), true, 'Short-answer Quiz grading rules must be read from the dedicated payload path');
+assert.equal(gasUtils.includes('findScrapedImageUrl_(it[4][0][1], 0)'), true, 'Inline question or option images need a grading-payload fallback');
+assert.equal(gasUtils.includes('imageMapByIndex[qIdx]'), true, 'Legacy Forms without entry IDs need an index fallback');
+assert.equal(gasUtils.includes('fileCache = null'), true, 'Drive image lookup must reuse the shared in-memory file cache');
+assert.equal(gasMenu.includes('Đồng bộ các đề đang bôi đen (khuyên dùng)'), true, 'Selective sync must be visible inside the data-sync menu');
+assert.equal(gasSync.includes('MAX_SELECTED_DECKS_PER_RUN = 10'), true, 'Selective sync must cap batches before Apps Script times out');
+assert.equal(gasSync.includes('if (elapsed > 210)'), true, 'Selective sync must save completed decks before the Apps Script execution limit');
+assert.equal(sheetLoginApi.includes('if (cachedUser.passwordHash)'), true, 'Wrong cached passwords must not invoke the slow Sheet login fallback');
+assert.equal(sheetLoginApi.includes('Grace period'), false, 'Login must never create a session without verifying a password');
+assert.equal(sheetRegisterApi.includes('scheduleBackgroundTask'), true, 'Registration Sheet sync must use the Vercel background lifecycle');
+assert.equal(
+  sheetRegisterApi.indexOf('await User.create') < sheetRegisterApi.indexOf("callAuthSheet("),
+  true,
+  'MongoDB must create the account before background Sheet synchronization starts'
+);
+assert.equal(databaseUtils.includes('maxPoolSize: 10'), true, 'Each Vercel instance must use a bounded MongoDB pool');
+assert.equal(databaseUtils.includes('minPoolSize: 0'), true, 'Idle serverless instances must not pin MongoDB connections');
+assert.equal(questionCard.includes("if (mode === 'exam') onSelectOption(nextValue)"), true, 'Exam short-answer drafts must save before navigation');
 assert.equal(gasSync.includes("normalizedStatus.indexOf('da xoa')"), true, 'Deleted rows must stay excluded on resync');
 assert.equal(gasSync.includes("createContentBackupSet_('XoaDe'"), true, 'Delete flow must create a recoverable backup of database and source rows');
 assert.equal(gasAuth.includes('function handleActivateCode'), true, 'Activation must be validated server-side');
