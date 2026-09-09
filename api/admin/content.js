@@ -6,6 +6,7 @@ import { createPublicQuestionId } from '../_utils/questionIdentity.js';
 import { compareQuestionDraft, validateQuestionDraft } from '../../shared/questionInspection.js';
 import { editorDraftToQuestionChanges, questionSnapshot } from '../_utils/questionWorkflow.js';
 import { enqueueN8nEvent, enqueueOutboxEvent } from '../_utils/outbox.js';
+import { importsRoute, issuesRoute, revisionsRoute } from '../_utils/adminQueueRoutes.js';
 
 function escapeRegExp(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -188,6 +189,9 @@ export default async function handler(req, res) {
   try {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
+    if (req.query?.resource === 'issues') return issuesRoute(req, res, admin);
+    if (req.query?.resource === 'imports') return importsRoute(req, res, admin);
+    if (req.query?.resource === 'revisions') return revisionsRoute(req, res, admin);
     return req.method === 'GET' ? handleGet(req, res) : handlePatch(req, res, admin);
   } catch (error) {
     console.error('[Admin Content]', error);

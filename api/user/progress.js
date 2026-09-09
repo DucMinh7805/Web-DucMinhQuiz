@@ -1,5 +1,7 @@
 import { connectToDatabase } from '../_utils/db.js';
 import { User } from '../_models/User.js';
+import { Deck, Question, QuestionIssue } from '../_models/index.js';
+import { enqueueN8nEvent } from '../_utils/outbox.js';
 import { authenticateSheetSession } from '../_utils/sheetSession.js';
 import { enforceGlobalApiRateLimit } from '../_utils/rateLimiter.js';
 
@@ -67,6 +69,20 @@ export default async function handler(req, res) {
 
   try {
     await connectToDatabase();
+
+    if (req.method === 'POST' && req.query?.action === 'reportIssue') {
+      const user = await User.findOne({ phone, isActive: true });
+      const allowedTypes = new Set(['wrong_answer', 'typo', 'image', 'source', 'explanation', 'other']);
+      const type = allowedTypes.has(req.body?.type) ? req.body.type : 'other';
+      const id = String(req.body?.questionId || '');
+      const question = id ? await Question.findOne({ $or: [{ publicId: id }, ...(/^[a-f\d]{24}$/i.test(id) ? [{ _id: id }] : [])] }).lean() : null;
+      const deck = question ? await Deck.findById(question.deckId).lean() : await Deck.findOne({ path: String(req.body?.deckPath || '').toLowerCase() }).lean();
+      if (!deck) return res.status(404).json({ success: false, message: 'Không tìm thấy câu hỏi hoặc bộ đề.' });
+      const scope = question ? 'question' : 'deck', dedupeKey = `${scope}:${question?._id || deck._id}:${type}`;
+      const issue = await QuestionIssue.findOneAndUpdate({ dedupeKey }, { $set: { questionId: question?._id || null, publicId: question?.publicId || '', deckId: deck._id, deckPath: deck.path, subjectId: String(deck.subjectId), scope, type, status: 'open', lastReportedAt: new Date() }, $inc: { reportCount: 1 }, $push: { samples: { $each: [{ reporterId: user?._id, message: String(req.body?.note || '').trim().slice(0, 1000), reportedAt: new Date() }], $slice: -5 } }, $setOnInsert: { dedupeKey, priority: 'normal' } }, { upsert: true, new: true, runValidators: true });
+      await enqueueN8nEvent('QUESTION_ISSUE_REPORTED', { issueId: String(issue._id), publicId: issue.publicId, deckPath: deck.path, type, reportCount: issue.reportCount });
+      return res.status(201).json({ success: true, message: 'Đã gửi báo lỗi. Các báo cáo trùng đã được gộp lại.' });
+    }
 
     if (req.method === 'GET') {
       const user = await User.findOne({ phone }).lean();

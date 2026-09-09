@@ -13,7 +13,7 @@ export default function AdminIssuesPage() {
   const [filter, setFilter] = useState('');
   const load = async () => {
     setBusy(true);
-    const url = tab === 'issues' ? `/api/admin/issues?status=${status}` : `/api/admin/imports?status=${status === 'open' ? 'pending' : status}`;
+    const url = tab === 'issues' ? `/api/admin/content?resource=issues&status=${status}` : `/api/admin/content?resource=imports&status=${status === 'open' ? 'pending' : status}`;
     const response = await fetch(url, { credentials: 'include' });
     const payload = await response.json();
     setItems(tab === 'issues' ? (payload.issues || []) : (payload.imports || []));
@@ -21,7 +21,7 @@ export default function AdminIssuesPage() {
   };
   useEffect(() => { load(); }, [tab, status]); // eslint-disable-line react-hooks/exhaustive-deps
   const update = async (item, value) => {
-    await fetch(tab === 'issues' ? '/api/admin/issues' : '/api/admin/imports', { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tab === 'issues' ? { id: item.id, status: value } : { id: item.id, decision: value }) });
+    await fetch(tab === 'issues' ? '/api/admin/content?resource=issues' : '/api/admin/content?resource=imports', { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tab === 'issues' ? { id: item.id, status: value } : { id: item.id, decision: value }) });
     load();
   };
   const visible = items.filter(item => !filter || `${item.subject?.name || ''} ${item.deck?.title || item.deckPath || ''}`.toLocaleLowerCase('vi').includes(filter.toLocaleLowerCase('vi')));
