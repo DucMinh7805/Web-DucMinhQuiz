@@ -150,9 +150,121 @@ function getCorrectChoiceValues_(choices) {
     .filter(Boolean);
 }
 
-function isMultipleAnswerQuestion_(questionText, answerValue) {
-  const answers = String(answerValue || '').split('|').map(value => value.trim()).filter(Boolean);
-  return answers.length > 1 || /(?:chọn\s+(?:nhiều|các)\s+đáp\s+án|nhiều\s+đáp\s+án)/i.test(String(questionText || ''));
+function isMultipleAnswerQuestion_(answerValue, sourceChoiceType) {
+  const answers = splitAnswerValues_(answerValue);
+  return String(sourceChoiceType || '').toUpperCase() === 'CHECKBOX' || answers.length > 1;
+}
+
+function splitAnswerValues_(value) {
+  const rawValues = Array.isArray(value) ? value : String(value || '').split('|');
+  return rawValues.map(answer => String(answer || '').trim()).filter(Boolean);
+}
+
+function mergeUniqueAnswerValues_() {
+  const merged = [];
+  const seen = {};
+  for (let i = 0; i < arguments.length; i++) {
+    splitAnswerValues_(arguments[i]).forEach(answer => {
+      const key = normalizeName(answer).replace(/\s+/g, ' ');
+      if (!key || seen[key]) return;
+      seen[key] = true;
+      merged.push(answer);
+    });
+  }
+  return merged;
+}
+
+function getManualBaremAnswer_(baremMap, deckName, questionNumber) {
+  if (!baremMap || !deckName) return '';
+  return String(baremMap[`${normalizeName(deckName)}_${questionNumber}`] || '').trim();
+}
+
+/**
+ * Nguồn đáp án chuẩn cho mọi Form là Google Forms REST API v1.
+ * FormApp có thể chỉ trả một lựa chọn đúng cho item RADIO dù Answer Key có
+ * nhiều đáp án; đồng thời FormApp không đọc ổn định barem của TextQuestion.
+ * forms.get trả trực tiếp grading.correctAnswers cho cả hai trường hợp.
+ */
+function getFormRestQuestionEntries_(formId) {
+  const endpoint = 'https://forms.googleapis.com/v1/forms/' + encodeURIComponent(formId);
+  const response = UrlFetchApp.fetch(endpoint, {
+    method: 'get',
+    muteHttpExceptions: true,
+    // Dự án Cloud hiện có của DiamondQuiz đã bật Forms API. Header này chỉ
+    // định tuyến quota API, không chứa khóa bí mật và không đổi GCP project
+    // đang gắn với Apps Script/web app hiện tại.
+    headers: {
+      Authorization: 'Bearer ' + ScriptApp.getOAuthToken(),
+      'X-Goog-User-Project': 'tokyo-saga-470416-g7'
+    }
+  });
+  const status = response.getResponseCode();
+  if (status !== 200) {
+    let detail = response.getContentText();
+    try {
+      const errorPayload = JSON.parse(detail);
+      detail = errorPayload && errorPayload.error && errorPayload.error.message
+        ? errorPayload.error.message
+        : detail;
+    } catch (ignore) {}
+    throw new Error(
+      `Không đọc được Answer Key qua Google Forms API (${status}). ` +
+      `Đã dừng để không xuất bản barem sai. Chi tiết: ${String(detail || '').substring(0, 180)}`
+    );
+  }
+
+  const payload = JSON.parse(response.getContentText());
+  const entries = [];
+  (payload.items || []).forEach(item => {
+    const question = item && item.questionItem && item.questionItem.question;
+    if (!question) return;
+    const choiceQuestion = question.choiceQuestion || null;
+    const textQuestion = question.textQuestion || null;
+    if (!choiceQuestion && !textQuestion) return;
+    const answers = question.grading && question.grading.correctAnswers
+      ? (question.grading.correctAnswers.answers || []).map(answer => String(answer.value || '').trim()).filter(Boolean)
+      : [];
+    entries.push({
+      itemId: String(item.itemId || ''),
+      questionId: String(question.questionId || ''),
+      title: String(item.title || '').trim(),
+      kind: choiceQuestion ? 'choice' : 'text',
+      choiceType: choiceQuestion ? String(choiceQuestion.type || '') : '',
+      pointValue: Number(question.grading && question.grading.pointValue) || 0,
+      answers: mergeUniqueAnswerValues_(answers)
+    });
+  });
+  return entries;
+}
+
+function createFormRestAnswerResolver_(entries) {
+  const byTitle = {};
+  const titleCursor = {};
+  (entries || []).forEach(entry => {
+    const key = normalizeName(entry.title).replace(/\s+/g, ' ');
+    if (!byTitle[key]) byTitle[key] = [];
+    byTitle[key].push(entry);
+  });
+  return function(title, questionIndex) {
+    const key = normalizeName(title).replace(/\s+/g, ' ');
+    const matches = byTitle[key] || [];
+    const cursor = titleCursor[key] || 0;
+    if (matches[cursor]) {
+      titleCursor[key] = cursor + 1;
+      return matches[cursor];
+    }
+    return (entries || [])[questionIndex] || null;
+  };
+}
+
+function assertAnswerKeyIsSafe_(questionText, type, answerValue, questionNumber) {
+  const answerCount = splitAnswerValues_(answerValue).length;
+  if (type === 'multiple' && answerCount === 0) {
+    throw new Error(
+      `Câu ${questionNumber} là dạng checkbox nhưng chưa đọc được đáp án đúng nào: ` +
+      `"${String(questionText || '').substring(0, 100)}". Đã dừng để không xuất bản sai.`
+    );
+  }
 }
 
 function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = "", baremMap = null, fileCache = null) {
@@ -160,6 +272,8 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
   const formId = form.getId();
   const items = form.getItems();
   const questions = [];
+  const restQuestionEntries = getFormRestQuestionEntries_(formId);
+  const resolveRestAnswer = createFormRestAnswerResolver_(restQuestionEntries);
 
   let imgFolder = null;
   try {
@@ -304,11 +418,12 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
       const mcItem = item.asMultipleChoiceItem();
       const choices = mcItem.getChoices();
       const correctChoices = getCorrectChoiceValues_(choices);
+      const restEntry = resolveRestAnswer(titleText, questionIndex);
       
       const optionsList = choices.map(choice => choice.getValue().trim());
       // Không được tự lấy lựa chọn đầu tiên làm đáp án khi Form chưa cấu hình
       // grading; để trống còn an toàn hơn ghi một đáp án sai vào hệ thống.
-      const answerVal = correctChoices.length ? correctChoices.join('|') : scrapedAnswer;
+      const answerVal = mergeUniqueAnswerValues_(restEntry && restEntry.answers, correctChoices, scrapedAnswer).join('|');
       const feedback = mcItem.getFeedbackForCorrect() || mcItem.getFeedbackForIncorrect();
 
       // Convert ảnh sang Google Drive vĩnh viễn (Luồng 2)
@@ -316,15 +431,13 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
         itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder, fileCache);
       }
 
-      let finalMcAnswer = answerVal;
-      if (!finalMcAnswer && baremMap && deckName) {
-        const baremKey = `${normalizeName(deckName)}_${questionIndex + 1}`;
-        if (baremMap[baremKey]) finalMcAnswer = baremMap[baremKey];
-      }
+      const manualMcAnswer = getManualBaremAnswer_(baremMap, deckName, questionIndex + 1);
+      const finalMcAnswer = manualMcAnswer || answerVal;
 
       // Nếu Answer Key có từ hai đáp án đúng, web phải render checkbox ngay cả
       // khi người soạn Form để nhầm loại câu là "Trắc nghiệm".
-      const finalMcType = isMultipleAnswerQuestion_(titleText, finalMcAnswer) ? 'multiple' : 'single';
+      const finalMcType = isMultipleAnswerQuestion_(finalMcAnswer, restEntry && restEntry.choiceType) ? 'multiple' : 'single';
+      assertAnswerKeyIsSafe_(titleText, finalMcType, finalMcAnswer, questionIndex + 1);
 
       questions.push({
         id: `${formId}-${questionIndex + 1}`,
@@ -343,22 +456,19 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
       const cbItem = item.asCheckboxItem();
       const choices = cbItem.getChoices();
       const correctChoices = getCorrectChoiceValues_(choices);
+      const restEntry = resolveRestAnswer(titleText, questionIndex);
       
       const optionsList = choices.map(choice => choice.getValue().trim());
-      const answerVal = correctChoices.length > 0 
-        ? correctChoices.join('|')
-        : scrapedAnswer;
+      const answerVal = mergeUniqueAnswerValues_(restEntry && restEntry.answers, correctChoices, scrapedAnswer).join('|');
       const feedback = cbItem.getFeedbackForCorrect() || cbItem.getFeedbackForIncorrect();
 
       if (itemImageUrl && imgFolder) {
         itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder, fileCache);
       }
 
-      let finalCbAnswer = answerVal;
-      if (!finalCbAnswer && baremMap && deckName) {
-        const baremKey = `${normalizeName(deckName)}_${questionIndex + 1}`;
-        if (baremMap[baremKey]) finalCbAnswer = baremMap[baremKey];
-      }
+      const manualCbAnswer = getManualBaremAnswer_(baremMap, deckName, questionIndex + 1);
+      const finalCbAnswer = manualCbAnswer || answerVal;
+      assertAnswerKeyIsSafe_(titleText, 'multiple', finalCbAnswer, questionIndex + 1);
 
       questions.push({
         id: `${formId}-${questionIndex + 1}`,
@@ -375,6 +485,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
     // C. TỰ LUẬN NGẮN / ĐIỀN TỪ (SHORT ANSWER)
     else if (itemType === FormApp.ItemType.TEXT || itemType === FormApp.ItemType.PARAGRAPH_TEXT) {
       const textItem = itemType === FormApp.ItemType.TEXT ? item.asTextItem() : item.asParagraphTextItem();
+      const restEntry = resolveRestAnswer(titleText, questionIndex);
       let feedback = "";
       try {
         if (textItem.getGeneralFeedback) {
@@ -383,17 +494,14 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
         }
       } catch (e) {}
 
-      const answerVal = scrapedAnswer;
+      const answerVal = mergeUniqueAnswerValues_(restEntry && restEntry.answers, scrapedAnswer).join('|');
 
       if (itemImageUrl && imgFolder) {
         itemImageUrl = saveFormImageToDrive(itemImageUrl, formId, questionIndex + 1, imgFolder, fileCache);
       }
 
-      let finalShortAnswer = answerVal;
-      if (!finalShortAnswer && baremMap && deckName) {
-        const baremKey = `${normalizeName(deckName)}_${questionIndex + 1}`;
-        if (baremMap[baremKey]) finalShortAnswer = baremMap[baremKey];
-      }
+      const manualShortAnswer = getManualBaremAnswer_(baremMap, deckName, questionIndex + 1);
+      const finalShortAnswer = manualShortAnswer || answerVal;
 
       questions.push({
         id: `${formId}-${questionIndex + 1}`,

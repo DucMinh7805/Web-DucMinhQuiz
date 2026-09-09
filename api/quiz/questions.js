@@ -1,8 +1,10 @@
 import { connectToDatabase } from '../_utils/db.js';
 import { Deck, Question, Subject } from '../_models/index.js';
 import { authenticateSheetSession, sessionHasEntitlement } from '../_utils/sheetSession.js';
+import { enforceGlobalApiRateLimit } from '../_utils/rateLimiter.js';
 
 export default async function handler(req, res) {
+  if (!enforceGlobalApiRateLimit(req, res)) return;
   // Endpoint chỉ dùng cùng origin. Không phản chiếu Origin tùy ý kèm cookie.
   // Câu hỏi PRO tuyệt đối không được giữ trong CDN/shared browser cache.
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');

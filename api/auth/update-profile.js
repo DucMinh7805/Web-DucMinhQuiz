@@ -1,4 +1,4 @@
-import { checkRateLimit, getClientIp } from '../_utils/rateLimiter.js';
+import { checkRateLimit, enforceGlobalApiRateLimit, getClientIp } from '../_utils/rateLimiter.js';
 import { normalizePhone } from '../_utils/normalize.js';
 import { callAuthSheet } from '../_utils/sheetGateway.js';
 import { authenticateSheetSession, setSheetSessionCookie } from '../_utils/sheetSession.js';
@@ -6,6 +6,7 @@ import { authenticateSheetSession, setSheetSessionCookie } from '../_utils/sheet
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default async function handler(req, res) {
+  if (!enforceGlobalApiRateLimit(req, res)) return;
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Chỉ hỗ trợ POST.' });
   }

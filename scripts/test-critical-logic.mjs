@@ -10,6 +10,7 @@ import {
 } from '../src/utils/answerUtils.js';
 import { buildTransferContent, makePaymentCode } from '../src/utils/paymentReference.js';
 import { resolveSubjectStages, STAGES } from '../src/data/stageMapping.js';
+import { enforceGlobalApiRateLimit } from '../api/_utils/rateLimiter.js';
 
 assert.equal(isOptionCorrect('A. Đáp án đúng', 0, 'A'), true);
 assert.equal(isOptionCorrect('B. Đáp án sai', 1, 'A'), false);
@@ -42,6 +43,7 @@ const gasAuth = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_User_Auth.gs',
 const gasAccessAdmin = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_User_Access_Admin.gs', import.meta.url), 'utf8');
 const gasApi = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_5_Api.gs', import.meta.url), 'utf8');
 const gasContentAdmin = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_6_Content_Admin.gs', import.meta.url), 'utf8');
+const gasAnswerKeySystem = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_7_Answer_Key_System.gs', import.meta.url), 'utf8');
 const gasMenu = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_1_Menu.gs', import.meta.url), 'utf8');
 const questionsApi = fs.readFileSync(new URL('../api/quiz/questions.js', import.meta.url), 'utf8');
 const manifestApi = fs.readFileSync(new URL('../api/quiz/manifest.js', import.meta.url), 'utf8');
@@ -68,8 +70,9 @@ const homePage = fs.readFileSync(new URL('../src/pages/HomePage.jsx', import.met
 const profilePage = fs.readFileSync(new URL('../src/pages/ProfilePage.jsx', import.meta.url), 'utf8');
 const floatingContactButton = fs.readFileSync(new URL('../src/components/Common/FloatingContactButton.jsx', import.meta.url), 'utf8');
 const viteConfig = fs.readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
+const rateLimiter = fs.readFileSync(new URL('../api/_utils/rateLimiter.js', import.meta.url), 'utf8');
 const gasContext = vm.createContext({ console });
-vm.runInContext(`${gasUtils}\n${gasSync}`, gasContext);
+vm.runInContext(`${gasUtils}\n${gasSync}\n${gasAnswerKeySystem}`, gasContext);
 const gasAccessContext = vm.createContext({ console });
 vm.runInContext(gasAccessAdmin, gasAccessContext);
 
@@ -120,10 +123,29 @@ assert.deepEqual(
   'A Google Form item with multiple marked answers must retain every correct choice'
 );
 assert.equal(
-  gasContext.isMultipleAnswerQuestion_('Triệu chứng đi kèm giúp hướng nguyên nhân khó thở nào? Chọn nhiều đáp án.', 'A|B'),
+  gasContext.isMultipleAnswerQuestion_('A|B', 'RADIO'),
   true,
-  'Multiple-answer wording and answer keys must force checkbox rendering'
+  'Two marked answer-key values must force checkbox rendering even for a RADIO item'
 );
+assert.equal(gasContext.isMultipleAnswerQuestion_('A', 'CHECKBOX'), true, 'A Google Form CHECKBOX stays a checkbox');
+assert.equal(gasContext.isMultipleAnswerQuestion_('', 'RADIO'), false, 'Question wording must never invent multiple answers');
+assert.deepEqual(
+  JSON.parse(JSON.stringify(gasContext.mergeUniqueAnswerValues_(['A', 'B', 'C'], ['A']))),
+  ['A', 'B', 'C'],
+  'The complete Forms API key must not be truncated by FormApp partial results'
+);
+const repairedAnswerKeys = gasContext.applyRestAnswerKeysToQuestions_([
+  { question: 'Câu vận động khuỷu', type: 'multiple', answer: 'A', imageUrl: 'keep-me' },
+  { question: 'Chi tiết giải phẫu', type: 'short_answer', answer: '' }
+], [
+  { title: 'Câu vận động khuỷu', kind: 'choice', choiceType: 'RADIO', answers: ['A', 'B', 'D'] },
+  { title: 'Chi tiết giải phẫu', kind: 'text', choiceType: '', answers: ['Cơ hoành', 'Hoành cách mô'] }
+]);
+assert.equal(repairedAnswerKeys.issues.length, 0);
+assert.equal(repairedAnswerKeys.questions[0].type, 'multiple');
+assert.equal(repairedAnswerKeys.questions[0].answer, 'A|B|D');
+assert.equal(repairedAnswerKeys.questions[0].imageUrl, 'keep-me', 'Answer repair must preserve images and question content');
+assert.equal(repairedAnswerKeys.questions[1].answer, 'Cơ hoành|Hoành cách mô');
 assert.equal(
   gasContext.findScrapedImageUrl_([['1AbCdEfGhIjKlMnOpQrStUv']], 0),
   'https://lh3.googleusercontent.com/d/1AbCdEfGhIjKlMnOpQrStUv=w1200'
@@ -131,12 +153,19 @@ assert.equal(
 assert.equal(gasSync.includes("d.name !== deckName"), false, 'Delete logic must not remove same-name decks in other subjects');
 assert.equal(gasUtils.includes('imageMapByEntryId'), true, 'Form images must be matched to the stable Google Form entry ID');
 assert.equal(gasUtils.includes('answerMapByEntryId'), true, 'Answer keys must be matched to the stable Google Form entry ID');
+assert.equal(gasUtils.includes('https://forms.googleapis.com/v1/forms/'), true, 'Google Forms REST API must be the authoritative answer-key source');
+assert.equal(gasUtils.includes('grading.correctAnswers'), true, 'Choice and text answers must come from grading.correctAnswers');
+assert.equal(gasUtils.includes('ScriptApp.getOAuthToken()'), true, 'Apps Script must authenticate its Forms API request');
+assert.equal(gasUtils.includes("'X-Goog-User-Project': 'tokyo-saga-470416-g7'"), true, 'Forms API quota must use the enabled DiamondQuiz Cloud project');
 assert.equal(gasUtils.includes('getFormEntryId_(it)'), true, 'Scraped Form payload must expose entry IDs for matching');
 assert.equal(gasUtils.includes('Array.isArray(grading[3])'), true, 'Short-answer Quiz grading rules must be read from the dedicated payload path');
 assert.equal(gasUtils.includes('findScrapedImageUrl_(it[4][0][1], 0)'), true, 'Inline question or option images need a grading-payload fallback');
 assert.equal(gasUtils.includes('imageMapByIndex[qIdx]'), true, 'Legacy Forms without entry IDs need an index fallback');
 assert.equal(gasUtils.includes('fileCache = null'), true, 'Drive image lookup must reuse the shared in-memory file cache');
 assert.equal(gasMenu.includes('Đồng bộ các đề đang bôi đen (khuyên dùng)'), true, 'Selective sync must be visible inside the data-sync menu');
+assert.equal(gasMenu.includes('Sửa barem toàn hệ thống (Forms API)'), true, 'The answer-key repair workflow must be accessible from the Sheet menu');
+assert.equal(gasAnswerKeySystem.includes("handler: 'continueAnswerKeyRepair_'"), true, 'Bulk answer repair must resume through a time trigger');
+assert.equal(gasAnswerKeySystem.includes('applyRestAnswerKeysToQuestions_'), true, 'Bulk repair must update existing decks without reprocessing images');
 assert.equal(gasSync.includes('MAX_SELECTED_DECKS_PER_RUN = 10'), true, 'Selective sync must cap batches before Apps Script times out');
 assert.equal(gasSync.includes('if (elapsed > 210)'), true, 'Selective sync must save completed decks before the Apps Script execution limit');
 assert.equal(gasSync.includes('count < 2500'), false, 'Selective sync must not scan thousands of Drive images before processing a deck');
@@ -153,6 +182,7 @@ assert.equal(
 assert.equal(databaseUtils.includes('maxPoolSize: 10'), true, 'Each Vercel instance must use a bounded MongoDB pool');
 assert.equal(databaseUtils.includes('minPoolSize: 0'), true, 'Idle serverless instances must not pin MongoDB connections');
 assert.equal(questionCard.includes("if (mode === 'exam') onSelectOption(nextValue)"), true, 'Exam short-answer drafts must save before navigation');
+assert.equal(questionCard.includes('/chọn nhiều|nhiều đáp án|các đáp án|nhiều lựa chọn/i'), false, 'Frontend must not infer answer type from wording');
 assert.equal(gasSync.includes("normalizedStatus.indexOf('da xoa')"), true, 'Deleted rows must stay excluded on resync');
 assert.equal(gasSync.includes("createContentBackupSet_('XoaDe'"), true, 'Delete flow must create a recoverable backup of database and source rows');
 assert.equal(gasAuth.includes('function handleActivateCode'), true, 'Activation must be validated server-side');
@@ -203,6 +233,8 @@ assert.equal(windowsFileTree.includes('Mặc định chọn môn đầu tiên kh
 assert.equal(windowsFileTree.includes('PRO'), true, 'Paid subjects must keep a visible PRO tag');
 assert.equal(unlockModal.includes('addInfo='), true, 'Bank transfer QR must carry an account/item reconciliation memo');
 assert.equal(contentSyncApi.includes("process.env.CONTENT_SYNC_SECRET"), true, 'Sheet-to-Mongo content sync must require a server secret');
+assert.equal(contentSyncApi.includes('hasMultiKeyword'), false, 'Mongo normalization must not infer answer type from wording');
+assert.equal(contentSyncApi.includes('checkbox không có đáp án đúng'), true, 'Publishing must fail closed for an empty checkbox answer key');
 assert.equal(contentSyncApi.includes("'deleteSubject'"), true, 'Content sync must support explicit subject deletion');
 assert.equal(contentSyncApi.includes('pruneMissingManifestContent'), true, 'Full manifest sync must prune records removed from Sheet');
 assert.equal(contentSyncApi.includes("syncManifest(req.body.manifest, { prune: true })"), true, 'Only a full manifest snapshot may prune stale Mongo content');
@@ -252,5 +284,36 @@ assert.equal(viteConfig.includes("'/api/quiz/questions'"), true, 'Local Vite mus
 assert.equal(viteConfig.includes("'/api':"), false, 'Local Vite must not proxy every API mutation to production');
 assert.equal(viteConfig.includes('strictPort: true'), true, 'Local HMR must use a stable development port');
 assert.equal(viteConfig.includes('clientPort: 5173'), true, 'Local HMR client must connect to the actual Vite port');
+
+const mockRateLimitResponse = () => ({
+  statusCode: 200,
+  headers: {},
+  payload: null,
+  setHeader(name, value) { this.headers[name] = value; },
+  status(code) { this.statusCode = code; return this; },
+  json(payload) { this.payload = payload; return this; }
+});
+let finalRateLimitResponse;
+for (let requestIndex = 0; requestIndex <= 600; requestIndex += 1) {
+  finalRateLimitResponse = mockRateLimitResponse();
+  enforceGlobalApiRateLimit({
+    method: 'GET',
+    url: '/api/auth/me',
+    headers: { 'x-forwarded-for': '203.0.113.42' },
+    socket: {}
+  }, finalRateLimitResponse);
+}
+assert.equal(finalRateLimitResponse.statusCode, 429, 'The global API limiter must return HTTP 429 after the policy limit');
+assert.equal(Boolean(finalRateLimitResponse.headers['Retry-After']), true, 'Rate-limited clients must receive Retry-After');
+assert.equal(rateLimiter.includes('MAX_TRACKED_KEYS = 20000'), true, 'Rate-limit memory must have a hard key cap');
+const apiHandlerFiles = [
+  'admin/content-sync.js', 'library/book-link.js', 'quiz/manifest.js', 'quiz/questions.js',
+  'user/progress.js', 'auth/me.js', 'auth/refresh-access.js', 'auth/activate-code.js',
+  'auth/sheet-login.js', 'auth/sheet-logout.js', 'auth/sheet-register.js', 'auth/update-profile.js'
+];
+apiHandlerFiles.forEach(relativePath => {
+  const source = fs.readFileSync(new URL(`../api/${relativePath}`, import.meta.url), 'utf8');
+  assert.equal(source.includes('enforceGlobalApiRateLimit(req, res)'), true, `${relativePath} must use the global API rate limiter`);
+});
 
 console.log('Critical logic tests passed.');

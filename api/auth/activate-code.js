@@ -1,10 +1,14 @@
 import { authenticateSheetSession, setSheetSessionCookie } from '../_utils/sheetSession.js';
 import { callAuthSheet } from '../_utils/sheetGateway.js';
+import { checkRateLimit, enforceGlobalApiRateLimit, getClientIp } from '../_utils/rateLimiter.js';
 
 export default async function handler(req, res) {
+  if (!enforceGlobalApiRateLimit(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Chỉ hỗ trợ POST.' });
   const session = authenticateSheetSession(req);
   if (!session) return res.status(401).json({ success: false, message: 'Vui lòng đăng nhập lại.' });
+  const limit = checkRateLimit(`activate_code_${getClientIp(req)}_${session.phone}`, 10, 15 * 60 * 1000);
+  if (!limit.allowed) return res.status(429).json({ success: false, message: 'Bạn thử mã quá nhiều lần. Vui lòng chờ 15 phút.' });
   const code = String(req.body?.code || '').trim();
   const itemId = String(req.body?.itemId || '').trim();
   const itemType = String(req.body?.itemType || 'subject').trim().toLowerCase();

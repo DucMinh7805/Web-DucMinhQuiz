@@ -1,6 +1,8 @@
 import { authenticateSheetSession } from '../_utils/sheetSession.js';
+import { enforceGlobalApiRateLimit } from '../_utils/rateLimiter.js';
 
 export default function handler(req, res) {
+  if (!enforceGlobalApiRateLimit(req, res)) return;
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.setHeader('Vary', 'Cookie, Authorization');
   if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Chỉ hỗ trợ GET.' });

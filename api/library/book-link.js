@@ -1,12 +1,14 @@
 import { connectToDatabase } from '../_utils/db.js';
 import { Book } from '../_models/index.js';
 import { authenticateSheetSession, sessionHasEntitlement } from '../_utils/sheetSession.js';
+import { enforceGlobalApiRateLimit } from '../_utils/rateLimiter.js';
 
 /**
  * Không để link Drive trong manifest công khai. Trình duyệt chỉ đi qua endpoint
  * này; tài liệu PRO được kiểm tra bằng phiên HttpOnly trước khi chuyển hướng.
  */
 export default async function handler(req, res) {
+  if (!enforceGlobalApiRateLimit(req, res)) return;
   if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Chỉ hỗ trợ GET.' });
   const id = String(req.query?.id || '').trim();
   if (!id) return res.status(400).json({ success: false, message: 'Thiếu ID tài liệu.' });

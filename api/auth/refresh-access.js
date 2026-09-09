@@ -1,4 +1,4 @@
-import { checkRateLimit, getClientIp } from '../_utils/rateLimiter.js';
+import { checkRateLimit, enforceGlobalApiRateLimit, getClientIp } from '../_utils/rateLimiter.js';
 import { callAuthSheet } from '../_utils/sheetGateway.js';
 import { authenticateSheetSession, setSheetSessionCookie } from '../_utils/sheetSession.js';
 
@@ -7,6 +7,7 @@ import { authenticateSheetSession, setSheetSessionCookie } from '../_utils/sheet
  * Không nhận SĐT từ trình duyệt: luôn dùng SĐT trong cookie đã ký.
  */
 export default async function handler(req, res) {
+  if (!enforceGlobalApiRateLimit(req, res)) return;
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Chỉ hỗ trợ POST.' });
   }

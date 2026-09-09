@@ -1,6 +1,7 @@
 import { connectToDatabase } from '../_utils/db.js';
 import { User } from '../_models/User.js';
 import { authenticateSheetSession } from '../_utils/sheetSession.js';
+import { enforceGlobalApiRateLimit } from '../_utils/rateLimiter.js';
 
 function mergeProgress(serverProgress = {}, clientProgress = {}) {
   const merged = { ...serverProgress };
@@ -50,6 +51,7 @@ function mergeMistakes(serverMistakes = [], clientMistakes = []) {
 }
 
 export default async function handler(req, res) {
+  if (!enforceGlobalApiRateLimit(req, res)) return;
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.setHeader('Vary', 'Cookie, Authorization');
 

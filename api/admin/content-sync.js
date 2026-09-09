@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { connectToDatabase } from '../_utils/db.js';
 import { Book, Deck, Question, Subject } from '../_models/index.js';
+import { enforceGlobalApiRateLimit } from '../_utils/rateLimiter.js';
 
 const ALLOWED_OPERATIONS = new Set(['syncManifest', 'upsertDeck', 'deleteDeck', 'deleteSubject']);
 export const config = { maxDuration: 60 };
@@ -87,13 +88,11 @@ function normalizeQuestion(raw, index, deckId, deckPath) {
     const matched = byText || byLetter;
     if (matched && !correctOptionIds.includes(matched.id)) correctOptionIds.push(matched.id);
   });
-  const qText = String(raw?.question || '');
-  const hasMultiKeyword = /(?:chọn\s+(?:nhiều|các)\s+đáp\s+án|nhiều\s+đáp\s+án)/i.test(qText);
   let type = 'short_answer';
   if (options.length && raw?.type !== 'short_answer') {
-    // Barem thực tế quan trọng hơn nhãn item của Google Form. Một item bị để
-    // nhầm "Trắc nghiệm" nhưng có 2+ đáp án đúng vẫn phải hiện checkbox.
-    type = raw?.type === 'multiple' || correctOptionIds.length > 1 || hasMultiKeyword
+    // Chỉ Answer Key/loại control của Google Form quyết định kiểu câu.
+    // Không suy đoán từ chữ "chọn nhiều" trong tiêu đề.
+    type = raw?.type === 'multiple' || raw?.type === 'checkbox' || correctOptionIds.length > 1
       ? 'multiple'
       : 'single';
   }
@@ -253,6 +252,15 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
     { upsert: true, new: true, runValidators: true }
   );
   const questions = (Array.isArray(rawQuestions) ? rawQuestions : []).map((question, index) => normalizeQuestion(question, index, deckDoc._id, path.toLowerCase()));
+  const invalidAnswerKeys = questions.filter(question =>
+    question.type === 'multiple' && question.correctOptionIds.length === 0
+  );
+  if (invalidAnswerKeys.length) {
+    throw new Error(
+      `Đã dừng xuất bản: ${invalidAnswerKeys.length} câu checkbox không có đáp án đúng khớp lựa chọn ` +
+      `(ví dụ ${invalidAnswerKeys[0].qId}).`
+    );
+  }
   const qIds = questions.map(question => question.qId);
   if (questions.length) {
     await Question.bulkWrite(questions.map(question => ({
@@ -264,7 +272,13 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
     })), { ordered: false });
   }
   await Question.deleteMany({ deckId: deckDoc._id, ...(qIds.length ? { qId: { $nin: qIds } } : {}) });
-  return { deckPath: path, questions: questions.length };
+  return {
+    deckPath: path,
+    questions: questions.length,
+    multipleQuestions: questions.filter(question => question.type === 'multiple').length,
+    shortAnswerQuestions: questions.filter(question => question.type === 'short_answer').length,
+    acceptedShortAnswers: questions.reduce((total, question) => total + question.acceptedShortAnswers.length, 0)
+  };
 }
 
 async function deleteDeck(deckPath) {
@@ -288,6 +302,7 @@ async function deleteSubject(subjectId) {
 }
 
 export default async function handler(req, res) {
+  if (!enforceGlobalApiRateLimit(req, res)) return;
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Chỉ hỗ trợ POST.' });
   if (!secureSecretMatches(req)) return res.status(401).json({ success: false, message: 'Khóa đồng bộ không hợp lệ.' });

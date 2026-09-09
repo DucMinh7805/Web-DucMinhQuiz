@@ -47,9 +47,7 @@ export default function QuestionCard({
   // Tự động nhận diện câu hỏi nhiều đáp án đúng (Checkbox)
   const isMultiple = useMemo(() => {
     if (question?.type === 'multiple' || question?.type === 'checkbox') return true;
-    if (correctAnswers.length > 1) return true;
-    const text = String(question?.question || '').toLowerCase();
-    return /chọn nhiều|nhiều đáp án|các đáp án|nhiều lựa chọn/i.test(text);
+    return correctAnswers.length > 1;
   }, [question, correctAnswers]);
 
   // Danh sách đáp án người dùng đã chọn

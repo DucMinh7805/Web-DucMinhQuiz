@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { checkRateLimit, getClientIp } from '../_utils/rateLimiter.js';
+import { checkRateLimit, enforceGlobalApiRateLimit, getClientIp } from '../_utils/rateLimiter.js';
 import { normalizePhone } from '../_utils/normalize.js';
 import { callAuthSheet } from '../_utils/sheetGateway.js';
 import { setSheetSessionCookie } from '../_utils/sheetSession.js';
@@ -12,6 +12,7 @@ function computeFastHash(phone, password) {
 }
 
 export default async function handler(req, res) {
+  if (!enforceGlobalApiRateLimit(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Chỉ hỗ trợ POST.' });
   const phone = normalizePhone(req.body?.phone);
   const password = String(req.body?.password || '');

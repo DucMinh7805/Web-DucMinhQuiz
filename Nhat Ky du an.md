@@ -562,7 +562,7 @@ Tài liệu **"Nhật Ký Dự Án"** này được tạo ra không chỉ để 
 
 - Google Form có câu **“Triệu chứng đi kèm giúp hướng nguyên nhân khó thở nào? Chọn nhiều đáp án.”** với hai đáp án đúng: **Ho ra máu → Thuyên tắc phổi** và **Khò khè → Hen hoặc COPD**.
 - Parser cũ của nhánh `MULTIPLE_CHOICE` dùng `find`, nên chỉ giữ đáp án đúng đầu tiên dù payload Quiz Answer Key có nhiều lựa chọn được đánh dấu đúng.
-- `Utils.gs` mới lấy toàn bộ lựa chọn đúng, ghép barem bằng dấu `|` và ép kiểu câu thành `multiple` nếu có từ hai đáp án đúng hoặc nội dung câu yêu cầu chọn nhiều đáp án.
+- `Utils.gs` mới lấy toàn bộ lựa chọn đúng và ghép barem bằng dấu `|`. Ghi chú 09/09/2026: **không được suy đoán kiểu câu từ chữ “chọn nhiều”**; chỉ Answer Key thực tế và loại control của Form mới được quyết định.
 - API đồng bộ MongoDB có thêm lớp chuẩn hóa tương tự để không làm mất barem nếu dữ liệu đầu vào khai báo nhầm kiểu câu.
 - Kiểm tra production sau đồng bộ: đề có đủ **117 câu**; câu trên có `type = multiple`, `correctOptionIds = a,b` và API trả đủ cả hai đáp án đúng.
 
@@ -592,3 +592,43 @@ Tài liệu **"Nhật Ký Dự Án"** này được tạo ra không chỉ để 
 - Không áp giới hạn cứng lên đường tải đề; chỉ ưu tiên đăng nhập, đăng ký và API ghi dữ liệu. Trước khi bật chặn toàn cục trên Vercel Firewall cần chạy ở chế độ quan sát để tránh chặn nhầm sinh viên dùng chung Wi-Fi.
 - Không dùng Docker **không** làm request tăng cấp số nhân; Docker chỉ đóng gói môi trường chạy. Redis hữu ích cho cache và bộ đếm rate limit dùng chung giữa nhiều instance, nhưng chưa phải nguyên nhân chính của độ trễ hiện tại.
 - Hướng dài hạn nên có trình soạn đề trực tiếp trên web với Draft/Publish, kiểm tra barem, lịch sử phiên bản và rollback; Google Forms tiếp tục là kênh import cũ/hàng loạt. Browser quản trị không được gọi trực tiếp endpoint chứa secret đồng bộ.
+
+---
+
+## CẬP NHẬT BAREM TOÀN HỆ THỐNG & RATE LIMIT API — 09/09/2026
+
+### 1. Nguyên nhân gốc đã xác minh trên hai Google Form thật
+
+- Không dùng nội dung câu hỏi như “chọn nhiều đáp án” để đoán loại câu. Nguồn chuẩn duy nhất là `grading.correctAnswers.answers[]` của Google Forms API v1.
+- Form **Đề theo sách - Khám lâm sàng các khớp ngoại vi** có 118 câu. Google Forms API trả 46 câu có từ hai Answer Key trở lên; câu vận động khuỷu trả đủ ba ô đã tick: **Gấp khuỷu khoảng 150 độ**, **Duỗi khuỷu về 0 độ sinh lý**, **So sánh hai bên không có chênh lệch đáng kể**. Payload HTML công khai và FormApp cũ đã làm rơi đáp án.
+- Form **2025 - Thực tập GP hệ sinh dục nam - Ống bẹn** có 42/42 câu trả lời ngắn và Google Forms API trả đủ 42 barem thật, ví dụ “Khoang sau xương mu”, “TM mu nông dương vật”. Đây là cùng một sửa lỗi nguồn dữ liệu, không phải vá riêng từng đề.
+
+### 2. Cơ chế mới trong Apps Script
+
+- `Utils.gs` đọc Forms API bằng OAuth của chính Apps Script, ghép theo tiêu đề + thứ tự xuất hiện và giữ fallback index. Dữ liệu FormApp/HTML chỉ còn là fallback, không được ghi đè nguồn API đầy đủ.
+- Vì Cloud project mặc định của Apps Script không cho chủ Sheet bật API trực tiếp, request dùng header quota project `tokyo-saga-470416-g7` — dự án DiamondQuiz hiện có đã bật Forms API. Không đổi GCP project đang gắn với web app và không đưa service-account key lên Apps Script/Vercel.
+- Đã cập nhật thực tế `Menu.gs`, `Utils.gs` và thêm `Answer_Key_System.gs` trên dự án **Code Lên đề M|Quiz**.
+- Menu mới có kiểm tra không ghi dữ liệu cho dòng đang chọn, sửa barem toàn hệ thống theo lô 8 đề/phút, xem trạng thái, dừng tiến trình và tab audit `KiemTraBarem`.
+- Cơ chế sửa hàng loạt chỉ cập nhật `type` và `answer`, giữ nguyên câu hỏi, lựa chọn, ảnh, lời giải. Đề lệch số câu/tiêu đề hoặc thiếu Answer Key sẽ bị dừng riêng và ghi audit, không xuất bản dữ liệu nghi ngờ.
+- Kiểm tra trực tiếp tại `UpDe` dòng 163 đã thành công: **118 câu, 46 câu nhiều đáp án đã tick, 0 câu thiếu barem**.
+
+### 3. Quy tắc nhận diện từ nay
+
+1. `type = multiple` khi Google Form là `CHECKBOX` hoặc Answer Key API trả từ hai giá trị trở lên.
+2. `type = single` khi có lựa chọn và đúng một Answer Key.
+3. `type = short_answer` khi Forms API trả `textQuestion`; mọi đáp án chấp nhận được ghép bằng `|`.
+4. Không regex theo tiêu đề. Một câu có chữ “chọn nhiều” nhưng chỉ tick một barem không được tự bịa thêm đáp án.
+5. Backend từ chối xuất bản câu checkbox nếu không ghép được bất kỳ đáp án đúng nào.
+
+### 4. Rate limiting toàn API
+
+- Tất cả 12 API của web đều có lớp giới hạn chung và trả `429` + `Retry-After` khi vượt ngưỡng; đăng nhập/đăng ký/mã kích hoạt vẫn giữ lớp giới hạn chặt hơn theo IP và tài khoản.
+- Không giới hạn file tĩnh/CDN toàn website: CSS, JS, logo không chạm MongoDB và việc chặn theo IP toàn trang có thể khóa nhầm cả lớp học/bệnh viện dùng chung Wi-Fi. “Toàn hệ thống” ở đây là toàn bộ `/api`, chính là phần dùng CPU, MongoDB và kết nối máy chủ.
+- Bộ đếm RAM được giới hạn tối đa 20.000 khóa để bot không làm đầy bộ nhớ. Đây là lớp bảo vệ tại từng Vercel instance; khi tải thực tế lớn hơn sẽ bổ sung Vercel WAF hoặc Redis dùng chung sau giai đoạn quan sát.
+
+### 5. Kiểm thử local trước triển khai
+
+- `test:critical`: đạt; có kiểm tra ba Answer Key, 42 short-answer, không suy đoán theo chữ, fail-closed và HTTP 429.
+- `test:security`: đạt.
+- `lint`: đạt, còn hai cảnh báo cũ không liên quan.
+- `build:verify`: đạt.
