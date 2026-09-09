@@ -632,3 +632,32 @@ Tài liệu **"Nhật Ký Dự Án"** này được tạo ra không chỉ để 
 - `test:security`: đạt.
 - `lint`: đạt, còn hai cảnh báo cũ không liên quan.
 - `build:verify`: đạt.
+
+### 6. Kết quả triển khai production và đồng bộ thử nghiệm
+
+- Commit `a2498c1` (`fix(quiz): repair answer keys system-wide`) đã được đẩy lên GitHub `main`; Vercel production đã hoàn tất ở trạng thái **Ready**.
+- API production của đề **Khám lâm sàng các khớp ngoại vi** trả `type = multiple`, đủ **3/3 đáp án đúng** của câu vận động khuỷu. Điều này xác nhận web dùng barem đã tick trong Google Form, không còn dựa vào chữ “chọn nhiều”.
+- Đề **2025 - Thực tập GP hệ sinh dục nam - Ống bẹn** trả đủ **42/42 câu trả lời ngắn có barem**; mẫu kiểm tra “Chi tiết số 1...” trả “khoang sau xương mu”.
+- Sau cập nhật, lượt đọc đề thử nghiệm đầu khoảng **0,50 giây** và lượt Edge cache HIT khoảng **0,32 giây**. Tốc độ thực tế vẫn phụ thuộc mạng và kích thước đề nhưng không còn phải chờ khoảng 1–2 giây ở các lượt cache nóng đã đo.
+- Manifest production trả đúng header rate limit `3000/phút/IP`. API xác thực trả header `600/phút/IP`; từng endpoint nhạy cảm vẫn có ngưỡng chặt hơn. Các bài test đã xác minh phản hồi `429` và `Retry-After` khi vượt ngưỡng.
+
+### 7. Kết quả quét và sửa barem toàn hệ thống
+
+- Tiến trình đã chạy hết `UpDe`, dừng ở dòng kế tiếp 196 và ghi tab `KiemTraBarem`; không còn trigger nền đang chạy.
+- Tổng cộng có **178 đề hợp lệ** được kiểm tra: **177 đề đạt**, **1 đề lỗi dữ liệu nguồn**.
+- Có **43 đề** được cập nhật, tương ứng **1.030 câu** thay đổi `type` hoặc `answer` theo Forms API.
+- Toàn bộ tập đã kiểm tra ghi nhận **666 câu nhiều đáp án**, **467 câu trả lời ngắn** và **16.675 barem được chấp nhận**.
+- 177 đề đạt đã được ghi trạng thái `✅ Barem API...` ở cột E. Một đề lỗi được giữ nguyên dữ liệu production theo nguyên tắc fail-closed, không phát hành barem rỗng hoặc tự đoán.
+
+### 8. Đề duy nhất còn thiếu dữ liệu nguồn
+
+- Dòng `UpDe` 192: **Đề theo sách - Hệ sinh dục nữ**, Form ID `17ZWzj__awVu4WvD7gD4-z0NxTd-X9nqcryb9TfvSudI`.
+- Form có **53 câu**, tất cả là câu trả lời ngắn nhưng Forms API báo **53/53 câu chưa có Answer Key**. Kiểm tra trực tiếp giao diện Google Form tại câu 1 cũng hiện ô trống **“Thêm câu trả lời chính xác”**.
+- Production hiện có đủ 53 câu của đề này nhưng `answer` đang trống ở cả 53 câu. Đây là thiếu barem tại Google Form gốc, không còn là lỗi parser.
+- Cách hoàn tất: nhập Answer Key cho 53 câu ngay trong Google Form, chọn dòng 192 ở `UpDe`, rồi chạy **Đồng bộ các đề đang bôi đen (khuyên dùng)** hoặc chạy lại **Sửa barem toàn hệ thống**. Hệ thống sẽ tự nhận diện, không cần sửa mã thêm.
+
+### 9. Quyết định về Vercel Firewall/WAF
+
+- Rate limiting ở mã nguồn đã được bật cho toàn bộ `/api`; file tĩnh, logo và bundle vẫn đi qua CDN bình thường để không chặn nhầm người dùng chung IP và không làm chậm trang.
+- Vercel đã có chống DDoS tự động. Luật WAF rate limit đầu tiên có bước xem xét chi phí và ảnh hưởng traffic production, nên chưa tự ý publish.
+- Nếu bật WAF, phạm vi hợp lý là `/api/*`, bắt đầu ở chế độ **Log** để đo traffic thật rồi mới chuyển sang **Deny/Challenge**. Không đặt luật blanket `/*` lên cả website.
