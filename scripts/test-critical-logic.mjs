@@ -55,6 +55,7 @@ assert.deepEqual(
   'An empty image object must not become the literal string [object Object]'
 );
 assert.equal(formatSubjectName('NOI_CO_SO', { subjects: [{ id: 'noi_co_so', name: 'Nội Cơ Sở' }] }), 'Nội Cơ Sở');
+assert.equal(formatSubjectName('Noi Co So'), 'Nội cơ sở');
 
 const gasUtils = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_4_Utils.gs', import.meta.url), 'utf8');
 const gasSync = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_3_Sync.gs', import.meta.url), 'utf8');
@@ -80,6 +81,7 @@ const authContext = fs.readFileSync(new URL('../src/context/AuthContext.jsx', im
 const homeHero = fs.readFileSync(new URL('../src/components/Home/HomeHero.jsx', import.meta.url), 'utf8');
 const windowsFileTree = fs.readFileSync(new URL('../src/components/Tree/WindowsFileTree.jsx', import.meta.url), 'utf8');
 const contentSyncApi = fs.readFileSync(new URL('../api/admin/content-sync.js', import.meta.url), 'utf8');
+assert.match(contentSyncApi, /isPublished:\s*subject\?\.isPublished !== false/);
 const unlockModal = fs.readFileSync(new URL('../src/components/Modals/UnlockSubjectModal.jsx', import.meta.url), 'utf8');
 const mistakesNotebook = fs.readFileSync(new URL('../src/pages/MistakesNotebookPage.jsx', import.meta.url), 'utf8');
 const migrationScript = fs.readFileSync(new URL('../scripts/migrate-dryrun.cjs', import.meta.url), 'utf8');

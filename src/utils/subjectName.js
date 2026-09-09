@@ -7,6 +7,10 @@ function normalizeSubjectKey(value) {
     .replace(/[\s-]+/g, '_');
 }
 
+const SUBJECT_FALLBACK_NAMES = {
+  noi_co_so: 'Nội cơ sở'
+};
+
 export function formatSubjectName(subjectId, manifest) {
   if (!subjectId) return 'Y Khoa';
   const normalizedId = normalizeSubjectKey(subjectId);
@@ -14,6 +18,7 @@ export function formatSubjectName(subjectId, manifest) {
     [subject.id, subject.code, subject.name].some(value => normalizeSubjectKey(value) === normalizedId)
   );
   if (matchedSubject?.name) return matchedSubject.name;
+  if (SUBJECT_FALLBACK_NAMES[normalizedId]) return SUBJECT_FALLBACK_NAMES[normalizedId];
 
   return String(subjectId)
     .replace(/[_-]+/g, ' ')

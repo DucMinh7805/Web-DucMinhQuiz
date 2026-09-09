@@ -45,7 +45,7 @@ function subjectPayload(subject, orderIndex = 0) {
     isPro: Boolean(subject.isPro || Number(subject.price) > 0),
     pricingSynced: true,
     orderIndex,
-    isPublished: raw?.isPublished !== false
+    isPublished: subject?.isPublished !== false
   };
 }
 
