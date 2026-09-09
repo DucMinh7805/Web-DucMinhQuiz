@@ -35,16 +35,18 @@ export default function QuestionResultBanner({ question: _question, isCorrect, c
           <h4 className="font-extrabold text-xs sm:text-sm">
             {isUngraded ? 'Chưa chấm tự động' : isCorrect ? 'Chính xác!' : 'Chưa chính xác!'}
           </h4>
-          <p className="text-[11px] opacity-90 mt-0.5">
-            {isUngraded 
-              ? 'Nguồn chưa có barem nên câu này được ghi nhận nhưng không tính vào điểm.'
-              : isMultiple ? `Câu này có ${correctAnswers.length} đáp án đúng:` : 'Đáp án chuẩn:'}
-          </p>
+          {(isUngraded || !isCorrect) && (
+            <p className="text-[11px] opacity-90 mt-0.5">
+              {isUngraded
+                ? 'Nguồn chưa có barem nên câu này được ghi nhận nhưng không tính vào điểm.'
+                : isMultiple ? `Câu này có ${correctAnswers.length} đáp án đúng:` : 'Đáp án chuẩn:'}
+            </p>
+          )}
         </div>
       </div>
 
       {/* Danh sách các tag đáp án đúng rõ ràng */}
-      {correctAnswers.length > 0 && (
+      {correctAnswers.length > 0 && !isCorrect && (
         <div className="flex flex-wrap gap-1.5 pt-1 pl-10">
           {correctAnswers.map((ans, aIdx) => (
             <span 
