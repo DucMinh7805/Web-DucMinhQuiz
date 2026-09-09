@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import { connectToDatabase } from '../_utils/db.js';
 import { Book, Deck, Question, Subject } from '../_models/index.js';
 import { enforceGlobalApiRateLimit } from '../_utils/rateLimiter.js';
+import { createPublicQuestionId, normalizeSourceQuestionId } from '../_utils/questionIdentity.js';
+import { getQuestionImageVariants } from '../_utils/imageUrl.js';
 
 const ALLOWED_OPERATIONS = new Set(['syncManifest', 'upsertDeck', 'deleteDeck', 'deleteSubject']);
 export const config = { maxDuration: 60 };
@@ -43,7 +45,7 @@ function subjectPayload(subject, orderIndex = 0) {
     isPro: Boolean(subject.isPro || Number(subject.price) > 0),
     pricingSynced: true,
     orderIndex,
-    isPublished: true
+    isPublished: raw?.isPublished !== false
   };
 }
 
@@ -96,11 +98,17 @@ function normalizeQuestion(raw, index, deckId, deckPath) {
       ? 'multiple'
       : 'single';
   }
-  const imageUrl = String(raw?.imageUrl || raw?.image?.fullResUrl || raw?.image?.thumbnailUrl || '');
+  const qId = String(raw?.id || raw?.qId || `q_${index + 1}`);
+  const sourceQuestionId = normalizeSourceQuestionId(
+    raw?.sourceQuestionId || raw?.formItemId || raw?.entryId
+  );
+  const image = getQuestionImageVariants(raw?.image || raw?.imageUrl || '');
   return {
     deckId,
     deckPath,
-    qId: String(raw?.id || raw?.qId || `q_${index + 1}`),
+    qId,
+    ...(sourceQuestionId ? { sourceQuestionId } : {}),
+    publicId: createPublicQuestionId({ sourceQuestionId, qId, deckPath }),
     type,
     difficulty: ['easy', 'medium', 'hard'].includes(raw?.difficulty) ? raw.difficulty : 'medium',
     question: String(raw?.question || '').trim() || `Câu hỏi ${index + 1}`,
@@ -111,7 +119,7 @@ function normalizeQuestion(raw, index, deckId, deckPath) {
     explanation: String(raw?.explanation || ''),
     clinicalPearl: String(raw?.clinicalPearl || ''),
     referenceBook: String(raw?.referenceBook || raw?.source || ''),
-    image: { thumbnailUrl: imageUrl, fullResUrl: imageUrl, caption: String(raw?.image?.caption || '') },
+    image,
     orderIndex: index,
     isPublished: true
   };
@@ -265,7 +273,9 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
   if (questions.length) {
     await Question.bulkWrite(questions.map(question => ({
       updateOne: {
-        filter: { deckId: deckDoc._id, qId: question.qId },
+        filter: question.sourceQuestionId
+          ? { $or: [{ sourceQuestionId: question.sourceQuestionId }, { deckId: deckDoc._id, qId: question.qId }] }
+          : { deckId: deckDoc._id, qId: question.qId },
         update: { $set: question },
         upsert: true
       }

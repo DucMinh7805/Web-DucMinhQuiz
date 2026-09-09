@@ -14,8 +14,10 @@ const LibraryPage = lazy(() => import('./pages/LibraryPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const ThankYouPage = lazy(() => import('./pages/ThankYouPage'));
+const AdminContentPage = lazy(() => import('./pages/AdminContentPage'));
 import AuthModalGuard from './components/Auth/AuthModalGuard';
 import AuthGuard from './components/Auth/AuthGuard';
+import AdminGuard from './components/Auth/AdminGuard';
 import AppErrorBoundary from './components/Common/AppErrorBoundary';
 import NetworkStatusBanner from './components/Common/NetworkStatusBanner';
 import { AuthProvider } from './context/AuthContext';
@@ -166,6 +168,7 @@ export default function App() {
                     <Route path="/library" element={<AuthModalGuard message="Đăng nhập để truy cập Kho Sách & Slide Y Khoa."><LibraryPage /></AuthModalGuard>} />
                     <Route path="/mistakes" element={<AuthModalGuard message="Đăng nhập để xem Sổ tay câu sai cá nhân."><MistakesNotebookPage /></AuthModalGuard>} />
                     <Route path="/profile" element={<AuthModalGuard message="Đăng nhập để xem Hồ sơ cá nhân."><ProfilePage /></AuthModalGuard>} />
+                    <Route path="/admin/content" element={<AdminGuard><AdminContentPage /></AdminGuard>} />
                   </Route>
 
                   {/* Phòng thi Quiz (Toàn màn hình) — bắt buộc đăng nhập */}

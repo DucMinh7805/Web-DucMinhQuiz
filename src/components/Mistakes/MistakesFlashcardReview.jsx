@@ -92,9 +92,16 @@ export default function MistakesFlashcardReview({
             className="bg-white dark:bg-[#0c1222] flex-1 rounded-3xl shadow-xl border border-slate-200 dark:border-white/10 p-6 sm:p-8 flex flex-col overflow-y-auto"
           >
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
-                {formatSubjectName(current.subjectId)}
-              </span>
+              <div className="min-w-0">
+                <span className="block text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider truncate">
+                  {formatSubjectName(current.subjectId)}
+                </span>
+                {current.publicId && (
+                  <span className="block mt-0.5 text-[10px] font-mono font-semibold tracking-wide text-slate-400 dark:text-slate-500">
+                    ID {current.publicId}
+                  </span>
+                )}
+              </div>
               <span className="text-[11px] font-semibold text-slate-400">
                 {optionsList.length > 0 ? 'Chọn đáp án để kiểm tra' : 'Thẻ ghi nhớ'}
               </span>

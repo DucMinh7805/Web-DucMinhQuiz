@@ -37,15 +37,17 @@ function onOpen() {
 
 function initUsersSheet() {
   const sheet = getTargetSheet();
+  if (sheet.getMaxColumns() < 8) sheet.insertColumnsAfter(sheet.getMaxColumns(), 8 - sheet.getMaxColumns());
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(["Số Điện Thoại", "Họ và Tên", "Email", "Mật Khẩu Gốc", "Ngày Đăng Ký", "Trạng Thái", "Mã Khóa Xác Thực (Tự Động)"]);
+    sheet.appendRow(["Số Điện Thoại", "Họ và Tên", "Email", "Mật Khẩu Gốc", "Ngày Đăng Ký", "Trạng Thái", "Mã Khóa Xác Thực (Tự Động)", "Vai Trò"]);
   } else {
-    sheet.getRange(1, 1, 1, 7).setValues([["Số Điện Thoại", "Họ và Tên", "Email", "Mật Khẩu Gốc", "Ngày Đăng Ký", "Trạng Thái", "Mã Khóa Xác Thực (Tự Động)"]]);
+    sheet.getRange(1, 1, 1, 8).setValues([["Số Điện Thoại", "Họ và Tên", "Email", "Mật Khẩu Gốc", "Ngày Đăng Ký", "Trạng Thái", "Mã Khóa Xác Thực (Tự Động)", "Vai Trò"]]);
   }
-  sheet.getRange("A1:G1").setFontWeight("bold").setBackground("#d1fae5");
+  sheet.getRange("A1:H1").setFontWeight("bold").setBackground("#d1fae5");
   sheet.getRange("A:A").setNumberFormat("@");
   sheet.getRange("D:D").setNumberFormat("@");
   sheet.getRange("G:G").setNumberFormat("@").setBackground("#f1f5f9");
+  sheet.getRange("H:H").setNumberFormat("@");
   SpreadsheetApp.getUi().alert('Thành công', 'Cột D giữ mật khẩu gốc; cột G là mã khóa tự động. Không sửa cột G bằng tay.', SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
@@ -142,7 +144,7 @@ function handleRegister(params) {
   var registerDate = Utilities.formatDate(new Date(), "GMT+7", "HH:mm:ss dd/MM/yyyy");
   var status = "Hoạt động";
 
-  sheet.appendRow([textPhone, name || ("Học viên " + cleanPhone.slice(-4)), email, textPass, registerDate, status, passwordKey]);
+  sheet.appendRow([textPhone, name || ("Học viên " + cleanPhone.slice(-4)), email, textPass, registerDate, status, passwordKey, 'user']);
 
   // Gửi email chào mừng nếu có
   if (email && email.includes("@")) {
@@ -165,7 +167,8 @@ function handleRegister(params) {
     user: {
       phone: cleanPhone,
       name: name || ("Học viên " + cleanPhone.slice(-4)),
-      email: email
+      email: email,
+      role: 'user'
     }
   });
 }
@@ -193,6 +196,7 @@ function handleLogin(params) {
     var rowPass = String(data[i][3] || "").replace(/^'/, "").trim();
     var rowPasswordKey = String(data[i][6] || "").trim();
     var rowStatus = String(data[i][5] || "Hoạt động").trim();
+    var rowRole = sanitizeUserRole_(data[i][7]);
 
     if (rowPhone === cleanPhone) {
       var passwordMatches = rowPasswordKey
@@ -223,6 +227,7 @@ function handleLogin(params) {
           name: rowName || ("Học viên " + cleanPhone.slice(-4)),
           email: rowEmail,
           status: rowStatus,
+          role: rowRole,
           entitlements: getActiveEntitlementsForPhone(cleanPhone)
         }
       });
@@ -399,7 +404,7 @@ function handleSessionProfile(params) {
       phone: phone,
       name: String(data[i][1] || '').trim(),
       email: String(data[i][2] || '').trim(),
-      role: 'user',
+      role: sanitizeUserRole_(data[i][7]),
       entitlements: getActiveEntitlementsForPhone(phone)
     }});
   }
@@ -567,12 +572,17 @@ function handleUpdateProfile(params) {
       phone: newPhone,
       name: name,
       email: email,
-      role: 'user',
+      role: sanitizeUserRole_(data[accountRow][7]),
       entitlements: getActiveEntitlementsForPhone(newPhone)
     }});
   } finally {
     lock.releaseLock();
   }
+}
+
+function sanitizeUserRole_(value) {
+  var role = String(value || 'user').trim().toLowerCase();
+  return role === 'admin' || role === 'moderator' ? role : 'user';
 }
 
 function migrateAccountPhone_(oldPhone, newPhone) {

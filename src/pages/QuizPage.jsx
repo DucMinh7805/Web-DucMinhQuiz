@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { shuffleArray } from '../utils/shuffle';
+import { getQuestionImageUrls } from '../utils/imageHelper';
 import {
   evaluateQuestionAnswer,
   getStableQuestionId,
@@ -121,6 +122,17 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
       startTimeRef.current = Date.now();
     }
   }, [rawQuestions, isShuffleEnabled, questionLimit]);
+
+  // Tải trước ảnh nhẹ của câu hiện tại và hai câu kế tiếp để chuyển câu tức thì.
+  useEffect(() => {
+    activeQuestions.slice(currentIndex, currentIndex + 3).forEach(question => {
+      const { thumbnailUrl } = getQuestionImageUrls(question?.image || question?.imageUrl);
+      if (!thumbnailUrl) return;
+      const preloadImage = new Image();
+      preloadImage.decoding = 'async';
+      preloadImage.src = thumbnailUrl;
+    });
+  }, [activeQuestions, currentIndex]);
 
   // Exam Countdown Timer
   useEffect(() => {
@@ -275,11 +287,16 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
           subjectId,
           deckId,
           question: q.question,
+          publicId: q.publicId || '',
           options: q.parsedOptions || (q.options ? (Array.isArray(q.options) ? q.options : String(q.options).split('|')) : []),
           userAnswer: userAns,
           answer: q.answer,
           correctAnswer: q.answer,
           explanation: q.explanation || '',
+          clinicalPearl: q.clinicalPearl || '',
+          referenceBook: q.referenceBook || '',
+          image: q.image || null,
+          imageUrl: q.imageUrl || '',
           timestamp: new Date().toISOString()
         });
       }
@@ -355,13 +372,13 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
 
   return (
     <div 
-      className="h-screen max-h-screen overflow-hidden bg-slate-50/80 dark:bg-[#060a14] text-slate-800 dark:text-slate-200 flex flex-col antialiased"
+      className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-slate-50/80 dark:bg-[#060a14] text-slate-800 dark:text-slate-200 flex flex-col antialiased"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
       
       {/* 1. Sleek Top Header Bar (Tên Môn Học & Tên Đề Thi Tiếng Việt Rõ Ràng) */}
-      <div className="bg-white/85 dark:bg-[#0b1120]/85 backdrop-blur-xl border-b border-slate-200/60 dark:border-white/10 py-2.5 px-3 sm:px-8 flex items-center justify-between shrink-0 z-20 shadow-2xs">
+      <div className="quiz-safe-header bg-white/85 dark:bg-[#0b1120]/85 backdrop-blur-xl border-b border-slate-200/60 dark:border-white/10 py-2.5 px-3 sm:px-8 flex items-center justify-between shrink-0 z-20 shadow-2xs">
         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1 mr-2">
           <button
             type="button"
@@ -404,7 +421,7 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
       </div>
 
       {/* 2. Main Question Workstation (Hỗ trợ vuốt chạm trái phải) */}
-      <main className="flex-1 min-h-0 w-full py-2 px-2 sm:px-6 lg:px-8 flex items-start justify-center overflow-y-auto custom-scrollbar pb-24 sm:pb-20">
+      <main className="flex-1 min-h-0 w-full py-2 px-2 sm:px-6 lg:px-8 flex items-start justify-center overflow-y-auto custom-scrollbar pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-20">
         <QuestionCard
           questionIndex={currentIndex}
           totalQuestions={activeQuestions.length}

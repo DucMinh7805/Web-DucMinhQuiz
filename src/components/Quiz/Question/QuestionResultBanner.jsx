@@ -1,6 +1,6 @@
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
-export default function QuestionResultBanner({ question, isCorrect, correctAnswers, isMultiple }) {
+export default function QuestionResultBanner({ question: _question, isCorrect, correctAnswers, isMultiple }) {
   const isUngraded = correctAnswers.length === 0;
 
   let bgColor = '';

@@ -206,7 +206,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    fetch('/api/auth/sheet-logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+    fetch('/api/auth/me', { method: 'DELETE', credentials: 'include' }).catch(() => {});
     localStorage.removeItem('y_khoa_user');
     setUser(null);
   };

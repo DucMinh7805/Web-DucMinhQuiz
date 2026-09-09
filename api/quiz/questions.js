@@ -2,6 +2,8 @@ import { connectToDatabase } from '../_utils/db.js';
 import { Deck, Question, Subject } from '../_models/index.js';
 import { authenticateSheetSession, sessionHasEntitlement } from '../_utils/sheetSession.js';
 import { enforceGlobalApiRateLimit } from '../_utils/rateLimiter.js';
+import { createPublicQuestionId } from '../_utils/questionIdentity.js';
+import { getQuestionImageVariants } from '../_utils/imageUrl.js';
 
 export default async function handler(req, res) {
   if (!enforceGlobalApiRateLimit(req, res)) return;
@@ -70,9 +72,16 @@ export default async function handler(req, res) {
       .sort({ orderIndex: 1, createdAt: 1 })
       .lean();
 
-    const formattedQuestions = questions.map((q, idx) => ({
+    const formattedQuestions = questions.map((q, idx) => {
+      const image = getQuestionImageVariants(q.image || {});
+      return ({
       id: q._id,
       qId: q.qId || `q_${idx}`,
+      publicId: q.publicId || createPublicQuestionId({
+        sourceQuestionId: q.sourceQuestionId,
+        qId: q.qId || `q_${idx}`,
+        deckPath: q.deckPath || normalizedPath
+      }),
       deckId: q.deckId,
       deckPath: q.deckPath,
       type: q.type,
@@ -89,9 +98,10 @@ export default async function handler(req, res) {
       explanation: q.explanation || '',
       clinicalPearl: q.clinicalPearl || '',
       referenceBook: q.referenceBook || '',
-      imageUrl: q.image?.thumbnailUrl || q.image?.fullResUrl || '',
-      image: q.image || {}
-    }));
+      imageUrl: image.thumbnailUrl || image.fullResUrl,
+      image
+    });
+    });
 
     return res.status(200).json({ success: true, data: formattedQuestions });
   } catch (error) {

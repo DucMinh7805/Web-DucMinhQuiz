@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
-  Sparkles, CheckSquare, ArrowRight, X
+  Sparkles, CheckSquare, ArrowRight, BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import OptionItem from './OptionItem';
@@ -32,7 +32,7 @@ export default function QuestionCard({
   onPrev,
   onNext
 }) {
-  const [zoomImage, setZoomImage] = useState(null);
+  const [showExplanation, setShowExplanation] = useState(false);
   const [multiSelected, setMultiSelected] = useState([]);
   const [shortAnswerText, setShortAnswerText] = useState('');
   const cardTopRef = useRef(null);
@@ -81,6 +81,10 @@ export default function QuestionCard({
       (isAnswered && isShortAnswer) ? String(selectedAnswer) : ''
     );
   }, [questionIndex, question?.type, selectedAnswer, isAnswered]);
+
+  useEffect(() => {
+    setShowExplanation(false);
+  }, [questionIndex, question?.publicId, question?.id]);
 
 
   // Thao tác vuốt cảm ứng trên Điện thoại / Tablet
@@ -178,6 +182,11 @@ export default function QuestionCard({
                   <span className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-black text-xs px-3.5 py-1.5 rounded-xl shadow-sm">
                     Câu {questionIndex + 1} / {totalQuestions}
                   </span>
+                  {question?.publicId && (
+                    <span className="text-[10px] font-mono font-semibold tracking-wide text-slate-400 dark:text-slate-500" title="Mã câu hỏi để báo lỗi">
+                      ID {question.publicId}
+                    </span>
+                  )}
                   
                   {isMultiple && (
                     <span className="text-xs font-black text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-lg flex items-center shadow-xs">
@@ -196,7 +205,7 @@ export default function QuestionCard({
               {hasVignette && (
                 <QuestionVignette 
                   vignette={vignetteContent} 
-                  imageUrl={question?.imageUrl || question?.image} 
+                  image={question?.image || question?.imageUrl}
                 />
               )}
 
@@ -312,13 +321,22 @@ export default function QuestionCard({
                     isMultiple={isMultiple} 
                   />
 
-                  {/* Deep Citation Card */}
-                  <DeepCitationCard
-                    question={question}
-                    userAnswer={selectedAnswer}
-                    correctAnswer={question.answer}
-                    explanation={question.explanation}
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowExplanation(value => !value)}
+                    className="w-full px-4 py-3 rounded-2xl border border-teal-500/30 bg-teal-500/10 text-teal-800 dark:text-teal-200 text-sm font-extrabold flex items-center justify-center gap-2 hover:bg-teal-500/15 transition-colors"
+                    aria-expanded={showExplanation}
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    {showExplanation ? 'Ẩn giải thích & nguồn' : 'Xem giải thích & nguồn'}
+                  </button>
+
+                  {showExplanation && (
+                    <DeepCitationCard
+                      question={question}
+                      explanation={question.explanation}
+                    />
+                  )}
                 </motion.div>
               ) : (
                 /* Khi CHƯA TRẢ LỜI: Không gian trống sạch sẽ */
@@ -332,7 +350,7 @@ export default function QuestionCard({
                   <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 max-w-xs">
                     {isMultiple 
                       ? 'Tick chọn các đáp án đúng ở cột bên trái và bấm Xác nhận để xem cơ chế bệnh sinh chi tiết.'
-                      : 'Chọn một phương án ở cột bên trái để mở phân tích cơ chế bệnh học, trích dẫn tài liệu và trợ lý AI.'
+                      : 'Chọn một phương án ở cột bên trái. Phần giải thích và nguồn sẽ chỉ mở khi bạn yêu cầu.'
                     }
                   </p>
                 </div>
@@ -344,26 +362,6 @@ export default function QuestionCard({
         </motion.div>
       </AnimatePresence>
 
-      {/* Modal Zoom Fullscreen Image */}
-      {zoomImage && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setZoomImage(null)}
-        >
-          <button
-            className="absolute top-5 right-5 text-white p-2.5 rounded-full bg-white/20 hover:bg-white/30"
-            onClick={() => setZoomImage(null)}
-          >
-            <X className="w-6 h-6" />
-          </button>
-          <img
-            src={zoomImage}
-            alt="Phóng to"
-            className="max-h-[90vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
     </div>
   );
 }

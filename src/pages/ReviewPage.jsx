@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, RotateCcw, CheckCircle2, XCircle, 
-  Award, Bookmark, Flag
+  Award, Bookmark, Flag, BookOpen
 } from 'lucide-react';
 import DeepCitationCard from '../components/Quiz/DeepCitationCard';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
-import { getDirectImageUrl } from '../utils/imageHelper';
+import { getQuestionImageUrls } from '../utils/imageHelper';
 import usePageTitle from '../hooks/usePageTitle';
 import {
   evaluateQuestionAnswer,
@@ -32,6 +32,7 @@ export default function ReviewPage({
   const navigate = useNavigate();
   const { user } = useAuth();
   const [filter, setFilter] = useState('all'); // 'all' | 'correct' | 'wrong' | 'flagged'
+  const [expandedExplanations, setExpandedExplanations] = useState({});
 
   const total = questions.length;
   const gradedTotal = questions.filter(hasQuestionAnswerKey).length;
@@ -244,8 +245,9 @@ export default function ReviewPage({
             const isUngraded = questionEvaluation === QUESTION_EVALUATION.UNGRADED;
             const isFlag = !!flagged[idx];
             const parsedOptions = q.parsedOptions || (q.options ? q.options.split('|') : []);
+            const imageUrls = getQuestionImageUrls(q.image || q.imageUrl);
+            const isExplanationOpen = Boolean(expandedExplanations[idx]);
 
-            const correctArr = splitAnswerValues(q.answer);
             const userArr = splitAnswerValues(userAns);
 
             return (
@@ -286,6 +288,11 @@ export default function ReviewPage({
                   </div>
 
                   <div className="flex items-center space-x-2">
+                    {q.publicId && (
+                      <span className="hidden sm:inline text-[10px] font-mono font-semibold tracking-wide text-slate-400 dark:text-slate-500" title="Mã câu hỏi để báo lỗi">
+                        ID {q.publicId}
+                      </span>
+                    )}
                     {isFlag && (
                       <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-500/15 px-2.5 py-1 rounded-lg border border-amber-500/30 flex items-center">
                         <Flag className="w-3.5 h-3.5 mr-1 fill-amber-500 text-amber-500" />
@@ -301,10 +308,10 @@ export default function ReviewPage({
                 </div>
 
                 {/* Question Image Preview if available */}
-                {q.imageUrl && (
+                {imageUrls.thumbnailUrl && (
                   <div className="mb-4 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/10 max-h-64 flex items-center justify-center bg-slate-950/80">
                     <img 
-                      src={getDirectImageUrl(q.imageUrl)} 
+                      src={imageUrls.thumbnailUrl}
                       alt="Hình ảnh câu hỏi" 
                       loading="lazy"
                       className="max-h-64 w-auto object-contain"
@@ -358,14 +365,21 @@ export default function ReviewPage({
                   </div>
                 )}
 
-                {/* Deep Citation & Mechanism Card */}
-                <DeepCitationCard
-                  question={q}
-                  userAnswer={userAns}
-                  correctAnswer={q.answer}
-                  explanation={q.explanation}
-                  subjectName={subjectId}
-                />
+                <button
+                  type="button"
+                  onClick={() => setExpandedExplanations(current => ({ ...current, [idx]: !current[idx] }))}
+                  className="w-full px-4 py-3 rounded-2xl border border-teal-500/30 bg-teal-500/10 text-teal-800 dark:text-teal-200 text-sm font-extrabold flex items-center justify-center gap-2 hover:bg-teal-500/15 transition-colors"
+                  aria-expanded={isExplanationOpen}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  {isExplanationOpen ? 'Ẩn giải thích & nguồn' : 'Xem giải thích & nguồn'}
+                </button>
+
+                {isExplanationOpen && (
+                  <div className="mt-3">
+                    <DeepCitationCard question={q} explanation={q.explanation} />
+                  </div>
+                )}
               </motion.div>
             );
           })}

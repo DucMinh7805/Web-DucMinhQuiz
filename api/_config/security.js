@@ -10,6 +10,8 @@ export const SECURITY_CONFIG = Object.freeze({
   authSheetUrl: process.env.AUTH_SHEET_WEB_APP_URL || '',
   sessionSecret: process.env.SHEET_SESSION_SECRET || '',
   authSheetInternalSecret: process.env.AUTH_SHEET_INTERNAL_SECRET || '',
+  quizSheetUrl: process.env.QUIZ_SHEET_WEB_APP_URL || '',
+  quizSyncInternalSecret: process.env.QUIZ_SYNC_INTERNAL_SECRET || '',
   // Giữ nhanh vì quyền nằm trong cookie, nhưng giới hạn cửa sổ thu hồi quyền.
   sessionHours: 4,
   issuer: 'medquiz-api',

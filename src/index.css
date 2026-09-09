@@ -14,6 +14,7 @@
     -webkit-tap-highlight-color: transparent; /* Bỏ màu xanh khi tap trên iOS */
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE & Edge */
+    min-height: 100%;
   }
 
   html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar {
@@ -24,10 +25,19 @@
 
   body {
     @apply antialiased text-slate-800 bg-surface dark:bg-navy-900;
+    min-height: 100dvh;
   }
 }
 
 @layer utilities {
+  .admin-label {
+    @apply block mb-1.5 text-xs font-extrabold text-slate-600 dark:text-slate-300;
+  }
+
+  .admin-input {
+    @apply w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-sm;
+  }
+
   .mobile-safe-header {
     padding-top: max(0.625rem, env(safe-area-inset-top));
     padding-left: max(1rem, env(safe-area-inset-left));
@@ -37,6 +47,25 @@
   .safe-area-drawer {
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .quiz-safe-header {
+    padding-top: max(0.625rem, env(safe-area-inset-top));
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .quiz-safe-bottom {
+    padding-bottom: max(0.625rem, env(safe-area-inset-bottom));
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .safe-modal {
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
   }
 
   .graph-safe-fullscreen {

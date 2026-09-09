@@ -11,6 +11,9 @@ import {
 import { buildTransferContent, makePaymentCode } from '../src/utils/paymentReference.js';
 import { resolveSubjectStages, STAGES } from '../src/data/stageMapping.js';
 import { enforceGlobalApiRateLimit } from '../api/_utils/rateLimiter.js';
+import { createPublicQuestionId } from '../api/_utils/questionIdentity.js';
+import { getOptimizedQuestionImageUrl } from '../api/_utils/imageUrl.js';
+import { formatSubjectName } from '../src/utils/subjectName.js';
 
 assert.equal(isOptionCorrect('A. Đáp án đúng', 0, 'A'), true);
 assert.equal(isOptionCorrect('B. Đáp án sai', 1, 'A'), false);
@@ -36,6 +39,17 @@ const first = getStableQuestionId({ question: 'Câu hỏi không có ID?' }, 'no
 const second = getStableQuestionId({ question: 'Câu hỏi không có ID?' }, 'noi-khoa', 'de-1');
 assert.equal(first, second);
 assert.equal(getStableQuestionId({ id: 'form-123' }, 'x', 'y'), 'form-123');
+assert.equal(
+  createPublicQuestionId({ sourceQuestionId: 'form-1:item-7', qId: 'legacy', deckPath: 'noi-co-so/de-1' }),
+  createPublicQuestionId({ sourceQuestionId: 'form-1:item-7', qId: 'changed', deckPath: 'noi-co-so/de-1' }),
+  'Public question IDs must remain stable when the legacy position ID changes'
+);
+assert.match(createPublicQuestionId({ sourceQuestionId: 'form-1:item-7', deckPath: 'noi-co-so/de-1' }), /^DQ-NCS-[A-Z0-9]{6}$/);
+assert.equal(
+  getOptimizedQuestionImageUrl('https://lh7-rt.googleusercontent.com/formsz/example=s2048?key=x'),
+  'https://lh7-rt.googleusercontent.com/formsz/example=w800?key=x'
+);
+assert.equal(formatSubjectName('NOI_CO_SO', { subjects: [{ id: 'noi_co_so', name: 'Nội Cơ Sở' }] }), 'Nội Cơ Sở');
 
 const gasUtils = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_4_Utils.gs', import.meta.url), 'utf8');
 const gasSync = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_3_Sync.gs', import.meta.url), 'utf8');
@@ -307,9 +321,9 @@ assert.equal(finalRateLimitResponse.statusCode, 429, 'The global API limiter mus
 assert.equal(Boolean(finalRateLimitResponse.headers['Retry-After']), true, 'Rate-limited clients must receive Retry-After');
 assert.equal(rateLimiter.includes('MAX_TRACKED_KEYS = 20000'), true, 'Rate-limit memory must have a hard key cap');
 const apiHandlerFiles = [
-  'admin/content-sync.js', 'library/book-link.js', 'quiz/manifest.js', 'quiz/questions.js',
+  'admin/content-sync.js', 'admin/content.js', 'library/book-link.js', 'quiz/manifest.js', 'quiz/questions.js',
   'user/progress.js', 'auth/me.js', 'auth/refresh-access.js', 'auth/activate-code.js',
-  'auth/sheet-login.js', 'auth/sheet-logout.js', 'auth/sheet-register.js', 'auth/update-profile.js'
+  'auth/sheet-login.js', 'auth/sheet-register.js', 'auth/update-profile.js'
 ];
 apiHandlerFiles.forEach(relativePath => {
   const source = fs.readFileSync(new URL(`../api/${relativePath}`, import.meta.url), 'utf8');

@@ -62,6 +62,9 @@ function handleQuizApiRequest_(e, isPost) {
       } else {
         throw new Error(`Không tìm thấy đề thi: ${path}`);
       }
+    } else if (action === 'patchQuestionOverride') {
+      requireQuizInternalRequest_(e, isPost);
+      result = upsertQuestionOverride_(e.parameter || {});
     } else {
       throw new Error(`Action không hợp lệ: ${action}`);
     }

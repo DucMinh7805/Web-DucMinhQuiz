@@ -33,6 +33,7 @@ export default async function handler(req, res) {
         const userPayload = {
           phone: cachedUser.phone,
           name: cachedUser.fullName,
+          email: cachedUser.email || '',
           role: cachedUser.role || 'user',
           subscriptionTier: cachedUser.subscriptionTier || 'free',
           subscriptionExpiresAt: cachedUser.subscriptionExpiresAt,
@@ -72,6 +73,7 @@ export default async function handler(req, res) {
         {
           $set: {
             fullName: data.user.name || data.user.fullName || phone,
+            email: data.user.email || '',
             passwordHash: computeFastHash(phone, password),
             role: data.user.role || 'user',
             entitlements: Array.isArray(data.user.entitlements) ? data.user.entitlements : [],

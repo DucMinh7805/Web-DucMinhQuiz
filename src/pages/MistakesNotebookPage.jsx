@@ -9,23 +9,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import MistakesFlashcardReview from '../components/Mistakes/MistakesFlashcardReview';
 import MistakesEmptyState from '../components/Mistakes/MistakesEmptyState';
 import usePageTitle from '../hooks/usePageTitle';
+import { formatSubjectName } from '../utils/subjectName';
 
 const emptyArray = [];
-
-function formatSubjectName(subjectId, manifest) {
-  if (!subjectId) return 'Y Khoa';
-  const matchedSubject = manifest?.subjects?.find(subject =>
-    subject.id === subjectId || subject.code === subjectId
-  );
-  if (matchedSubject?.name) return matchedSubject.name;
-  return String(subjectId)
-    .replace(/_/g, ' ')
-    .replace(/-/g, ' ')
-    .toLowerCase()
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-}
 
 export default function MistakesNotebookPage() {
   usePageTitle('Sổ tay câu sai');

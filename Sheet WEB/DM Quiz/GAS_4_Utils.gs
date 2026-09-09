@@ -441,6 +441,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
 
       questions.push({
         id: `${formId}-${questionIndex + 1}`,
+        sourceQuestionId: `${formId}:${item.getId()}`,
         type: finalMcType,
         question: titleText,
         vignette: helpText,
@@ -472,6 +473,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
 
       questions.push({
         id: `${formId}-${questionIndex + 1}`,
+        sourceQuestionId: `${formId}:${item.getId()}`,
         type: 'multiple',
         question: titleText,
         vignette: helpText,
@@ -505,6 +507,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
 
       questions.push({
         id: `${formId}-${questionIndex + 1}`,
+        sourceQuestionId: `${formId}:${item.getId()}`,
         type: 'short_answer',
         question: titleText,
         vignette: helpText,
@@ -517,5 +520,7 @@ function extractQuestionsFromForm(formUrl, defaultDeckImageUrl = "", deckName = 
     }
   });
 
-  return questions;
+  return typeof applyQuestionOverrides_ === 'function'
+    ? applyQuestionOverrides_(questions)
+    : questions;
 }

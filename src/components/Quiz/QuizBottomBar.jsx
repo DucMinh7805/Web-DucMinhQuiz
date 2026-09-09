@@ -75,7 +75,7 @@ export default function QuizBottomBar({
       {/* ========================================================================= */}
       {/* THANH ĐIỀU KHIỂN NGANG DƯỚI ĐÁY (CHỐNG TRÀN NÚT TRÊN MOBILE)              */}
       {/* ========================================================================= */}
-      <div className="fixed bottom-0 inset-x-0 z-30 bg-white/60 dark:bg-[#0b1120]/60 backdrop-blur-xl border-t border-slate-200/40 dark:border-white/10 py-2.5 px-3 sm:px-6 shadow-[0_-4px_20px_rgba(0,0,0,0.04)] select-none">
+      <div className="quiz-safe-bottom fixed bottom-0 inset-x-0 z-30 bg-white/60 dark:bg-[#0b1120]/60 backdrop-blur-xl border-t border-slate-200/40 dark:border-white/10 py-2.5 px-3 sm:px-6 shadow-[0_-4px_20px_rgba(0,0,0,0.04)] select-none">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
           
           {/* Cụm Trái: Trước / Tiếp */}
@@ -195,7 +195,7 @@ export default function QuizBottomBar({
       {/* ========================================================================= */}
       {isGridModalOpen && (
         <div 
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          className="safe-modal fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setIsGridModalOpen(false)}
         >
           <div 

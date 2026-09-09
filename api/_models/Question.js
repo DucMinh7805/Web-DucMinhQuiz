@@ -16,6 +16,15 @@ const questionSchema = new mongoose.Schema({
     type: String, 
     trim: true 
   }, // Mã ID câu hỏi từ Google Form hoặc hệ thống import
+  sourceQuestionId: {
+    type: String,
+    trim: true
+  }, // formId:itemId ổn định, không phụ thuộc vị trí câu trong Form
+  publicId: {
+    type: String,
+    trim: true,
+    uppercase: true
+  }, // Mã ngắn DQ-<MÔN>-<HASH> để người học báo lỗi
   type: { 
     type: String, 
     enum: ['single', 'multiple', 'short_answer'], 
@@ -70,6 +79,8 @@ const questionSchema = new mongoose.Schema({
 
 questionSchema.index({ deckId: 1, isPublished: 1 });
 questionSchema.index({ deckPath: 1, isPublished: 1 });
+questionSchema.index({ sourceQuestionId: 1 }, { unique: true, sparse: true });
+questionSchema.index({ publicId: 1 }, { unique: true, sparse: true });
 
 export const Question = mongoose.models.Question || mongoose.model('Question', questionSchema);
 export default Question;

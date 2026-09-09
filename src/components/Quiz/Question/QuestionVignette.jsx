@@ -1,15 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FileText, ChevronDown, ChevronUp, ZoomIn, X } from 'lucide-react';
-import { getDirectImageUrl } from '../../../utils/imageHelper';
+import { getQuestionImageUrls } from '../../../utils/imageHelper';
 
-export default function QuestionVignette({ vignette, imageUrl }) {
+export default function QuestionVignette({ vignette, image }) {
   const [isVignetteExpanded, setIsVignetteExpanded] = useState(true);
   const [zoomImage, setZoomImage] = useState(null);
   const [imgError, setImgError] = useState(false);
 
   const cleanVignette = vignette ? String(vignette).trim() : '';
-  const finalImageUrl = imageUrl ? getDirectImageUrl(imageUrl) : '';
+  const { thumbnailUrl, fullResUrl } = getQuestionImageUrls(image);
+
+  useEffect(() => {
+    setImgError(false);
+    setZoomImage(null);
+  }, [thumbnailUrl]);
 
   return (
     <>
@@ -46,19 +51,21 @@ export default function QuestionVignette({ vignette, imageUrl }) {
         </div>
       )}
 
-      {finalImageUrl && !imgError && (
+      {thumbnailUrl && !imgError && (
         <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-white/10 max-h-72 flex items-center justify-center bg-slate-950/90 group shadow-inner">
           <img
-            src={finalImageUrl}
+            src={thumbnailUrl}
             alt="Hình ảnh ca lâm sàng"
-            loading="lazy"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
             className="max-h-72 w-auto object-contain cursor-pointer transition-transform duration-300 group-hover:scale-105"
-            onClick={() => setZoomImage(finalImageUrl)}
+            onClick={() => setZoomImage(fullResUrl || thumbnailUrl)}
             onError={() => setImgError(true)}
           />
           <button
             type="button"
-            onClick={() => setZoomImage(finalImageUrl)}
+            onClick={() => setZoomImage(fullResUrl || thumbnailUrl)}
             className="absolute bottom-2.5 right-2.5 bg-black/70 hover:bg-black/90 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center backdrop-blur-md transition-all shadow-md"
           >
             <ZoomIn className="w-3.5 h-3.5 mr-1.5" />
@@ -70,11 +77,11 @@ export default function QuestionVignette({ vignette, imageUrl }) {
       {/* Modal Zoom Fullscreen Image */}
       {zoomImage && (
         <div
-          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 safe-modal"
           onClick={() => setZoomImage(null)}
         >
           <button
-            className="absolute top-5 right-5 text-white p-2.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors z-10"
+            className="absolute top-[max(1.25rem,env(safe-area-inset-top))] right-5 text-white p-2.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors z-10"
             onClick={() => setZoomImage(null)}
           >
             <X className="w-6 h-6" />

@@ -34,7 +34,12 @@ export default async function handler(req, res) {
       await connectToDatabase();
       await User.updateOne(
         { phone: session.phone },
-        { $set: { entitlements: Array.isArray(data.user.entitlements) ? data.user.entitlements : [] } }
+        { $set: {
+          fullName: data.user.name || session.name || session.phone,
+          email: data.user.email || '',
+          role: data.user.role || 'user',
+          entitlements: Array.isArray(data.user.entitlements) ? data.user.entitlements : []
+        } }
       );
     } catch (dbErr) {
       console.warn('[Refresh Access DB Cache]', dbErr.message);

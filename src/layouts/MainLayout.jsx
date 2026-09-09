@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { 
   Home, User, LogOut, Bookmark, Activity, 
   Menu, X, PanelLeftClose, Sun, Moon,
-  Network, Search, BookOpen
+  Network, Search, BookOpen, ShieldCheck
 } from 'lucide-react';
 import GlobalSearchModal from '../components/Search/GlobalSearchModal';
 import FloatingContactButton from '../components/Common/FloatingContactButton';
@@ -83,7 +83,13 @@ export default function MainLayout({ manifest }) {
       label: 'Hồ sơ cá nhân',
       icon: User,
       isActive: location.pathname === '/profile'
-    }
+    },
+    ...(user?.role === 'admin' ? [{
+      to: '/admin/content',
+      label: 'Quản trị nội dung',
+      icon: ShieldCheck,
+      isActive: location.pathname.startsWith('/admin')
+    }] : [])
   ];
 
   return (

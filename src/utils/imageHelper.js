@@ -2,6 +2,9 @@
  * Utility: Chuyển đổi và chuẩn hóa link ảnh từ mọi nguồn (Google Drive, Imgur, Cloudinary, Dropbox, Web URL)
  */
 export function getDirectImageUrl(url) {
+  if (url && typeof url === 'object') {
+    url = url.fullResUrl || url.thumbnailUrl || '';
+  }
   if (!url || typeof url !== 'string') return '';
   let cleanUrl = url.trim();
   if (!cleanUrl) return '';
@@ -40,4 +43,28 @@ export function getDirectImageUrl(url) {
   }
 
   return cleanUrl;
+}
+
+export function getQuestionImageUrls(image) {
+  const rawThumbnail = typeof image === 'object' && image
+    ? image.thumbnailUrl || image.fullResUrl
+    : image;
+  const rawFull = typeof image === 'object' && image
+    ? image.fullResUrl || image.thumbnailUrl
+    : image;
+
+  const fullResUrl = getDirectImageUrl(rawFull);
+  let thumbnailUrl = getDirectImageUrl(rawThumbnail);
+
+  if (/googleusercontent\.com/i.test(thumbnailUrl)) {
+    thumbnailUrl = thumbnailUrl
+      .replace(/=s\d+(?=\?|$)/i, '=w800')
+      .replace(/=w\d+(?:-h\d+)?(?=\?|$)/i, '=w800');
+  } else if (/drive\.google\.com\/thumbnail/i.test(thumbnailUrl)) {
+    thumbnailUrl = thumbnailUrl.replace(/([?&]sz=)w\d+/i, '$1w800');
+  } else if (/res\.cloudinary\.com/i.test(thumbnailUrl) && /\/upload\//i.test(thumbnailUrl)) {
+    thumbnailUrl = thumbnailUrl.replace('/upload/', '/upload/f_auto,q_auto,w_800,c_limit/');
+  }
+
+  return { thumbnailUrl, fullResUrl };
 }
