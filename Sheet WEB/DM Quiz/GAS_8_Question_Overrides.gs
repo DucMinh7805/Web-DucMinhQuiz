@@ -34,26 +34,33 @@ function upsertQuestionOverride_(params) {
   catch (error) { throw new Error('Nội dung chỉnh sửa không phải JSON hợp lệ.'); }
   if (!patch || Array.isArray(patch) || typeof patch !== 'object') throw new Error('Nội dung chỉnh sửa không hợp lệ.');
 
-  const sheet = getQuestionOverrideSheet_();
-  const rows = sheet.getLastRow() > 1
-    ? sheet.getRange(2, 1, sheet.getLastRow() - 1, QUESTION_OVERRIDE_HEADERS.length).getValues()
-    : [];
-  let targetRow = -1;
-  for (let index = 0; index < rows.length; index++) {
-    const sameSource = sourceQuestionId && String(rows[index][0] || '').trim() === sourceQuestionId;
-    const sameLegacy = qId && String(rows[index][1] || '').trim() === qId;
-    if (sameSource || sameLegacy) { targetRow = index + 2; break; }
-  }
+  // Hai lần lưu gần nhau không được cùng đọc rồi tạo hai dòng override trùng nhau.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = getQuestionOverrideSheet_();
+    const rows = sheet.getLastRow() > 1
+      ? sheet.getRange(2, 1, sheet.getLastRow() - 1, QUESTION_OVERRIDE_HEADERS.length).getValues()
+      : [];
+    let targetRow = -1;
+    for (let index = 0; index < rows.length; index++) {
+      const sameSource = sourceQuestionId && String(rows[index][0] || '').trim() === sourceQuestionId;
+      const sameLegacy = qId && String(rows[index][1] || '').trim() === qId;
+      if (sameSource || sameLegacy) { targetRow = index + 2; break; }
+    }
 
-  let merged = {};
-  if (targetRow > 0) {
-    try { merged = JSON.parse(String(sheet.getRange(targetRow, 5).getValue() || '{}')); } catch (ignore) {}
+    let merged = {};
+    if (targetRow > 0) {
+      try { merged = JSON.parse(String(sheet.getRange(targetRow, 5).getValue() || '{}')); } catch (ignore) {}
+    }
+    Object.keys(patch).forEach(function(key) { merged[key] = patch[key]; });
+    const row = [sourceQuestionId, qId, publicId, deckPath, JSON.stringify(merged), new Date(), 'quizdm.com'];
+    if (targetRow > 0) sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
+    else sheet.appendRow(row);
+    return { success: true, message: 'Đã lưu bản chỉnh sửa câu hỏi về Sheet.' };
+  } finally {
+    lock.releaseLock();
   }
-  Object.keys(patch).forEach(function(key) { merged[key] = patch[key]; });
-  const row = [sourceQuestionId, qId, publicId, deckPath, JSON.stringify(merged), new Date(), 'quizdm.com'];
-  if (targetRow > 0) sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
-  else sheet.appendRow(row);
-  return { success: true, message: 'Đã lưu bản chỉnh sửa câu hỏi về Sheet.' };
 }
 
 function applyQuestionOverrides_(questions) {
