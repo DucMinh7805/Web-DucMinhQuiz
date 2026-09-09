@@ -54,6 +54,8 @@ const subjectSchema = new mongoose.Schema({
   // Chỉ true khi bản ghi đã đi qua quy trình đồng bộ giá bảo mật mới.
   pricingSynced: { type: Boolean, default: false, index: true },
   orderIndex: { type: Number, default: 0 },
+  sourceState: { type: String, enum: ['synced', 'source_missing'], default: 'synced', index: true },
+  archivedAt: { type: Date, default: null, index: true },
   isPublished: { type: Boolean, default: true }
 }, { timestamps: true });
 

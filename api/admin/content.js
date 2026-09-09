@@ -1,77 +1,43 @@
 import mongoose from 'mongoose';
-import { connectToDatabase } from '../_utils/db.js';
-import { AuditLog, Deck, Question, Subject, User } from '../_models/index.js';
-import { authenticateSheetSession } from '../_utils/sheetSession.js';
+import { AuditLog, Deck, Question, QuestionRevision, Subject } from '../_models/index.js';
+import { requireAdmin } from '../_utils/adminAuth.js';
 import { enforceGlobalApiRateLimit, getClientIp } from '../_utils/rateLimiter.js';
-import { callQuizSheet } from '../_utils/quizSheetGateway.js';
-import { getQuestionImageVariants } from '../_utils/imageUrl.js';
 import { createPublicQuestionId } from '../_utils/questionIdentity.js';
-
-const EDITABLE_FIELDS = new Set([
-  'question', 'vignette', 'type', 'options', 'answer', 'explanation',
-  'clinicalPearl', 'referenceBook', 'imageUrl', 'difficulty', 'isPublished'
-]);
+import { compareQuestionDraft, validateQuestionDraft } from '../../shared/questionInspection.js';
+import { editorDraftToQuestionChanges, questionSnapshot } from '../_utils/questionWorkflow.js';
+import { enqueueN8nEvent, enqueueOutboxEvent } from '../_utils/outbox.js';
 
 function escapeRegExp(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-async function requireAdmin(req, res) {
-  const session = authenticateSheetSession(req);
-  if (!session?.phone) {
-    res.status(401).json({ success: false, message: 'Phiên đăng nhập đã hết hạn.' });
-    return null;
-  }
-  await connectToDatabase();
-  const user = await User.findOne({ phone: session.phone, isActive: true }).lean();
-  if (!user || user.role !== 'admin') {
-    res.status(403).json({ success: false, message: 'Trang này chỉ dành cho quản trị viên.' });
-    return null;
-  }
-  return user;
-}
-
-function serializeQuestion(question, subjectMap, deckMap) {
+function serializeQuestion(question, subjectMap = new Map(), deckMap = new Map()) {
   const raw = question.toObject ? question.toObject() : question;
   const deck = deckMap.get(String(raw.deckId));
   const subject = deck ? subjectMap.get(String(deck.subjectId)) : null;
+  const correctIds = new Set((raw.correctOptionIds || []).map(String));
   return {
-    id: String(raw._id),
-    publicId: raw.publicId || createPublicQuestionId(raw),
-    sourceQuestionId: raw.sourceQuestionId || '',
-    qId: raw.qId || '',
-    question: raw.question || '',
-    vignette: raw.vignette || '',
-    type: raw.type || 'single',
+    id: String(raw._id), publicId: raw.publicId || createPublicQuestionId(raw),
+    sourceQuestionId: raw.sourceQuestionId || '', sourceState: raw.sourceState || 'synced', qId: raw.qId || '',
+    question: raw.question || '', vignette: raw.vignette || '', type: raw.type || 'single',
     difficulty: raw.difficulty || 'medium',
-    options: Array.isArray(raw.options) ? raw.options.map(option => option.text || String(option)) : [],
-    answer: raw.type === 'short_answer'
-      ? (raw.acceptedShortAnswers || []).join('|')
-      : (raw.options || []).filter(option => (raw.correctOptionIds || []).includes(option.id)).map(option => option.text).join('|'),
-    explanation: raw.explanation || '',
-    clinicalPearl: raw.clinicalPearl || '',
-    referenceBook: raw.referenceBook || '',
-    imageUrl: raw.image?.fullResUrl || raw.image?.thumbnailUrl || '',
-    isPublished: raw.isPublished !== false,
-    deckPath: raw.deckPath || deck?.path || '',
-    deckName: deck?.title || '',
-    subjectId: subject?.id || '',
-    subjectName: subject?.name || '',
-    updatedAt: raw.updatedAt
+    options: (raw.options || []).map(option => ({ id: String(option.id), text: option.text || '', isCorrect: correctIds.has(String(option.id)) })),
+    acceptedShortAnswers: raw.acceptedShortAnswers || [],
+    answer: raw.type === 'short_answer' ? (raw.acceptedShortAnswers || []).join('|') : (raw.options || []).filter(option => correctIds.has(String(option.id))).map(option => option.text).join('|'),
+    explanation: raw.explanation || '', clinicalPearl: raw.clinicalPearl || '', referenceBook: raw.referenceBook || '',
+    imageUrl: raw.image?.fullResUrl || raw.image?.thumbnailUrl || '', isPublished: raw.isPublished !== false,
+    contentRevision: raw.contentRevision || 1, archivedAt: raw.archivedAt || null,
+    deckPath: raw.deckPath || deck?.path || '', deckName: deck?.title || '',
+    subjectId: subject?.id || '', subjectName: subject?.name || '', updatedAt: raw.updatedAt
   };
 }
 
 async function getCatalogMaps() {
   const [subjects, decks] = await Promise.all([
-    Subject.find({}).sort({ name: 1 }).lean(),
-    Deck.find({}).sort({ title: 1 }).lean()
+    Subject.find({ archivedAt: null }).sort({ name: 1 }).lean(),
+    Deck.find({ archivedAt: null }).sort({ title: 1 }).lean()
   ]);
-  return {
-    subjects,
-    decks,
-    subjectMap: new Map(subjects.map(item => [String(item._id), item])),
-    deckMap: new Map(decks.map(item => [String(item._id), item]))
-  };
+  return { subjects, decks, subjectMap: new Map(subjects.map(item => [String(item._id), item])), deckMap: new Map(decks.map(item => [String(item._id), item])) };
 }
 
 async function handleGet(req, res) {
@@ -80,15 +46,13 @@ async function handleGet(req, res) {
   const deckPath = String(req.query?.deckPath || '').trim().toLowerCase();
   const page = Math.max(1, Number.parseInt(req.query?.page, 10) || 1);
   const limit = Math.min(50, Math.max(10, Number.parseInt(req.query?.limit, 10) || 20));
-  const filter = {};
+  const filter = { archivedAt: null };
   let legacyPublicIdMatch = null;
   if (/^DQ-[A-Z0-9]{1,4}-[A-Z0-9]{6}$/i.test(query)) {
     const existing = await Question.findOne({ publicId: query.toUpperCase() }).select('_id').lean();
     if (!existing) {
-      const legacyIdentities = await Question.find({ $or: [{ publicId: { $exists: false } }, { publicId: '' }] })
-        .select('_id sourceQuestionId qId deckPath')
-        .lean();
-      const matched = legacyIdentities.find(item => createPublicQuestionId(item) === query.toUpperCase());
+      const identities = await Question.find({ $or: [{ publicId: { $exists: false } }, { publicId: '' }] }).select('_id sourceQuestionId qId deckPath').lean();
+      const matched = identities.find(item => createPublicQuestionId(item) === query.toUpperCase());
       if (matched) {
         legacyPublicIdMatch = matched._id;
         await Question.updateOne({ _id: matched._id }, { $set: { publicId: query.toUpperCase() } });
@@ -99,105 +63,91 @@ async function handleGet(req, res) {
   else if (subjectId) filter.deckPath = new RegExp(`^${escapeRegExp(subjectId)}/`, 'i');
   if (query) {
     const expression = new RegExp(escapeRegExp(query), 'i');
-    filter.$or = [
-      { publicId: expression }, { qId: expression }, { question: expression },
-      { deckPath: expression }, { referenceBook: expression },
-      ...(legacyPublicIdMatch ? [{ _id: legacyPublicIdMatch }] : [])
-    ];
+    filter.$or = [{ publicId: expression }, { qId: expression }, { question: expression }, { deckPath: expression }, { referenceBook: expression }, ...(legacyPublicIdMatch ? [{ _id: legacyPublicIdMatch }] : [])];
   }
-
-  const [{ subjects, decks, subjectMap, deckMap }, total, questions] = await Promise.all([
-    getCatalogMaps(),
-    Question.countDocuments(filter),
+  const [catalog, total, questions] = await Promise.all([
+    getCatalogMaps(), Question.countDocuments(filter),
     Question.find(filter).sort({ deckPath: 1, orderIndex: 1 }).skip((page - 1) * limit).limit(limit)
   ]);
-  const missingPublicIds = questions.filter(question => !question.publicId);
-  if (missingPublicIds.length) {
-    try {
-      await Question.bulkWrite(missingPublicIds.map(question => ({
-        updateOne: {
-          filter: { _id: question._id, $or: [{ publicId: { $exists: false } }, { publicId: '' }] },
-          update: { $set: { publicId: createPublicQuestionId(question) } }
-        }
-      })), { ordered: false });
-      missingPublicIds.forEach(question => { question.publicId = createPublicQuestionId(question); });
-    } catch (error) {
-      console.warn('[Admin Content Public IDs]', error.message);
-    }
+  const missingIds = questions.filter(question => !question.publicId);
+  if (missingIds.length) {
+    await Question.bulkWrite(missingIds.map(question => ({ updateOne: { filter: { _id: question._id, $or: [{ publicId: { $exists: false } }, { publicId: '' }] }, update: { $set: { publicId: createPublicQuestionId(question) } } } })), { ordered: false }).catch(error => console.warn('[Admin Public IDs]', error.message));
+    missingIds.forEach(question => { question.publicId = createPublicQuestionId(question); });
   }
   return res.status(200).json({
-    success: true,
-    questions: questions.map(question => serializeQuestion(question, subjectMap, deckMap)),
+    success: true, questions: questions.map(question => serializeQuestion(question, catalog.subjectMap, catalog.deckMap)),
     pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
     catalog: {
-      subjects: subjects.map(item => ({ id: item.id, name: item.name })),
-      decks: decks.map(item => ({ path: item.path, name: item.title, subjectId: subjectMap.get(String(item.subjectId))?.id || '' }))
+      subjects: catalog.subjects.map(item => ({ id: item.id, name: item.name })),
+      decks: catalog.decks.map(item => ({ path: item.path, name: item.title, subjectId: catalog.subjectMap.get(String(item.subjectId))?.id || '' }))
     }
   });
 }
 
-function splitValues(value) {
-  return (Array.isArray(value) ? value : String(value || '').split('|'))
-    .map(item => String(item).trim())
-    .filter(Boolean);
+function coerceDraft(input = {}) {
+  if (Array.isArray(input.options)) return input;
+  const answers = new Set(String(input.answer || '').split('|').map(value => value.trim().toLocaleLowerCase('vi')).filter(Boolean));
+  return { ...input, options: String(input.options || '').split('\n').map((text, index) => ({ id: String.fromCharCode(97 + index), text: text.trim(), isCorrect: answers.has(text.trim().toLocaleLowerCase('vi')) })).filter(option => option.text) };
 }
 
-function normalizeChanges(input, currentQuestion) {
-  const changes = {};
-  const sourceChanges = {};
-  Object.entries(input || {}).forEach(([key, value]) => {
-    if (!EDITABLE_FIELDS.has(key)) return;
-    if (key === 'options') {
-      const optionTexts = Array.isArray(value)
-        ? value.map(item => String(item).trim()).filter(Boolean)
-        : String(value || '').split('\n').map(item => item.trim()).filter(Boolean);
-      changes.options = optionTexts.map((text, index) => ({ id: String.fromCharCode(97 + index), text }));
-      sourceChanges.options = optionTexts.join('|');
-    } else if (key === 'isPublished') {
-      changes.isPublished = Boolean(value);
-      sourceChanges.isPublished = changes.isPublished;
-    } else if (key === 'type') {
-      if (!['single', 'multiple', 'short_answer'].includes(value)) throw new Error('Loại câu hỏi không hợp lệ.');
-      changes.type = value;
-      sourceChanges.type = value;
-    } else if (key === 'difficulty') {
-      if (!['easy', 'medium', 'hard'].includes(value)) throw new Error('Độ khó không hợp lệ.');
-      changes.difficulty = value;
-      sourceChanges.difficulty = value;
-    } else if (key === 'answer') {
-      sourceChanges.answer = splitValues(value).join('|');
-    } else if (key === 'imageUrl') {
-      sourceChanges.imageUrl = String(value || '').trim();
-      changes.image = getQuestionImageVariants(sourceChanges.imageUrl);
-    } else {
-      changes[key] = String(value || '').trim();
-      sourceChanges[key] = changes[key];
-    }
-  });
+function sheetBackupPayload(question, draft) {
+  return { action: 'patchQuestionOverride', params: {
+    sourceQuestionId: question.sourceQuestionId || '', qId: question.qId || '', publicId: question.publicId || '', deckPath: question.deckPath || '',
+    patchJson: JSON.stringify({
+      question: draft.question, vignette: draft.vignette, type: draft.type,
+      options: draft.options.map(option => option.text).join('|'),
+      answer: draft.type === 'short_answer' ? draft.acceptedShortAnswers.join('|') : draft.options.filter(option => option.isCorrect).map(option => option.text).join('|'),
+      explanation: draft.explanation, clinicalPearl: draft.clinicalPearl, referenceBook: draft.referenceBook,
+      imageUrl: draft.imageUrl, difficulty: draft.difficulty, isPublished: draft.isPublished
+    })
+  } };
+}
 
-  const type = changes.type || currentQuestion.type;
-  const options = changes.options || currentQuestion.options || [];
-  const answerValues = splitValues(sourceChanges.answer ?? (
-    type === 'short_answer'
-      ? currentQuestion.acceptedShortAnswers
-      : options.filter(option => (currentQuestion.correctOptionIds || []).includes(option.id)).map(option => option.text)
-  ));
-  if (type === 'short_answer') {
-    changes.acceptedShortAnswers = answerValues.map(value => value.toLowerCase());
-    changes.correctOptionIds = [];
-  } else {
-    changes.acceptedShortAnswers = [];
-    changes.correctOptionIds = answerValues.map(answer => {
-      const letter = answer.match(/^([A-Za-z])(?:[.)\s:-]|$)/)?.[1]?.toLowerCase();
-      const normalized = answer.replace(/^[A-Za-z][.)]\s*/, '').trim().toLowerCase();
-      return options.find(option => option.id === letter || option.text.trim().toLowerCase() === normalized)?.id;
-    }).filter(Boolean);
-    if (answerValues.length && changes.correctOptionIds.length !== answerValues.length) {
-      throw new Error('Có đáp án đúng không khớp với danh sách lựa chọn.');
-    }
+async function createRevision(question, admin, action, changedFields, reason = '', replacedByQuestionId = null) {
+  return QuestionRevision.create({ questionId: question._id, revision: question.contentRevision || 1, action, snapshot: questionSnapshot(question), changedFields, reason, actorId: admin._id, replacedByQuestionId });
+}
+
+async function publishEdit(question, draft, comparison, admin, reason, ipAddress) {
+  const oldValues = question.toObject();
+  const revision = await createRevision(question, admin, 'EDIT', comparison.changedFields, reason);
+  try {
+    Object.assign(question, editorDraftToQuestionChanges(draft), {
+      contentRevision: (question.contentRevision || 1) + 1, locallyEditedAt: new Date(),
+      sourceState: 'locally_edited', archivedAt: null, archivedReason: ''
+    });
+    await question.save();
+    await Deck.updateOne({ _id: question.deckId }, { $set: { updatedAt: new Date() } });
+  } catch (error) {
+    await QuestionRevision.deleteOne({ _id: revision._id });
+    throw error;
   }
-  if ('question' in changes && !changes.question) throw new Error('Nội dung câu hỏi không được để trống.');
-  return { changes, sourceChanges };
+  await AuditLog.create({ adminId: admin._id, action: 'UPDATE', targetCollection: 'Question', targetId: question._id, oldValues, newValues: question.toObject(), ipAddress });
+  return question;
+}
+
+async function publishReplacement(question, draft, comparison, admin, reason, ipAddress) {
+  const oldValues = question.toObject();
+  const changes = editorDraftToQuestionChanges(draft);
+  const replacementIdentity = `replacement:${question._id}:${Date.now()}`;
+  const replacement = await Question.create({
+    ...changes, deckId: question.deckId, deckPath: question.deckPath,
+    qId: `replacement_${Date.now().toString(36)}`, sourceQuestionId: replacementIdentity,
+    publicId: createPublicQuestionId({ sourceQuestionId: replacementIdentity, deckPath: question.deckPath }),
+    sourceState: 'locally_edited', locallyEditedAt: new Date(), contentRevision: 1,
+    sourceHash: question.sourceHash || '', sourceSnapshot: question.sourceSnapshot || questionSnapshot(question),
+    lastImportedAt: question.lastImportedAt || null, orderIndex: question.orderIndex, replacesQuestionId: question._id
+  });
+  const revision = await createRevision(question, admin, 'REPLACE', comparison.changedFields, reason, replacement._id);
+  try {
+    Object.assign(question, { isPublished: false, archivedAt: new Date(), archivedReason: reason || 'Đã được thay bằng một câu mới.', sourceState: 'replaced', replacedByQuestionId: replacement._id });
+    await question.save();
+    await Deck.updateOne({ _id: question.deckId }, { $set: { updatedAt: new Date() } });
+  } catch (error) {
+    await Promise.all([Question.deleteOne({ _id: replacement._id }), QuestionRevision.deleteOne({ _id: revision._id })]);
+    throw error;
+  }
+  await AuditLog.create({ adminId: admin._id, action: 'CREATE', targetCollection: 'Question', targetId: replacement._id, oldValues, newValues: replacement.toObject(), ipAddress });
+  return replacement;
 }
 
 async function handlePatch(req, res, admin) {
@@ -206,42 +156,28 @@ async function handlePatch(req, res, admin) {
   const question = await Question.findById(id);
   if (!question) return res.status(404).json({ success: false, message: 'Không tìm thấy câu hỏi.' });
   if (req.body?.expectedUpdatedAt && new Date(question.updatedAt).toISOString() !== new Date(req.body.expectedUpdatedAt).toISOString()) {
-    return res.status(409).json({ success: false, message: 'Câu hỏi vừa được thay đổi ở nơi khác. Hãy tải lại trước khi lưu.' });
+    return res.status(409).json({ success: false, message: 'Câu hỏi vừa được thay đổi ở nơi khác. Hãy tải lại trước khi xuất bản.' });
   }
-
-  let normalized;
-  try { normalized = normalizeChanges(req.body?.changes, question); }
-  catch (error) { return res.status(400).json({ success: false, message: error.message }); }
-  const { changes, sourceChanges } = normalized;
-  if (!Object.keys(changes).length) return res.status(400).json({ success: false, message: 'Không có thay đổi hợp lệ.' });
-
-  const oldValues = question.toObject();
-  Object.assign(question, changes);
-  await question.save();
-  try {
-    await callQuizSheet('patchQuestionOverride', {
-      sourceQuestionId: question.sourceQuestionId || '',
-      qId: question.qId || '',
-      publicId: question.publicId || '',
-      deckPath: question.deckPath || '',
-      patchJson: JSON.stringify(sourceChanges)
-    });
-  } catch (error) {
-    await Question.replaceOne({ _id: question._id }, oldValues);
-    return res.status(502).json({ success: false, message: `Chưa thể ghi về nguồn Google Sheet: ${error.message}` });
-  }
-
-  await AuditLog.create({
-    adminId: admin._id,
-    action: 'UPDATE',
-    targetCollection: 'Question',
-    targetId: question._id,
-    oldValues,
-    newValues: question.toObject(),
-    ipAddress: getClientIp(req)
+  const current = serializeQuestion(question);
+  const inspection = validateQuestionDraft(coerceDraft(req.body?.draft || req.body?.changes || {}), current);
+  if (inspection.errors.length) return res.status(400).json({ success: false, message: inspection.errors[0], errors: inspection.errors, warnings: inspection.warnings });
+  const comparison = compareQuestionDraft(current, inspection.draft);
+  if (!comparison.changedFields.length) return res.status(400).json({ success: false, message: 'Bản nháp chưa có thay đổi.' });
+  const mode = req.body?.mode === 'replace' ? 'replace' : 'edit';
+  const reason = String(req.body?.reason || '').trim().slice(0, 500);
+  const ipAddress = getClientIp(req);
+  const published = mode === 'replace'
+    ? await publishReplacement(question, inspection.draft, comparison, admin, reason, ipAddress)
+    : await publishEdit(question, inspection.draft, comparison, admin, reason, ipAddress);
+  const backup = await enqueueOutboxEvent({ type: 'question.backup.requested', destination: 'sheet', dedupeKey: `${published._id}:${published.contentRevision || 1}`, payload: sheetBackupPayload(published, inspection.draft) });
+  await enqueueN8nEvent('question.published', { questionId: String(published._id), publicId: published.publicId, deckPath: published.deckPath, mode, revision: published.contentRevision || 1, changeScore: comparison.changeScore }, `${published._id}:${published.contentRevision || 1}`);
+  const catalog = await getCatalogMaps();
+  return res.status(200).json({
+    success: true,
+    message: mode === 'replace' ? 'Đã lưu trữ câu cũ và xuất bản câu thay thế.' : 'Đã xuất bản bản sửa mới.',
+    question: serializeQuestion(published, catalog.subjectMap, catalog.deckMap), comparison,
+    backup: { status: backup.status }
   });
-  const { subjectMap, deckMap } = await getCatalogMaps();
-  return res.status(200).json({ success: true, message: 'Đã lưu câu hỏi và đồng bộ về Google Sheet.', question: serializeQuestion(question, subjectMap, deckMap) });
 }
 
 export default async function handler(req, res) {
@@ -252,10 +188,9 @@ export default async function handler(req, res) {
   try {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
-    if (req.method === 'GET') return handleGet(req, res);
-    return handlePatch(req, res, admin);
+    return req.method === 'GET' ? handleGet(req, res) : handlePatch(req, res, admin);
   } catch (error) {
     console.error('[Admin Content]', error);
-    return res.status(500).json({ success: false, message: 'Không thể xử lý nội dung quản trị.' });
+    return res.status(500).json({ success: false, message: error.message || 'Không thể xử lý nội dung quản trị.' });
   }
 }

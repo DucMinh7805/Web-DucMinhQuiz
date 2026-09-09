@@ -1,192 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronLeft, ChevronRight, RefreshCw, Save, Search, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Eye, Plus, RefreshCw, Save, Search, Trash2 } from 'lucide-react';
 import usePageTitle from '../hooks/usePageTitle';
+import { compareQuestionDraft, normalizeEditorQuestion, validateQuestionDraft } from '../../shared/questionInspection.js';
 
-const EMPTY_FORM = {
-  question: '', vignette: '', type: 'single', difficulty: 'medium', options: '',
-  answer: '', explanation: '', clinicalPearl: '', referenceBook: '', imageUrl: '', isPublished: true
-};
-
-function toForm(question) {
-  if (!question) return EMPTY_FORM;
-  return {
-    question: question.question || '',
-    vignette: question.vignette || '',
-    type: question.type || 'single',
-    difficulty: question.difficulty || 'medium',
-    options: (question.options || []).join('\n'),
-    answer: Array.isArray(question.answer) ? question.answer.join('|') : String(question.answer || ''),
-    explanation: question.explanation || '',
-    clinicalPearl: question.clinicalPearl || '',
-    referenceBook: question.referenceBook || '',
-    imageUrl: question.imageUrl || '',
-    isPublished: question.isPublished !== false
-  };
-}
-
-export default function AdminContentPage() {
-  usePageTitle('Quản trị nội dung');
-  const [query, setQuery] = useState('');
-  const [subjectId, setSubjectId] = useState('');
-  const [deckPath, setDeckPath] = useState('');
-  const [page, setPage] = useState(1);
-  const [data, setData] = useState({ questions: [], pagination: { page: 1, pages: 1, total: 0 }, catalog: { subjects: [], decks: [] } });
-  const [selected, setSelected] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState(null);
-
-  const availableDecks = useMemo(() => data.catalog.decks.filter(deck => !subjectId || deck.subjectId === subjectId), [data.catalog.decks, subjectId]);
-
-  const loadQuestions = async () => {
-    setLoading(true);
-    setMessage(null);
-    const params = new URLSearchParams({ page: String(page), limit: '20' });
-    if (query.trim()) params.set('q', query.trim());
-    if (subjectId) params.set('subjectId', subjectId);
-    if (deckPath) params.set('deckPath', deckPath);
-    try {
-      const response = await fetch(`/api/admin/content?${params}`, { credentials: 'include' });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload.success) throw new Error(payload.message || 'Không thể tải danh sách câu hỏi.');
-      setData(payload);
-      const refreshed = payload.questions.find(item => item.id === selected?.id) || payload.questions[0] || null;
-      setSelected(refreshed);
-      setForm(toForm(refreshed));
-    } catch (error) {
-      setMessage({ type: 'error', text: error.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const timeout = window.setTimeout(loadQuestions, 250);
-    return () => window.clearTimeout(timeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, subjectId, deckPath, page]);
-
-  const selectQuestion = question => {
-    setSelected(question);
-    setForm(toForm(question));
-    setMessage(null);
-  };
-
-  const saveQuestion = async event => {
-    event.preventDefault();
-    if (!selected) return;
-    setSaving(true);
-    setMessage(null);
-    try {
-      const response = await fetch('/api/admin/content', {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selected.id, expectedUpdatedAt: selected.updatedAt, changes: form })
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload.success) throw new Error(payload.message || 'Không thể lưu câu hỏi.');
-      setSelected(payload.question);
-      setForm(toForm(payload.question));
-      setData(current => ({ ...current, questions: current.questions.map(item => item.id === payload.question.id ? payload.question : item) }));
-      setMessage({ type: 'success', text: payload.message });
-    } catch (error) {
-      setMessage({ type: 'error', text: error.message });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const updateField = (field, value) => setForm(current => ({ ...current, [field]: value }));
-
-  return (
-    <div className="min-h-[100dvh] px-3 py-5 sm:px-6 lg:px-8 text-slate-800 dark:text-slate-200">
-      <div className="max-w-7xl mx-auto space-y-4">
-        <header className="rounded-3xl bg-white/90 dark:bg-[#0b1120]/90 border border-slate-200/70 dark:border-white/10 p-5 sm:p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="w-11 h-11 rounded-2xl bg-teal-500/15 text-teal-600 dark:text-teal-300 flex items-center justify-center"><ShieldCheck className="w-5 h-5" /></span>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-black text-slate-950 dark:text-white">Quản trị nội dung</h1>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Tìm và sửa riêng từng câu — không cần xóa hay tải lại toàn bộ đề.</p>
-              </div>
-            </div>
-            <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">Đồng bộ MongoDB ↔ Google Sheet</span>
-          </div>
-        </header>
-
-        <section className="rounded-3xl bg-white/90 dark:bg-[#0b1120]/90 border border-slate-200/70 dark:border-white/10 p-4 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-3">
-          <label className="relative md:col-span-1">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-            <input value={query} onChange={event => { setQuery(event.target.value); setPage(1); }} placeholder="ID, nội dung câu, đề..." className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 outline-none focus:border-teal-500 text-sm" />
-          </label>
-          <select value={subjectId} onChange={event => { setSubjectId(event.target.value); setDeckPath(''); setPage(1); }} className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-white/10 text-sm">
-            <option value="">Tất cả môn</option>
-            {data.catalog.subjects.map(subject => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
-          </select>
-          <select value={deckPath} onChange={event => { setDeckPath(event.target.value); setPage(1); }} className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-white/10 text-sm">
-            <option value="">Tất cả đề</option>
-            {availableDecks.map(deck => <option key={deck.path} value={deck.path}>{deck.name}</option>)}
-          </select>
-        </section>
-
-        {message && <div className={`rounded-2xl px-4 py-3 text-sm font-semibold border ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900' : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-900'}`}>{message.text}</div>}
-
-        <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4 items-start">
-          <aside className="rounded-3xl bg-white/90 dark:bg-[#0b1120]/90 border border-slate-200/70 dark:border-white/10 shadow-sm overflow-hidden lg:sticky lg:top-4">
-            <div className="p-4 border-b border-slate-200/70 dark:border-white/10 flex items-center justify-between">
-              <strong className="text-sm">{data.pagination.total} câu hỏi</strong>
-              <button type="button" onClick={loadQuestions} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10" title="Tải lại"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
-            </div>
-            <div className="max-h-[62dvh] overflow-y-auto divide-y divide-slate-100 dark:divide-white/5">
-              {data.questions.map(question => (
-                <button key={question.id} type="button" onClick={() => selectQuestion(question)} className={`w-full text-left p-4 transition-colors ${selected?.id === question.id ? 'bg-teal-500/10 border-l-4 border-teal-500' : 'hover:bg-slate-50 dark:hover:bg-white/5 border-l-4 border-transparent'}`}>
-                  <div className="flex items-center justify-between gap-2 mb-1.5"><span className="font-mono text-[11px] font-bold text-teal-700 dark:text-teal-300">{question.publicId || question.qId}</span><span className="text-[10px] text-slate-400 truncate">{question.subjectName}</span></div>
-                  <p className="text-sm font-bold line-clamp-2 text-slate-900 dark:text-white">{question.question}</p>
-                  <p className="text-[11px] text-slate-500 mt-1 truncate">{question.deckName || question.deckPath}</p>
-                </button>
-              ))}
-              {!loading && !data.questions.length && <p className="p-8 text-center text-sm text-slate-500">Không tìm thấy câu phù hợp.</p>}
-            </div>
-            <div className="p-3 border-t border-slate-200/70 dark:border-white/10 flex items-center justify-between">
-              <button disabled={page <= 1} onClick={() => setPage(value => value - 1)} className="p-2 rounded-xl disabled:opacity-30 hover:bg-slate-100 dark:hover:bg-white/10"><ChevronLeft className="w-4 h-4" /></button>
-              <span className="text-xs font-bold">Trang {data.pagination.page}/{data.pagination.pages}</span>
-              <button disabled={page >= data.pagination.pages} onClick={() => setPage(value => value + 1)} className="p-2 rounded-xl disabled:opacity-30 hover:bg-slate-100 dark:hover:bg-white/10"><ChevronRight className="w-4 h-4" /></button>
-            </div>
-          </aside>
-
-          <main className="rounded-3xl bg-white/90 dark:bg-[#0b1120]/90 border border-slate-200/70 dark:border-white/10 p-5 sm:p-6 shadow-sm">
-            {!selected ? <p className="py-20 text-center text-slate-500">Chọn một câu hỏi để chỉnh sửa.</p> : (
-              <form onSubmit={saveQuestion} className="space-y-4">
-                <div className="flex flex-wrap items-start justify-between gap-2 pb-4 border-b border-slate-200/70 dark:border-white/10">
-                  <div><p className="font-mono font-black text-teal-700 dark:text-teal-300">{selected.publicId || selected.qId}</p><p className="text-xs text-slate-500 mt-1">{selected.subjectName} · {selected.deckName}</p></div>
-                  <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={form.isPublished} onChange={event => updateField('isPublished', event.target.checked)} className="accent-teal-600" />Đang hiển thị</label>
-                </div>
-
-                <label className="block"><span className="admin-label">Nội dung câu hỏi</span><textarea required rows="4" value={form.question} onChange={event => updateField('question', event.target.value)} className="admin-input" /></label>
-                <label className="block"><span className="admin-label">Dữ kiện / mô tả</span><textarea rows="3" value={form.vignette} onChange={event => updateField('vignette', event.target.value)} className="admin-input" /></label>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <label><span className="admin-label">Loại câu</span><select value={form.type} onChange={event => updateField('type', event.target.value)} className="admin-input"><option value="single">Một đáp án</option><option value="multiple">Nhiều đáp án</option><option value="short_answer">Trả lời ngắn</option></select></label>
-                  <label><span className="admin-label">Độ khó</span><select value={form.difficulty} onChange={event => updateField('difficulty', event.target.value)} className="admin-input"><option value="easy">Dễ</option><option value="medium">Trung bình</option><option value="hard">Khó</option></select></label>
-                </div>
-                <label className="block"><span className="admin-label">Các lựa chọn — mỗi dòng một đáp án</span><textarea rows="5" value={form.options} onChange={event => updateField('options', event.target.value)} className="admin-input font-mono text-xs" /></label>
-                <label className="block"><span className="admin-label">Đáp án đúng — nhiều đáp án ngăn bằng dấu |</span><input value={form.answer} onChange={event => updateField('answer', event.target.value)} className="admin-input" /></label>
-                <label className="block"><span className="admin-label">Giải thích</span><textarea rows="5" value={form.explanation} onChange={event => updateField('explanation', event.target.value)} className="admin-input" /></label>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <label><span className="admin-label">Ghi nhớ lâm sàng</span><textarea rows="3" value={form.clinicalPearl} onChange={event => updateField('clinicalPearl', event.target.value)} className="admin-input" /></label>
-                  <label><span className="admin-label">Nguồn tài liệu</span><textarea rows="3" value={form.referenceBook} onChange={event => updateField('referenceBook', event.target.value)} className="admin-input" /></label>
-                </div>
-                <label className="block"><span className="admin-label">Link ảnh</span><input type="url" value={form.imageUrl} onChange={event => updateField('imageUrl', event.target.value)} className="admin-input" /></label>
-                <button disabled={saving} type="submit" className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-black flex items-center justify-center gap-2 shadow-md disabled:opacity-50">
-                  {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}{saving ? 'Đang lưu...' : 'Lưu câu hỏi'}
-                </button>
-                {message?.type === 'success' && <span className="inline-flex items-center gap-1.5 ml-3 text-xs font-bold text-emerald-600"><CheckCircle2 className="w-4 h-4" />Đã đồng bộ nguồn</span>}
-              </form>
-            )}
-          </main>
-        </div>
-      </div>
-    </div>
-  );
+const EMPTY={question:'',vignette:'',type:'single',difficulty:'medium',options:[],acceptedShortAnswers:[],explanation:'',clinicalPearl:'',referenceBook:'',imageUrl:'',isPublished:true};
+export default function AdminContentPage(){
+ usePageTitle('Xưởng kiểm định câu hỏi'); const [data,setData]=useState({questions:[],pagination:{page:1,pages:1,total:0},catalog:{subjects:[],decks:[]}}),[q,setQ]=useState(new URLSearchParams(location.search).get('q')||''),[subject,setSubject]=useState(''),[deck,setDeck]=useState(''),[page,setPage]=useState(1),[selected,setSelected]=useState(null),[draft,setDraft]=useState(EMPTY),[tab,setTab]=useState('edit'),[inspect,setInspect]=useState(false),[history,setHistory]=useState([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ const load=async()=>{setBusy(true);try{const p=new URLSearchParams({page,limit:30});if(q)p.set('q',q);if(subject)p.set('subjectId',subject);if(deck)p.set('deckPath',deck);const r=await fetch(`/api/admin/content?${p}`,{credentials:'include'}),j=await r.json();if(!r.ok)throw Error(j.message);setData(j);const n=j.questions.find(x=>x.id===selected?.id)||j.questions[0]||null;setSelected(n);setDraft(n?normalizeEditorQuestion(n):EMPTY)}catch(e){setMessage(e.message)}finally{setBusy(false)}};
+ useEffect(()=>{const t=setTimeout(load,250);return()=>clearTimeout(t);/* load is intentionally driven by filters */},[q,subject,deck,page]); // eslint-disable-line react-hooks/exhaustive-deps
+ const comparison=useMemo(()=>selected?compareQuestionDraft(selected,draft):null,[selected,draft]), validation=useMemo(()=>validateQuestionDraft(draft),[draft]);
+ const setField=(k,v)=>setDraft(x=>({...x,[k]:v})), choose=x=>{setSelected(x);setDraft(normalizeEditorQuestion(x));setInspect(false);setMessage('')};
+ const inspectNow=async()=>{setInspect(!inspect);if(selected){const r=await fetch(`/api/admin/revisions?questionId=${selected.id}`,{credentials:'include'}),j=await r.json();setHistory(j.revisions||[])}};
+ const publish=async mode=>{if(!validation.valid)return setMessage('Cần sửa lỗi kiểm tra trước khi xuất bản.');setBusy(true);try{const r=await fetch('/api/admin/content',{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:selected.id,expectedUpdatedAt:selected.updatedAt,mode,draft})}),j=await r.json();if(!r.ok)throw Error(j.message);setMessage(j.message);await load()}catch(e){setMessage(e.message)}finally{setBusy(false)}};
+ const restore=async revisionId=>{setBusy(true);const r=await fetch('/api/admin/revisions',{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({revisionId})}),j=await r.json();setMessage(j.message);await load();setBusy(false)};
+ const decks=data.catalog.decks.filter(x=>!subject||x.subjectId===subject);
+ return <div className="min-h-[100dvh] p-3 sm:p-6 text-slate-800 dark:text-slate-200"><div className="max-w-[1600px] mx-auto space-y-4"><header className="admin-shell"><h1 className="text-2xl font-black">Xưởng kiểm định câu hỏi</h1><p className="text-sm text-slate-500">Sửa đúng một câu, xem trước và kiểm tra thay đổi trước khi xuất bản.</p></header>
+ <section className="admin-shell grid md:grid-cols-3 gap-3"><label className="relative"><Search className="absolute w-4 left-3 top-3"/><input className="admin-input pl-9" value={q} onChange={e=>setQ(e.target.value)} placeholder="ID hoặc nội dung câu"/></label><select className="admin-input" value={subject} onChange={e=>{setSubject(e.target.value);setDeck('')}}><option value="">Tất cả môn</option>{data.catalog.subjects.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><select className="admin-input" value={deck} onChange={e=>setDeck(e.target.value)}><option value="">Tất cả đề</option>{decks.map(x=><option key={x.path} value={x.path}>{x.name}</option>)}</select></section>{message&&<div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm">{message}</div>}
+ <div className="grid lg:grid-cols-[330px_1fr] gap-4 items-start"><aside className="admin-shell max-h-[78dvh] overflow-auto lg:sticky lg:top-3"><div className="flex justify-between pb-3"><b>{data.pagination.total} câu</b><button onClick={load}><RefreshCw className={`w-4 ${busy?'animate-spin':''}`}/></button></div>{data.questions.map(x=><button key={x.id} onClick={()=>choose(x)} className={`block w-full text-left p-3 border-t ${selected?.id===x.id?'bg-teal-50 dark:bg-teal-950/30':''}`}><span className="font-mono text-xs text-teal-600">{x.publicId}</span><p className="font-bold text-sm line-clamp-2">{x.question}</p><small>{x.deckName}</small></button>)}<div className="flex justify-between pt-3"><button disabled={page<=1} onClick={()=>setPage(page-1)}>← Trước</button><span>{page}/{data.pagination.pages}</span><button disabled={page>=data.pagination.pages} onClick={()=>setPage(page+1)}>Sau →</button></div></aside>
+ <main className="admin-shell">{!selected?<p>Chọn một câu hỏi.</p>:<><div className="flex gap-2 lg:hidden mb-4">{[['edit','Sửa'],['preview','Xem trước'],['inspect','Kiểm tra']].map(([k,v])=><button key={k} onClick={()=>setTab(k)} className={`px-3 py-2 rounded-xl ${tab===k?'bg-teal-500 text-white':'bg-slate-100'}`}>{v}</button>)}</div><div className="grid lg:grid-cols-2 gap-5"><section className={`${tab!=='edit'?'hidden lg:block':''} space-y-3`}><div><b className="font-mono text-teal-600">{selected.publicId}</b><p className="text-xs text-slate-500">{selected.subjectName} · {selected.deckName}</p></div><label className="block"><span className="admin-label">Câu hỏi</span><textarea className="admin-input" rows="4" value={draft.question} onChange={e=>setField('question',e.target.value)}/></label><label className="block"><span className="admin-label">Dữ kiện</span><textarea className="admin-input" rows="3" value={draft.vignette} onChange={e=>setField('vignette',e.target.value)}/></label><div className="flex gap-2"><button onClick={()=>setField('type','single')} className="px-3 py-2 rounded-xl bg-teal-100">Trắc nghiệm</button><button onClick={()=>setField('type','short_answer')} className="px-3 py-2 rounded-xl bg-slate-100">Trả lời ngắn</button></div>{draft.type==='short_answer'?<textarea className="admin-input" value={draft.acceptedShortAnswers.join('\n')} onChange={e=>setField('acceptedShortAnswers',e.target.value.split('\n'))} placeholder="Mỗi dòng một đáp án được chấp nhận"/>:<div className="space-y-2"><span className="admin-label">Bản đồ đáp án — tích đáp án đúng</span>{draft.options.map((o,i)=><div key={i} className="flex gap-2"><input type="checkbox" checked={o.isCorrect} onChange={e=>setField('options',draft.options.map((v,n)=>n===i?{...v,isCorrect:e.target.checked}:v))}/><input className="admin-input" value={o.text} onChange={e=>setField('options',draft.options.map((v,n)=>n===i?{...v,text:e.target.value}:v))}/><button onClick={()=>setField('options',draft.options.filter((_,n)=>n!==i))}><Trash2 className="w-4"/></button></div>)}<button onClick={()=>setField('options',[...draft.options,{id:'',text:'',isCorrect:false}])} className="text-sm text-teal-600 flex gap-1"><Plus className="w-4"/>Thêm lựa chọn</button></div>}<details><summary className="font-bold cursor-pointer">Giải thích, nguồn và ảnh</summary><div className="space-y-2 mt-2"><textarea className="admin-input" value={draft.explanation} onChange={e=>setField('explanation',e.target.value)} placeholder="Giải thích"/><textarea className="admin-input" value={draft.referenceBook} onChange={e=>setField('referenceBook',e.target.value)} placeholder="Nguồn"/><input className="admin-input" value={draft.imageUrl} onChange={e=>setField('imageUrl',e.target.value)} placeholder="Link ảnh https://"/></div></details></section>
+ <section className={`${tab!=='preview'?'hidden lg:block':''} rounded-2xl border p-5 bg-slate-50 dark:bg-white/5`}><div className="flex gap-2 mb-4"><Eye className="w-4"/><b>Xem trước</b></div><p className="text-lg font-black">{draft.question||'Chưa có nội dung'}</p><p>{draft.vignette}</p><div className="space-y-2 mt-4">{draft.options.map((o,i)=><div key={i} className={`p-3 rounded-xl border ${o.isCorrect?'border-emerald-400 bg-emerald-50 text-emerald-800':'bg-white dark:bg-white/5'}`}>{String.fromCharCode(65+i)}. {o.text}</div>)}</div></section></div>
+ <section className={`${tab!=='inspect'?'hidden lg:block':''} mt-5 border-t pt-4`}><button onClick={inspectNow} className="flex gap-2 font-bold"><AlertTriangle className="w-4"/>Kiểm tra trước khi xuất bản</button>{inspect&&<div className="grid md:grid-cols-2 gap-4 mt-3"><div>{validation.errors.map(x=><p key={x} className="text-rose-600 text-sm">• {x}</p>)}{validation.warnings.map(x=><p key={x} className="text-amber-600 text-sm">• {x}</p>)}<p className="text-sm mt-2">Thay đổi: {comparison?.changedFields.join(', ')||'không có'} · điểm {comparison?.changeScore}</p><div className="flex gap-2 mt-3"><button disabled={busy||!comparison?.hasChanges} onClick={()=>publish('edit')} className="px-4 py-2 rounded-xl bg-teal-500 text-white font-bold flex gap-2"><Save className="w-4"/>Cập nhật</button>{comparison?.suggestedMode==='replace'&&<button onClick={()=>publish('replace')} className="px-4 py-2 rounded-xl bg-amber-500 text-white font-bold">Thay câu mới</button>}</div></div><div><b>Lịch sử</b>{history.map(x=><div key={x._id} className="flex justify-between border-b py-2 text-sm"><span>Bản {x.revision} · {x.action}</span><button className="text-teal-600" onClick={()=>restore(x._id)}>Khôi phục</button></div>)}</div></div>}</section></>}</main></div></div></div>;
 }

@@ -1,9 +1,10 @@
 import crypto from 'node:crypto';
 import { connectToDatabase } from '../_utils/db.js';
-import { Book, Deck, Question, Subject } from '../_models/index.js';
+import { Book, Deck, Question, QuestionImport, Subject } from '../_models/index.js';
 import { enforceGlobalApiRateLimit } from '../_utils/rateLimiter.js';
 import { createPublicQuestionId, normalizeSourceQuestionId } from '../_utils/questionIdentity.js';
 import { getQuestionImageVariants } from '../_utils/imageUrl.js';
+import { questionSnapshot, stableHash } from '../_utils/questionWorkflow.js';
 
 const ALLOWED_OPERATIONS = new Set(['syncManifest', 'upsertDeck', 'deleteDeck', 'deleteSubject']);
 export const config = { maxDuration: 60 };
@@ -133,8 +134,7 @@ async function pruneMissingManifestContent(subjectDocs, subjects, books) {
   );
   const expectedBookIds = books.map(book => String(book?.id || '').trim()).filter(Boolean);
 
-  // XÓA TRÊN SHEET = XÓA TRÊN DB (Khi nào nạp lại thì nạp lại sau)
-  let deletedDecksCount = 0;
+  let archivedDecksCount = 0;
   if (expectedDeckPaths.size > 0) {
     const staleDecks = await Deck.find({
       $or: [
@@ -145,22 +145,23 @@ async function pruneMissingManifestContent(subjectDocs, subjects, books) {
     if (staleDecks.length) {
       const staleDeckIds = staleDecks.map(deck => deck._id);
       const staleDeckPaths = staleDecks.map(deck => String(deck.path || '').toLowerCase()).filter(Boolean);
+      const now = new Date();
       await Promise.all([
-        Question.deleteMany({ $or: [{ deckId: { $in: staleDeckIds } }, { deckPath: { $in: staleDeckPaths } }] }),
-        Deck.deleteMany({ _id: { $in: staleDeckIds } })
+        Question.updateMany({ $or: [{ deckId: { $in: staleDeckIds } }, { deckPath: { $in: staleDeckPaths } }] }, { $set: { sourceState: 'source_missing' } }),
+        Deck.updateMany({ _id: { $in: staleDeckIds } }, { $set: { sourceState: 'source_missing', archivedAt: now, archivedReason: 'Không còn trong nguồn nhập', isPublished: false } })
       ]);
-      deletedDecksCount = staleDecks.length;
+      archivedDecksCount = staleDecks.length;
     }
   }
 
   const [subjectResult, bookResult] = await Promise.all([
-    Subject.deleteMany({ _id: { $nin: keptSubjectIds } }),
-    Book.deleteMany(expectedBookIds.length ? { id: { $nin: expectedBookIds } } : {})
+    Subject.updateMany({ _id: { $nin: keptSubjectIds } }, { $set: { sourceState: 'source_missing', archivedAt: new Date(), isPublished: false } }),
+    Book.updateMany(expectedBookIds.length ? { id: { $nin: expectedBookIds } } : {}, { $set: { sourceState: 'source_missing', archivedAt: new Date(), isPublished: false } })
   ]);
   return {
-    deletedSubjects: subjectResult.deletedCount,
-    deletedDecks: deletedDecksCount,
-    deletedBooks: bookResult.deletedCount
+    archivedSubjects: subjectResult.modifiedCount,
+    archivedDecks: archivedDecksCount,
+    archivedBooks: bookResult.modifiedCount
   };
 }
 
@@ -213,8 +214,7 @@ async function syncManifest(manifest, { prune = false } = {}) {
                     : []),
               totalQuestions: Math.max(0, Number(d.questionCount) || 0),
               timeLimitMinutes: Math.max(1, Number(d.timeLimitMinutes) || Math.ceil((Number(d.questionCount) || 20) * 1.5)),
-              orderIndex: dIdx,
-              isPublished: true
+              orderIndex: dIdx
             },
             $setOnInsert: { createdAt: new Date() }
           },
@@ -254,8 +254,7 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
       tags: Array.isArray(deck.tags) ? deck.tags : [],
       totalQuestions: Array.isArray(rawQuestions) ? rawQuestions.length : Number(deck.questionCount) || 0,
       timeLimitMinutes: Math.max(1, Number(deck.timeLimitMinutes) || Math.ceil((Number(deck.questionCount) || 20) * 1.5)),
-      orderIndex: Math.max(0, (subject.decks || []).indexOf(deck)),
-      isPublished: true
+      orderIndex: Math.max(0, (subject.decks || []).indexOf(deck))
     } },
     { upsert: true, new: true, runValidators: true }
   );
@@ -269,34 +268,51 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
       `(ví dụ ${invalidAnswerKeys[0].qId}).`
     );
   }
-  const qIds = questions.map(question => question.qId);
-  if (questions.length) {
-    await Question.bulkWrite(questions.map(question => ({
-      updateOne: {
-        filter: question.sourceQuestionId
-          ? { $or: [{ sourceQuestionId: question.sourceQuestionId }, { deckId: deckDoc._id, qId: question.qId }] }
-          : { deckId: deckDoc._id, qId: question.qId },
-        update: { $set: question },
-        upsert: true
-      }
-    })), { ordered: false });
+  const seen = new Set();
+  const counts = { new: 0, changed: 0, conflict: 0, unchanged: 0, missing: 0 };
+  for (const incoming of questions) {
+    const sourceId = incoming.sourceQuestionId || `${path.toLowerCase()}:${incoming.qId}`;
+    seen.add(sourceId);
+    let current = await Question.findOne(incoming.sourceQuestionId
+      ? { $or: [{ sourceQuestionId: incoming.sourceQuestionId }, { deckId: deckDoc._id, qId: incoming.qId }] }
+      : { deckId: deckDoc._id, qId: incoming.qId });
+    if (current?.sourceState === 'replaced' && current.replacedByQuestionId) current = await Question.findById(current.replacedByQuestionId) || current;
+    const snapshot = questionSnapshot(incoming); const incomingHash = stableHash(snapshot);
+    if (!current) {
+      counts.new += 1;
+      await QuestionImport.findOneAndUpdate({ candidateKey: `${sourceId}:${incomingHash}` }, { $set: { questionId: null, deckId: deckDoc._id, deckPath: path.toLowerCase(), sourceQuestionId: sourceId, qId: incoming.qId, kind: 'new', status: 'pending', incomingHash, sourceSnapshot: snapshot, currentSnapshot: null, detectedAt: new Date() } }, { upsert: true });
+      continue;
+    }
+    const currentSnapshot = questionSnapshot(current);
+    if (!current.sourceHash) {
+      current.sourceHash = incomingHash; current.sourceSnapshot = snapshot; current.lastImportedAt = new Date(); await current.save(); counts.unchanged += 1; continue;
+    }
+    if (current.sourceHash === incomingHash) { current.lastImportedAt = new Date(); await current.save(); counts.unchanged += 1; continue; }
+    const kind = current.sourceState === 'locally_edited' || current.locallyEditedAt ? 'conflict' : 'changed'; counts[kind] += 1;
+    await QuestionImport.findOneAndUpdate({ candidateKey: `${sourceId}:${incomingHash}` }, { $set: { questionId: current._id, deckId: deckDoc._id, deckPath: path.toLowerCase(), sourceQuestionId: sourceId, qId: incoming.qId, kind, status: 'pending', incomingHash, sourceSnapshot: snapshot, currentSnapshot, detectedAt: new Date() } }, { upsert: true });
+    current.sourceState = kind === 'conflict' ? 'locally_edited' : 'source_changed'; current.lastImportedAt = new Date(); await current.save();
   }
-  await Question.deleteMany({ deckId: deckDoc._id, ...(qIds.length ? { qId: { $nin: qIds } } : {}) });
+  const existing = await Question.find({ deckId: deckDoc._id, archivedAt: null, sourceQuestionId: { $exists: true, $ne: '' } });
+  for (const current of existing) if (!seen.has(current.sourceQuestionId)) {
+    counts.missing += 1; current.sourceState = 'source_missing'; current.lastImportedAt = new Date(); await current.save();
+    await QuestionImport.findOneAndUpdate({ candidateKey: `${current.sourceQuestionId}:missing` }, { $set: { questionId: current._id, deckId: deckDoc._id, deckPath: path.toLowerCase(), sourceQuestionId: current.sourceQuestionId, qId: current.qId, kind: 'missing', status: 'pending', currentSnapshot: questionSnapshot(current), detectedAt: new Date() } }, { upsert: true });
+  }
   return {
     deckPath: path,
     questions: questions.length,
     multipleQuestions: questions.filter(question => question.type === 'multiple').length,
     shortAnswerQuestions: questions.filter(question => question.type === 'short_answer').length,
-    acceptedShortAnswers: questions.reduce((total, question) => total + question.acceptedShortAnswers.length, 0)
+    acceptedShortAnswers: questions.reduce((total, question) => total + question.acceptedShortAnswers.length, 0), candidates: counts
   };
 }
 
 async function deleteDeck(deckPath) {
   const regex = new RegExp(`^${escapeRegex(String(deckPath || '').trim())}$`, 'i');
   const deck = await Deck.findOne({ path: regex });
-  await Question.deleteMany({ $or: [{ deckPath: regex }, ...(deck ? [{ deckId: deck._id }] : [])] });
-  const result = await Deck.deleteMany({ path: regex });
-  return { deletedDecks: result.deletedCount };
+  const now = new Date();
+  await Question.updateMany({ $or: [{ deckPath: regex }, ...(deck ? [{ deckId: deck._id }] : [])] }, { $set: { sourceState: 'source_missing' } });
+  const result = await Deck.updateMany({ path: regex }, { $set: { sourceState: 'source_missing', archivedAt: now, archivedReason: 'Đã xóa khỏi nguồn', isPublished: false } });
+  return { archivedDecks: result.modifiedCount };
 }
 
 async function deleteSubject(subjectId) {
@@ -305,10 +321,11 @@ async function deleteSubject(subjectId) {
   const decks = await Deck.find({ subjectId: subject._id }).select('_id path').lean();
   const deckIds = decks.map(deck => deck._id);
   const deckPaths = decks.map(deck => deck.path);
-  await Question.deleteMany({ $or: [{ deckId: { $in: deckIds } }, { deckPath: { $in: deckPaths } }] });
-  const deckResult = await Deck.deleteMany({ subjectId: subject._id });
-  const subjectResult = await Subject.deleteOne({ _id: subject._id });
-  return { deletedSubjects: subjectResult.deletedCount, deletedDecks: deckResult.deletedCount };
+  const now = new Date();
+  await Question.updateMany({ $or: [{ deckId: { $in: deckIds } }, { deckPath: { $in: deckPaths } }] }, { $set: { sourceState: 'source_missing' } });
+  const deckResult = await Deck.updateMany({ subjectId: subject._id }, { $set: { sourceState: 'source_missing', archivedAt: now, isPublished: false } });
+  const subjectResult = await Subject.updateOne({ _id: subject._id }, { $set: { sourceState: 'source_missing', archivedAt: now, isPublished: false } });
+  return { archivedSubjects: subjectResult.modifiedCount, archivedDecks: deckResult.modifiedCount };
 }
 
 export default async function handler(req, res) {

@@ -20,6 +20,16 @@ const questionSchema = new mongoose.Schema({
     type: String,
     trim: true
   }, // formId:itemId ổn định, không phụ thuộc vị trí câu trong Form
+  sourceHash: { type: String, default: '', index: true },
+  sourceSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
+  sourceState: {
+    type: String,
+    enum: ['synced', 'locally_edited', 'source_changed', 'source_missing', 'replaced'],
+    default: 'synced',
+    index: true
+  },
+  lastImportedAt: { type: Date, default: null },
+  locallyEditedAt: { type: Date, default: null },
   publicId: {
     type: String,
     trim: true,
@@ -74,6 +84,11 @@ const questionSchema = new mongoose.Schema({
   },
 
   orderIndex: { type: Number, default: 0 },
+  contentRevision: { type: Number, default: 1, min: 1 },
+  replacesQuestionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', default: null },
+  replacedByQuestionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', default: null },
+  archivedAt: { type: Date, default: null, index: true },
+  archivedReason: { type: String, default: '' },
   isPublished: { type: Boolean, default: true }
 }, { timestamps: true });
 

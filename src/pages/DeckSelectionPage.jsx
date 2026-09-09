@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   ChevronLeft, Clock, BarChart,
-  Sparkles, X, CheckCircle2, Lock, HelpCircle
+  Sparkles, X, CheckCircle2, Lock, HelpCircle, Flag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
@@ -11,6 +11,7 @@ import usePageTitle from '../hooks/usePageTitle';
 
 import Breadcrumb from '../components/Common/Breadcrumb';
 import UnlockSubjectModal from '../components/Modals/UnlockSubjectModal';
+import ReportIssueModal from '../components/Quiz/ReportIssueModal';
 
 export default function DeckSelectionPage() {
   usePageTitle('Chọn bộ đề');
@@ -37,6 +38,7 @@ export default function DeckSelectionPage() {
   const [activeTag, setActiveTag] = useState('all');
   const [selectedDeckForModal, setSelectedDeckForModal] = useState(null);
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+  const [reportDeck, setReportDeck] = useState(null);
   const [sessionConfig, setSessionConfig] = useState({
     mode: 'tutor',
     shuffle: true,
@@ -329,7 +331,8 @@ export default function DeckSelectionPage() {
                 </div>
                 
                 {/* Nút Vào Làm Bài: Tinh gọn, basic */}
-                <div className="shrink-0 flex items-center">
+                <div className="shrink-0 flex items-center gap-2">
+                  <button type="button" onClick={() => setReportDeck(deck)} className="p-2.5 rounded-xl bg-amber-50 text-amber-700" title="Báo lỗi bộ đề"><Flag className="w-4 h-4" /></button>
                   {deck.path ? (
                     <button 
                       type="button"
@@ -366,6 +369,8 @@ export default function DeckSelectionPage() {
           </AnimatePresence>
         </div>
       )}
+
+      <ReportIssueModal open={Boolean(reportDeck)} onClose={() => setReportDeck(null)} deckPath={reportDeck?.path} />
 
       {/* ========================================================================= */}
       {/* 4. MODAL THIẾT LẬP BUỔI THI (UI/UX PRO MAX - RỘNG RÃI & CÔNG TẮC SWITCH) */}

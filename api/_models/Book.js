@@ -47,6 +47,8 @@ const bookSchema = new mongoose.Schema({
   priceNote: { type: String, default: '' },
   isPro: { type: Boolean, default: false, index: true },
   pricingSynced: { type: Boolean, default: false, index: true },
+  sourceState: { type: String, enum: ['synced', 'source_missing'], default: 'synced', index: true },
+  archivedAt: { type: Date, default: null, index: true },
   isPublished: { 
     type: Boolean, 
     default: true 

@@ -86,9 +86,14 @@ export default function MainLayout({ manifest }) {
     },
     ...(user?.role === 'admin' ? [{
       to: '/admin/content',
-      label: 'Quản trị nội dung',
+      label: 'Kiểm định câu hỏi',
       icon: ShieldCheck,
-      isActive: location.pathname.startsWith('/admin')
+      isActive: location.pathname === '/admin/content'
+    }, {
+      to: '/admin/issues',
+      label: 'Hàng chờ lỗi',
+      icon: Bookmark,
+      isActive: location.pathname === '/admin/issues'
     }] : [])
   ];
 

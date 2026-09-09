@@ -7,3 +7,7 @@ export { Session } from './Session.js';
 export { UserProgress } from './UserProgress.js';
 export { MistakeItem } from './MistakeItem.js';
 export { AuditLog } from './AuditLog.js';
+export { QuestionRevision } from './QuestionRevision.js';
+export { QuestionIssue } from './QuestionIssue.js';
+export { QuestionImport } from './QuestionImport.js';
+export { OutboxEvent } from './OutboxEvent.js';

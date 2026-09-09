@@ -43,7 +43,16 @@ const deckSchema = new mongoose.Schema({
   orderIndex: { 
     type: Number, 
     default: 0 
-  }
+  },
+  sourceState: {
+    type: String,
+    enum: ['synced', 'source_missing', 'locally_archived'],
+    default: 'synced',
+    index: true
+  },
+  lastImportedAt: { type: Date, default: null },
+  archivedAt: { type: Date, default: null, index: true },
+  archivedReason: { type: String, default: '' }
 }, { timestamps: true });
 
 deckSchema.index({ subjectId: 1, isPublished: 1, stage: 1 });

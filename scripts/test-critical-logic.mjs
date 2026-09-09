@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { compareQuestionDraft, normalizeEditorQuestion, validateQuestionDraft } from '../shared/questionInspection.js';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {
@@ -336,5 +337,14 @@ apiHandlerFiles.forEach(relativePath => {
   const source = fs.readFileSync(new URL(`../api/${relativePath}`, import.meta.url), 'utf8');
   assert.equal(source.includes('enforceGlobalApiRateLimit(req, res)'), true, `${relativePath} must use the global API rate limiter`);
 });
+
+const inspectedDraft = normalizeEditorQuestion({ question: 'Câu kiểm tra?', options: [{ text: 'A', isCorrect: true }, { text: 'B', isCorrect: true }] });
+assert.equal(inspectedDraft.type, 'multiple', 'Answer map must infer multiple-answer questions');
+assert.equal(validateQuestionDraft(inspectedDraft).valid, true, 'A complete answer map must pass pre-publish validation');
+const majorChange = compareQuestionDraft({ question: 'Câu cũ?', options: [{ text: 'A', isCorrect: true }, { text: 'B', isCorrect: false }] }, inspectedDraft);
+assert.equal(majorChange.suggestedMode, 'replace', 'Large semantic changes must suggest Replace');
+const contentSyncSource = fs.readFileSync(new URL('../api/admin/content-sync.js', import.meta.url), 'utf8');
+assert.equal(contentSyncSource.includes('Question.deleteMany'), false, 'Source sync must never hard-delete questions');
+assert.equal(contentSyncSource.includes('Deck.deleteMany'), false, 'Source sync must never hard-delete decks');
 
 console.log('Critical logic tests passed.');

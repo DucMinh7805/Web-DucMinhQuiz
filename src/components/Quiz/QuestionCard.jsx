@@ -1,7 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
-  Sparkles, CheckSquare, ArrowRight, BookOpen
+  Sparkles, CheckSquare, ArrowRight, BookOpen, Flag, Pencil
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import ReportIssueModal from './ReportIssueModal';
 import { motion, AnimatePresence } from 'motion/react';
 import OptionItem from './OptionItem';
 import DeepCitationCard from './DeepCitationCard';
@@ -32,6 +35,9 @@ export default function QuestionCard({
   onPrev,
   onNext
 }) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [reportOpen, setReportOpen] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
   const [multiSelected, setMultiSelected] = useState([]);
   const [shortAnswerText, setShortAnswerText] = useState('');
@@ -194,6 +200,10 @@ export default function QuestionCard({
                       Nhiều Đáp Án Đúng
                     </span>
                   )}
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setReportOpen(true)} className="text-xs font-bold text-amber-700 flex items-center gap-1"><Flag className="w-3.5"/>Báo lỗi</button>
+                  {user?.role === 'admin' && <button type="button" onClick={() => navigate(`/admin/content?q=${question.publicId || question.id}`)} className="text-xs font-bold text-teal-700 flex items-center gap-1"><Pencil className="w-3.5"/>Sửa câu</button>}
                 </div>
 
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
@@ -362,6 +372,7 @@ export default function QuestionCard({
         </motion.div>
       </AnimatePresence>
 
+      <ReportIssueModal open={reportOpen} onClose={() => setReportOpen(false)} questionId={question?.publicId || question?.id} deckPath={question?.deckPath} />
     </div>
   );
 }
