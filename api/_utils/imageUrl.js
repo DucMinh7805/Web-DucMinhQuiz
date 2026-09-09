@@ -30,14 +30,15 @@ export function getOptimizedQuestionImageUrl(value, width = 800) {
 }
 
 export function getQuestionImageVariants(rawImage) {
-  const fullResUrl = String(
-    rawImage?.fullResUrl || rawImage?.thumbnailUrl || rawImage?.imageUrl || rawImage || ''
+  const isImageObject = rawImage && typeof rawImage === 'object';
+  const fullResUrl = String(isImageObject
+    ? (rawImage.fullResUrl || rawImage.thumbnailUrl || rawImage.imageUrl || '')
+    : (rawImage || '')
   ).trim();
-  const existingThumbnail = String(rawImage?.thumbnailUrl || '').trim();
+  const existingThumbnail = String(isImageObject ? (rawImage.thumbnailUrl || '') : '').trim();
   return {
     thumbnailUrl: getOptimizedQuestionImageUrl(existingThumbnail || fullResUrl, 800),
     fullResUrl,
     caption: String(rawImage?.caption || '').trim()
   };
 }
-

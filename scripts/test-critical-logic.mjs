@@ -12,7 +12,7 @@ import { buildTransferContent, makePaymentCode } from '../src/utils/paymentRefer
 import { resolveSubjectStages, STAGES } from '../src/data/stageMapping.js';
 import { enforceGlobalApiRateLimit } from '../api/_utils/rateLimiter.js';
 import { createPublicQuestionId } from '../api/_utils/questionIdentity.js';
-import { getOptimizedQuestionImageUrl } from '../api/_utils/imageUrl.js';
+import { getOptimizedQuestionImageUrl, getQuestionImageVariants } from '../api/_utils/imageUrl.js';
 import { formatSubjectName } from '../src/utils/subjectName.js';
 
 assert.equal(isOptionCorrect('A. Đáp án đúng', 0, 'A'), true);
@@ -48,6 +48,11 @@ assert.match(createPublicQuestionId({ sourceQuestionId: 'form-1:item-7', deckPat
 assert.equal(
   getOptimizedQuestionImageUrl('https://lh7-rt.googleusercontent.com/formsz/example=s2048?key=x'),
   'https://lh7-rt.googleusercontent.com/formsz/example=w800?key=x'
+);
+assert.deepEqual(
+  getQuestionImageVariants({ thumbnailUrl: '', fullResUrl: '', caption: '' }),
+  { thumbnailUrl: '', fullResUrl: '', caption: '' },
+  'An empty image object must not become the literal string [object Object]'
 );
 assert.equal(formatSubjectName('NOI_CO_SO', { subjects: [{ id: 'noi_co_so', name: 'Nội Cơ Sở' }] }), 'Nội Cơ Sở');
 
