@@ -156,7 +156,7 @@ export default function QuestionCard({
   return (
     <div 
       ref={cardTopRef} 
-      className="w-full py-1"
+      className="w-full py-1 lg:flex"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
@@ -167,7 +167,7 @@ export default function QuestionCard({
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-3xl p-4 sm:p-7 lg:p-8 border border-slate-200/50 dark:border-white/10 shadow-sm relative"
+          className="w-full lg:flex-1 bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-3xl p-4 sm:p-7 lg:p-8 border border-slate-200/50 dark:border-white/10 shadow-sm relative"
         >
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8 items-start">
             

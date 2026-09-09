@@ -421,7 +421,7 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
       </div>
 
       {/* 2. Main Question Workstation (Hỗ trợ vuốt chạm trái phải) */}
-      <main className="flex-1 min-h-0 w-full py-2 px-2 sm:px-6 lg:px-8 flex items-start justify-center overflow-y-auto custom-scrollbar pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-20">
+      <main className="flex-1 min-h-0 w-full py-2 px-2 sm:px-6 lg:px-8 flex items-start lg:items-stretch justify-center overflow-y-auto custom-scrollbar pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-20">
         <QuestionCard
           questionIndex={currentIndex}
           totalQuestions={activeQuestions.length}
