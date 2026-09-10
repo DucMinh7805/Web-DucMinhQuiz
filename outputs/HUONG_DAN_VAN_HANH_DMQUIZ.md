@@ -26,7 +26,7 @@ Các tác vụ chuẩn hóa không cần chạy mỗi ngày. Sau khi hệ thốn
 
 - **Thao tác nhanh**: mở Web quản trị hoặc up các dòng đang chọn.
 - **Đồng bộ dữ liệu**: từng nhóm dữ liệu hoặc làm mới toàn bộ.
-- **Xóa và khôi phục**: quyền xóa tách riêng, luôn tạo backup cả Database_JSON và tab nguồn.
+- **Xóa nội dung**: quyền xóa tách riêng; thao tác xóa là vĩnh viễn.
 - **Cài đặt**: URL, mã biên tập, mã xóa và webhook MongoDB.
 
 Web quản trị nội dung hỗ trợ:
@@ -35,9 +35,8 @@ Web quản trị nội dung hỗ trợ:
 - Thêm đề mới từ Google Form.
 - Xóa đúng đề bằng `deckPath`.
 - Xóa môn và toàn bộ đề thuộc môn.
-- Khôi phục lần xóa gần nhất.
 
-Mã biên tập không thể xóa. Muốn xóa phải có thêm mã xóa riêng và nhập câu xác nhận.
+Mã biên tập không thể xóa. Muốn xóa phải có thêm mã xóa riêng và nhập câu xác nhận. Hệ thống không tạo backup và không hỗ trợ khôi phục sau khi xóa.
 
 ## 4. Vì sao trước đây dữ liệu thay đổi chậm
 

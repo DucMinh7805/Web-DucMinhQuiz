@@ -15,6 +15,10 @@ import { enforceGlobalApiRateLimit } from '../api/_utils/rateLimiter.js';
 import { createPublicQuestionId } from '../api/_utils/questionIdentity.js';
 import { getOptimizedQuestionImageUrl, getQuestionImageVariants } from '../api/_utils/imageUrl.js';
 import { formatSubjectName } from '../src/utils/subjectName.js';
+import { mergeMistakes, mergeProgress, normalizeMistakes } from '../shared/userDataMerge.js';
+import { isValidVietnamesePhone, normalizePhone } from '../api/_utils/normalize.js';
+import { hashPassword, isLegacyPasswordHash, verifyPassword } from '../api/_utils/passwordHash.js';
+import { safelyDecodeURIComponent } from '../shared/routePath.js';
 
 assert.equal(isOptionCorrect('A. Đáp án đúng', 0, 'A'), true);
 assert.equal(isOptionCorrect('B. Đáp án sai', 1, 'A'), false);
@@ -57,6 +61,26 @@ assert.deepEqual(
 );
 assert.equal(formatSubjectName('NOI_CO_SO', { subjects: [{ id: 'noi_co_so', name: 'Nội Cơ Sở' }] }), 'Nội Cơ Sở');
 assert.equal(formatSubjectName('Noi Co So'), 'Nội cơ sở');
+assert.equal(normalizePhone('+84 912 345 678'), '0912345678');
+assert.equal(isValidVietnamesePhone('0912 345 678'), true);
+assert.equal(isValidVietnamesePhone('0|12345678'), false, 'Phone validation must not treat | as a valid mobile prefix');
+assert.deepEqual(
+  mergeProgress({ noi: { deck1: { score: 5, date: '2026-01-01' } } }, { noi: null, ngoai: 'invalid' }),
+  { noi: { deck1: { score: 5, date: '2026-01-01' } } },
+  'Malformed progress payloads must be ignored instead of crashing the API'
+);
+assert.deepEqual(normalizeMistakes({ id: 'invalid-container' }), [], 'Mistakes must be an array');
+assert.deepEqual(
+  mergeMistakes([{ id: 'q1', date: '2026-01-01' }], [{ id: 'q1', date: '2026-02-01' }, null]),
+  [{ id: 'q1', date: '2026-02-01' }],
+  'The newest valid mistake must win during cross-device merge'
+);
+const securePasswordHash = await hashPassword('mat-khau-thu');
+assert.equal(isLegacyPasswordHash(securePasswordHash), false);
+assert.equal(await verifyPassword('0912345678', 'mat-khau-thu', securePasswordHash), true);
+assert.equal(await verifyPassword('0912345678', 'sai-mat-khau', securePasswordHash), false);
+assert.equal(safelyDecodeURIComponent('noi%2Ftim-mach'), 'noi/tim-mach');
+assert.equal(safelyDecodeURIComponent('noi%2'), 'noi%2', 'Malformed route encoding must not crash the app');
 
 const gasUtils = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_4_Utils.gs', import.meta.url), 'utf8');
 const gasSync = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_3_Sync.gs', import.meta.url), 'utf8');
@@ -193,9 +217,11 @@ assert.equal(gasSync.includes('if (elapsed > 210)'), true, 'Selective sync must 
 assert.equal(gasSync.includes('count < 2500'), false, 'Selective sync must not scan thousands of Drive images before processing a deck');
 assert.equal(gasSync.includes('Đang chuẩn bị đồng bộ'), true, 'Selected rows must show immediate progress in column E');
 assert.equal(gasSync.includes("SpreadsheetApp.getUi().alert(timedOutEarly"), false, 'Completion feedback must not block Apps Script until its six-minute timeout');
-assert.equal(sheetLoginApi.includes('if (cachedUser.passwordHash)'), true, 'Wrong cached passwords must not invoke the slow Sheet login fallback');
+assert.equal(sheetLoginApi.includes('verifyPassword(phone, password, cachedUser.passwordHash)'), true, 'Cached passwords must be verified through the migration-safe password helper');
+assert.equal(sheetLoginApi.includes('isLegacyPasswordHash(cachedUser.passwordHash)'), true, 'Successful legacy logins must upgrade the fast password hash');
 assert.equal(sheetLoginApi.includes('Grace period'), false, 'Login must never create a session without verifying a password');
 assert.equal(sheetRegisterApi.includes('scheduleBackgroundTask'), true, 'Registration Sheet sync must use the Vercel background lifecycle');
+assert.equal(sheetRegisterApi.includes("requireSecurityValue('SHEET_SESSION_SECRET'"), true, 'Registration must fail before creating a partial account when security configuration is missing');
 assert.equal(
   sheetRegisterApi.indexOf('await User.create') < sheetRegisterApi.indexOf("callAuthSheet("),
   true,
@@ -206,7 +232,7 @@ assert.equal(databaseUtils.includes('minPoolSize: 0'), true, 'Idle serverless in
 assert.equal(questionCard.includes("if (mode === 'exam') onSelectOption(nextValue)"), true, 'Exam short-answer drafts must save before navigation');
 assert.equal(questionCard.includes('/chọn nhiều|nhiều đáp án|các đáp án|nhiều lựa chọn/i'), false, 'Frontend must not infer answer type from wording');
 assert.equal(gasSync.includes("normalizedStatus.indexOf('da xoa')"), true, 'Deleted rows must stay excluded on resync');
-assert.equal(gasSync.includes("createContentBackupSet_('XoaDe'"), true, 'Delete flow must create a recoverable backup of database and source rows');
+assert.equal(gasSync.includes("createContentBackupSet_('XoaDe'"), false, 'Selected deck deletion must be permanent and must not create backup sheets');
 assert.equal(gasAuth.includes('function handleActivateCode'), true, 'Activation must be validated server-side');
 assert.equal(gasAuth.includes("code.length >= 6"), false, 'Activation must not accept arbitrary six-character codes');
 assert.equal(gasAuth.includes('isInternalRequest_(params)'), true, 'Activation codes must require the trusted server path');
@@ -237,9 +263,11 @@ assert.equal(refreshAccessApi.includes('authenticateSheetSession(req)'), true, '
 assert.equal(refreshAccessApi.includes("callAuthSheet('sessionprofile'"), true, 'Access refresh must reload grants from the account sheet');
 assert.equal(updateProfileApi.includes('authenticateSheetSession(req)'), true, 'Profile updates must require a signed session');
 assert.equal(updateProfileApi.includes("callAuthSheet('updateprofile'"), true, 'Profile edits must sync through the private Sheet gateway');
+assert.equal(updateProfileApi.includes('User.findOneAndUpdate'), true, 'Profile edits must update the MongoDB login record as well as the account Sheet');
 assert.equal(gasAuth.includes('function handleUpdateProfile'), true, 'The account Sheet must support profile updates');
 assert.equal(gasAuth.includes('migrateAccountPhone_'), true, 'Changing phone must preserve existing PRO entitlements');
 assert.equal(authContext.includes('updateAccountProfile'), true, 'Verified profile changes must replace client account data');
+assert.equal(authContext.includes('removeUserData(user.phone)'), true, 'Changing phone must migrate local progress away from the old account key');
 assert.equal(unlockModal.includes('Mở môn học mới'), true, 'Manual payment flow must support direct account grants without activation codes');
 assert.equal(unlockModal.includes('Mã đối soát:'), false, 'Customers must not see an internal reconciliation code');
 assert.equal(unlockModal.includes('profile.php?id=61594039586612'), true, 'Payment support must link to the official Facebook Fanpage');
@@ -264,8 +292,10 @@ assert.equal(contentSyncApi.includes('Manifest không có môn học'), true, 'A
 assert.equal(mistakesNotebook.includes('subjectExpirations[`subject:${m.subjectId}`]'), true, 'Mistake retention must use the namespaced subject entitlement key');
 assert.equal(unlockModal.includes("itemPriceFormatted = 'Chưa cấu hình giá'"), true, 'Payment must never invent a fallback amount');
 assert.equal(gasContentAdmin.includes('QUIZ_ADMIN_DELETE_PIN'), true, 'Delete authority must be separate from editor authority');
-assert.equal(gasContentAdmin.includes('createContentBackupSet_'), true, 'Content deletion must create recoverable backups');
+assert.equal(gasContentAdmin.includes('createContentBackupSet_'), false, 'Content deletion must not create backup sheets');
+assert.equal(gasContentAdmin.includes("createContentBackupSet_('XoaDe'"), false, 'Admin deck deletion must be permanent and must not create backup sheets');
 assert.equal(gasContentAdmin.includes("confirmText || '').trim().toUpperCase() !== 'XOA DE'"), true, 'Deck deletion must require explicit confirmation text');
+assert.equal(gasContentAdmin.includes('markDeckSourcesDeleted_(upSheet, subject.name, subject.decks || [])'), true, 'Subject deletion must update deck source statuses in one batch');
 assert.equal(gasApi.includes('renderQuizContentAdminWebApp_'), true, 'Quiz Apps Script must serve the standalone content admin web page');
 assert.equal(migrationScript.includes("process.argv.includes('--use-cache')"), true, 'Bulk migration must not silently reuse stale question cache');
 assert.equal(gasApi.includes('Nội dung PRO chỉ được tải qua API máy chủ đã xác thực'), true, 'Public GAS must reject PRO decks');
@@ -281,6 +311,7 @@ assert.equal(questionsApi.includes('$regex'), false, 'Quiz reads must not use ca
 assert.equal(authMeApi.includes("Cache-Control', 'private, no-store"), true, 'Authenticated profile responses must never enter a shared cache');
 assert.equal(manifestApi.includes("link: ''"), true, 'Public manifest must not expose document links');
 assert.equal(manifestApi.includes("Access-Control-Allow-Origin', '*'"), true, 'Public manifest CORS must not reflect arbitrary origins with credentials');
+assert.equal(manifestApi.includes("req.method !== 'GET'"), true, 'Public manifest must reject unsupported write methods');
 assert.equal(manifestApi.includes('item.pricingSynced !== true'), true, 'Manifest must fail closed before secure pricing sync');
 assert.equal(quizClient.includes('action=getDeck'), false, 'Client must not bypass authorization through the public GAS deck fallback');
 assert.equal(quizClient.includes('DEFAULT_SAMPLE_MANIFEST'), false, 'Production manifest must not silently fall back to stale sample data');

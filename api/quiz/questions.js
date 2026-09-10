@@ -14,13 +14,13 @@ export default async function handler(req, res) {
 
   try {
     await connectToDatabase();
-    const { deckPath } = req.query;
+    const deckPath = Array.isArray(req.query?.deckPath) ? req.query.deckPath[0] : req.query?.deckPath;
 
     if (!deckPath) {
       return res.status(400).json({ success: false, message: 'Thiếu tham số deckPath' });
     }
 
-    const decodedPath = decodeURIComponent(deckPath).trim();
+    const decodedPath = String(deckPath).trim();
     const normalizedPath = decodedPath.toLowerCase();
 
     // `path` được lưu lowercase và có index. Truy vấn exact giúp MongoDB dùng

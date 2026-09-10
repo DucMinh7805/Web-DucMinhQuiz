@@ -1,0 +1,31 @@
+# Local dependencies and generated artifacts
+node_modules
+dist
+dist-verify
+dist-ssr
+logs
+*.log
+
+# Local metadata and editor state
+.git
+.github
+.vscode
+.idea
+.agents
+.codex
+.vercel
+
+# Secrets and machine-specific files
+.env
+.env.*
+*.local
+*.private.*
+google-key.json
+.migration_cache.json
+scripts/latest-gas-manifest.json
+
+# Operations-only material; not required by the website runtime
+Nhat Ky du an.md
+Sheet WEB
+outputs
+scripts

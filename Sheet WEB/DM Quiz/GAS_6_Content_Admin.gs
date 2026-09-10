@@ -2,8 +2,8 @@
  * ============================================================================
  * WEB QUẢN TRỊ NỘI DUNG SHEET LÊN ĐỀ
  * - Mã biên tập: xem/thêm/đồng bộ.
- * - Mã xóa: quyền riêng để xóa/khôi phục môn hoặc đề.
- * - Mọi thao tác xóa đều sao lưu Database_JSON và tab nguồn trước khi ghi.
+ * - Mã xóa: quyền riêng để xóa vĩnh viễn môn hoặc đề.
+ * - Mọi thao tác xóa đều yêu cầu câu xác nhận; hệ thống không tạo bản sao lưu.
  * ============================================================================
  */
 var QUIZ_ADMIN_CONFIG = Object.freeze({
@@ -154,13 +154,12 @@ function adminDeleteDeck(form) {
   if (!owner || !deck) throw new Error('Không tìm thấy đúng bộ đề.');
   var ss = db.ss;
   var upSheet = findSheetByAliases(ss, QUIZ_ADMIN_CONFIG.DECK_SHEETS);
-  var backup = createContentBackupSet_('XoaDe', [db.dbSheet, upSheet], { type: 'deck', deckPaths: [deckPath] });
   delete db.allDecksData[deckPath];
   owner.decks = (owner.decks || []).filter(function(item) { return String(item.path) !== deckPath; });
-  markDeckSourceDeleted_(upSheet, owner.name, deck);
+  markDeckSourcesDeleted_(upSheet, owner.name, [deck]);
   saveDB(db.dbSheet, db.manifest, db.allDecksData);
   var syncResult = pushContentSyncToWeb_({ operation: 'deleteDeck', deckPath: deckPath, manifest: db.manifest });
-  return actionResult_('Đã xóa đề “' + String(deck.name || deck.title) + '”. Backup: ' + backup, syncResult);
+  return actionResult_('Đã xóa vĩnh viễn đề “' + String(deck.name || deck.title) + '”.', syncResult);
 }
 
 function adminDeleteSubject(form) {
@@ -173,40 +172,13 @@ function adminDeleteSubject(form) {
   var subjectSheet = findSheetByAliases(db.ss, QUIZ_ADMIN_CONFIG.SUBJECT_SHEETS);
   var upSheet = findSheetByAliases(db.ss, QUIZ_ADMIN_CONFIG.DECK_SHEETS);
   var deckPaths = (subject.decks || []).map(function(deck) { return String(deck.path || ''); }).filter(Boolean);
-  var backup = createContentBackupSet_('XoaMon', [db.dbSheet, subjectSheet, upSheet], { type: 'subject', subjectId: subjectId, deckPaths: deckPaths });
   deckPaths.forEach(function(path) { delete db.allDecksData[path]; });
   db.manifest.subjects = (db.manifest.subjects || []).filter(function(item) { return String(item.id) !== subjectId; });
   markSubjectSourceDeleted_(subjectSheet, subject.name);
-  (subject.decks || []).forEach(function(deck) { markDeckSourceDeleted_(upSheet, subject.name, deck); });
+  markDeckSourcesDeleted_(upSheet, subject.name, subject.decks || []);
   saveDB(db.dbSheet, db.manifest, db.allDecksData);
   var syncResult = pushContentSyncToWeb_({ operation: 'deleteSubject', subjectId: subjectId });
-  return actionResult_('Đã xóa môn “' + subject.name + '” và ' + deckPaths.length + ' đề. Backup: ' + backup, syncResult);
-}
-
-function adminRestoreLastDeletion(form) {
-  assertDeleteAuthority_(form);
-  if (String((form && form.confirmText) || '').trim().toUpperCase() !== 'KHOI PHUC') throw new Error('Nhập chính xác KHOI PHUC để xác nhận.');
-  var props = PropertiesService.getScriptProperties();
-  var raw = props.getProperty('LAST_CONTENT_DELETE_BACKUP');
-  if (!raw) throw new Error('Không có lần xóa nào để khôi phục.');
-  var meta = JSON.parse(raw);
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  Object.keys(meta.sheets || {}).forEach(function(targetName) {
-    var backup = ss.getSheetByName(meta.sheets[targetName]);
-    var target = ss.getSheetByName(targetName);
-    if (!backup || !target) throw new Error('Thiếu tab backup cho ' + targetName + '.');
-    target.clear();
-    backup.getDataRange().copyTo(target.getRange(1, 1));
-  });
-  var db = getDB();
-  var syncMessages = [];
-  pushContentSyncToWeb_({ operation: 'syncManifest', manifest: db.manifest });
-  (meta.deckPaths || []).forEach(function(path) {
-    var questions = parseDeckQuestions_(db.allDecksData[path]);
-    var result = pushContentSyncToWeb_({ operation: 'upsertDeck', manifest: db.manifest, deckPath: path, questions: questions });
-    if (!result.success) syncMessages.push(result.message);
-  });
-  return { success: true, message: 'Đã khôi phục dữ liệu từ ' + meta.token + (syncMessages.length ? '. Cần đồng bộ MongoDB lại.' : ' và đã đồng bộ web.') };
+  return actionResult_('Đã xóa vĩnh viễn môn “' + subject.name + '” và ' + deckPaths.length + ' đề.', syncResult);
 }
 
 function pushCurrentManifestToWeb() {
@@ -253,29 +225,28 @@ function assertQuizAdminPin_(supplied, propertyName, minLength, label) {
   if (difference !== 0) { Utilities.sleep(350); throw new Error(label + ' không đúng.'); }
 }
 
-function createContentBackupSet_(prefix, sheets, details) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var token = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'GMT+7', 'yyyyMMdd_HHmmss');
-  var mapping = {};
-  sheets.filter(Boolean).forEach(function(sheet, index) {
-    var safeName = ('Backup_' + prefix + '_' + token + '_' + index).slice(0, 99);
-    var copy = sheet.copyTo(ss).setName(safeName);
-    copy.hideSheet();
-    mapping[sheet.getName()] = safeName;
-  });
-  PropertiesService.getScriptProperties().setProperty('LAST_CONTENT_DELETE_BACKUP', JSON.stringify(Object.assign({ token: token, sheets: mapping }, details || {})));
-  return token;
-}
-
-function markDeckSourceDeleted_(sheet, subjectName, deck) {
-  if (!sheet) return;
+function markDeckSourcesDeleted_(sheet, subjectName, decks) {
+  if (!sheet || !decks || !decks.length) return;
+  ensureColumns_(sheet, 5);
   var data = sheet.getDataRange().getValues();
-  var formUrl = String(deck.formUrl || '');
+  var formUrls = {};
+  var deckNames = {};
+  decks.forEach(function(deck) {
+    var formUrl = String(deck.formUrl || '').trim();
+    if (formUrl) formUrls[formUrl] = true;
+    deckNames[normalizeName(deck.name || deck.title)] = true;
+  });
+  var statuses = data.slice(1).map(function(row) { return [String(row[4] || '')]; });
+  var changed = false;
   for (var i = 1; i < data.length; i++) {
-    var sameForm = formUrl && String(data[i][2] || '').trim() === formUrl;
-    var sameNames = normalizeName(data[i][0]) === normalizeName(subjectName) && normalizeName(data[i][1]) === normalizeName(deck.name || deck.title);
-    if (sameForm || sameNames) sheet.getRange(i + 1, 5).setValue('🗑️ Đã xóa khỏi Database');
+    var sameForm = Boolean(formUrls[String(data[i][2] || '').trim()]);
+    var sameNames = normalizeName(data[i][0]) === normalizeName(subjectName) && Boolean(deckNames[normalizeName(data[i][1])]);
+    if (sameForm || sameNames) {
+      statuses[i - 1][0] = '🗑️ Đã xóa khỏi Database';
+      changed = true;
+    }
   }
+  if (changed) sheet.getRange(2, 5, statuses.length, 1).setValues(statuses);
 }
 
 function markSubjectSourceDeleted_(sheet, subjectName) {
@@ -305,11 +276,11 @@ function getQuizContentAdminHtml_() {
   return [
     '<!doctype html><html><head><base target="_top"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>',
     '*{box-sizing:border-box}body{margin:0;background:#f1f5f9;color:#0f172a;font:14px Arial,sans-serif}.wrap{max-width:1050px;margin:auto;padding:18px}.top,.card{background:#fff;border:1px solid #dbeafe;border-radius:18px;padding:18px;box-shadow:0 10px 35px #0f172a0d}.top{position:sticky;top:8px;z-index:2}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}.danger{border-color:#fecaca}.row{display:grid;grid-template-columns:1fr auto;gap:8px}label{display:block;font-weight:700;margin:10px 0 5px}input,select,textarea{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:10px;font:inherit}textarea{min-height:70px}button{border:0;border-radius:10px;padding:11px 14px;background:#0d9488;color:white;font-weight:800;cursor:pointer}button.red{background:#dc2626}button.gray{background:#475569}.msg{display:none;margin-top:12px;padding:11px;border-radius:10px}.ok{display:block;background:#dcfce7;color:#166534}.err{display:block;background:#fee2e2;color:#991b1b}.muted{color:#64748b;font-size:12px}@media(max-width:760px){.grid{grid-template-columns:1fr}.top{position:static}}</style></head><body><main class="wrap">',
-    '<section class="top"><h1 style="margin:0">Quản trị nội dung DiamondQuiz</h1><p class="muted">Thêm môn/đề bằng mã biên tập. Xóa và khôi phục bắt buộc mã xóa riêng.</p><div class="row"><input id="editorPin" type="password" placeholder="Mã biên tập"><button onclick="loadData()">Tải danh mục</button></div><div id="msg" class="msg"></div></section>',
+    '<section class="top"><h1 style="margin:0">Quản trị nội dung DiamondQuiz</h1><p class="muted">Thêm môn/đề bằng mã biên tập. Xóa vĩnh viễn bắt buộc mã xóa riêng.</p><div class="row"><input id="editorPin" type="password" placeholder="Mã biên tập"><button onclick="loadData()">Tải danh mục</button></div><div id="msg" class="msg"></div></section>',
     '<div class="grid"><section class="card"><h2>Thêm môn mới</h2><label>Khối / chuyên khoa</label><input id="category" placeholder="Ví dụ: Nội khoa"><label>Tên môn</label><input id="subjectName"><label>Mã môn (để trống sẽ tự tạo)</label><input id="subjectCode"><label>Mô tả</label><textarea id="subjectDescription"></textarea><button onclick="addSubject()">Thêm và đồng bộ môn</button></section>',
     '<section class="card"><h2>Thêm đề mới</h2><label>Môn</label><select id="deckSubject"></select><label>Tên đề</label><input id="deckName"><label>Link Google Form</label><input id="formUrl"><label>Tags</label><input id="tags" placeholder="Nội trú, Tim mạch"><label>Link ảnh (không bắt buộc)</label><input id="imageUrl"><button onclick="addDeck()">Nạp đề và đồng bộ web</button></section>',
-    '<section class="card danger"><h2>Xóa đề</h2><label>Môn</label><select id="deleteDeckSubject" onchange="fillDecks()"></select><label>Đề</label><select id="deleteDeck"></select><label>Mã xóa riêng</label><input id="deletePin1" type="password"><label>Gõ XOA DE</label><input id="confirmDeck"><button class="red" onclick="deleteDeck()">Sao lưu rồi xóa đề</button></section>',
-    '<section class="card danger"><h2>Xóa môn / Khôi phục</h2><label>Môn</label><select id="deleteSubject"></select><label>Mã xóa riêng</label><input id="deletePin2" type="password"><label>Gõ XOA MON</label><input id="confirmSubject"><button class="red" onclick="deleteSubject()">Sao lưu rồi xóa môn</button><hr style="border:0;border-top:1px solid #e2e8f0;margin:18px 0"><label>Khôi phục lần xóa gần nhất: gõ KHOI PHUC</label><input id="confirmRestore"><button class="gray" onclick="restoreLast()">Khôi phục</button></section></div>',
-    '<script>const $=id=>document.getElementById(id);let catalog=[];function message(t,ok){$("msg").textContent=t;$("msg").className="msg "+(ok?"ok":"err")}function call(name,payload,done){message("Đang xử lý...",true);google.script.run.withSuccessHandler(x=>{message(x.message||"Hoàn tất",x.success!==false);if(done)done(x)}).withFailureHandler(e=>message(e.message||"Có lỗi",false))[name](payload)}function fillSelect(id,items){const s=$(id);s.replaceChildren();items.forEach(x=>{const o=document.createElement("option");o.value=x.id;o.textContent=x.name;s.appendChild(o)})}function loadData(){call("getQuizAdminCatalog",{editorPin:$("editorPin").value},x=>{catalog=x.subjects||[];fillSelect("deckSubject",catalog);fillSelect("deleteDeckSubject",catalog);fillSelect("deleteSubject",catalog);fillDecks()})}function fillDecks(){const sub=catalog.find(x=>x.id===$("deleteDeckSubject").value);fillSelect("deleteDeck",(sub&&sub.decks||[]).map(x=>({id:x.path,name:x.name})))}function addSubject(){call("adminCreateSubject",{editorPin:$("editorPin").value,category:$("category").value,name:$("subjectName").value,code:$("subjectCode").value,description:$("subjectDescription").value},loadData)}function addDeck(){call("adminCreateDeck",{editorPin:$("editorPin").value,subjectId:$("deckSubject").value,deckName:$("deckName").value,formUrl:$("formUrl").value,tags:$("tags").value,imageUrl:$("imageUrl").value},loadData)}function deleteDeck(){call("adminDeleteDeck",{editorPin:$("editorPin").value,deletePin:$("deletePin1").value,deckPath:$("deleteDeck").value,confirmText:$("confirmDeck").value},loadData)}function deleteSubject(){call("adminDeleteSubject",{editorPin:$("editorPin").value,deletePin:$("deletePin2").value,subjectId:$("deleteSubject").value,confirmText:$("confirmSubject").value},loadData)}function restoreLast(){call("adminRestoreLastDeletion",{editorPin:$("editorPin").value,deletePin:$("deletePin2").value,confirmText:$("confirmRestore").value},loadData)}</script></main></body></html>'
+    '<section class="card danger"><h2>Xóa đề</h2><label>Môn</label><select id="deleteDeckSubject" onchange="fillDecks()"></select><label>Đề</label><select id="deleteDeck"></select><label>Mã xóa riêng</label><input id="deletePin1" type="password"><label>Gõ XOA DE</label><input id="confirmDeck"><button class="red" onclick="deleteDeck()">Xóa vĩnh viễn đề</button></section>',
+    '<section class="card danger"><h2>Xóa môn</h2><label>Môn</label><select id="deleteSubject"></select><label>Mã xóa riêng</label><input id="deletePin2" type="password"><label>Gõ XOA MON</label><input id="confirmSubject"><button class="red" onclick="deleteSubject()">Xóa vĩnh viễn môn</button></section></div>',
+    '<script>const $=id=>document.getElementById(id);let catalog=[];function message(t,ok){$("msg").textContent=t;$("msg").className="msg "+(ok?"ok":"err")}function call(name,payload,done){message("Đang xử lý...",true);google.script.run.withSuccessHandler(x=>{message(x.message||"Hoàn tất",x.success!==false);if(done)done(x)}).withFailureHandler(e=>message(e.message||"Có lỗi",false))[name](payload)}function fillSelect(id,items){const s=$(id);s.replaceChildren();items.forEach(x=>{const o=document.createElement("option");o.value=x.id;o.textContent=x.name;s.appendChild(o)})}function loadData(){call("getQuizAdminCatalog",{editorPin:$("editorPin").value},x=>{catalog=x.subjects||[];fillSelect("deckSubject",catalog);fillSelect("deleteDeckSubject",catalog);fillSelect("deleteSubject",catalog);fillDecks()})}function fillDecks(){const sub=catalog.find(x=>x.id===$("deleteDeckSubject").value);fillSelect("deleteDeck",(sub&&sub.decks||[]).map(x=>({id:x.path,name:x.name})))}function addSubject(){call("adminCreateSubject",{editorPin:$("editorPin").value,category:$("category").value,name:$("subjectName").value,code:$("subjectCode").value,description:$("subjectDescription").value},loadData)}function addDeck(){call("adminCreateDeck",{editorPin:$("editorPin").value,subjectId:$("deckSubject").value,deckName:$("deckName").value,formUrl:$("formUrl").value,tags:$("tags").value,imageUrl:$("imageUrl").value},loadData)}function deleteDeck(){call("adminDeleteDeck",{editorPin:$("editorPin").value,deletePin:$("deletePin1").value,deckPath:$("deleteDeck").value,confirmText:$("confirmDeck").value},loadData)}function deleteSubject(){call("adminDeleteSubject",{editorPin:$("editorPin").value,deletePin:$("deletePin2").value,subjectId:$("deleteSubject").value,confirmText:$("confirmSubject").value},loadData)}</script></main></body></html>'
   ].join('');
 }

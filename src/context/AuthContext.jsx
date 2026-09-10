@@ -1,5 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect } from 'react';
+import { mergeMistakes, mergeProgress, normalizeMistakes } from '../../shared/userDataMerge.js';
+
+export { mergeMistakes, mergeProgress } from '../../shared/userDataMerge.js';
 
 const AuthContext = createContext();
 
@@ -8,7 +11,7 @@ function getUserData(phone) {
   try {
     const progress = JSON.parse(localStorage.getItem(`y_khoa_progress_${phone}`) || '{}');
     const mistakes = JSON.parse(localStorage.getItem(`y_khoa_mistakes_${phone}`) || '[]');
-    return { progress, mistakes };
+    return { progress: mergeProgress({}, progress), mistakes: normalizeMistakes(mistakes) };
   } catch {
     return { progress: {}, mistakes: [] };
   }
@@ -62,63 +65,43 @@ function mergeVerifiedUser(previousUser, userData) {
 }
 
 let syncTimer = null;
-export function syncUserDataToCloud(progress, mistakes) {
+export function syncUserDataToCloud(progress, mistakes, { replaceMistakes = false } = {}) {
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
+    syncTimer = null;
     fetch('/api/user/progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ progress, mistakes })
+      body: JSON.stringify({ progress, mistakes, replaceMistakes })
     }).catch(err => console.warn('[Cloud Sync Failed]', err));
   }, 1000);
 }
 
-export function mergeProgress(serverProgress = {}, clientProgress = {}) {
-  const merged = { ...serverProgress };
-  for (const subjectId of Object.keys(clientProgress || {})) {
-    if (!merged[subjectId]) {
-      merged[subjectId] = { ...clientProgress[subjectId] };
-      continue;
-    }
-    for (const deckId of Object.keys(clientProgress[subjectId] || {})) {
-      const clientDeck = clientProgress[subjectId][deckId];
-      const serverDeck = merged[subjectId][deckId];
-      if (!serverDeck) {
-        merged[subjectId][deckId] = clientDeck;
-      } else {
-        const clientTime = new Date(clientDeck.completedAt || clientDeck.date || 0).getTime();
-        const serverTime = new Date(serverDeck.completedAt || serverDeck.date || 0).getTime();
-        if (clientTime >= serverTime) {
-          merged[subjectId][deckId] = clientDeck;
-        }
-      }
-    }
+function removeUserData(phone) {
+  if (!phone) return;
+  try {
+    localStorage.removeItem(`y_khoa_progress_${phone}`);
+    localStorage.removeItem(`y_khoa_mistakes_${phone}`);
+  } catch (error) {
+    console.warn('[Remove User Data]', error);
   }
-  return merged;
 }
 
-export function mergeMistakes(serverMistakes = [], clientMistakes = []) {
-  const map = new Map();
-  (serverMistakes || []).forEach(m => {
-    const id = String(m?.id || m?.questionId || '');
-    if (id) map.set(id, m);
-  });
-  (clientMistakes || []).forEach(m => {
-    const id = String(m?.id || m?.questionId || '');
-    if (!id) return;
-    if (!map.has(id)) {
-      map.set(id, m);
-    } else {
-      const existing = map.get(id);
-      const clientTime = new Date(m.date || 0).getTime();
-      const existingTime = new Date(existing.date || 0).getTime();
-      if (clientTime >= existingTime) {
-        map.set(id, m);
-      }
-    }
-  });
-  return Array.from(map.values());
+function saveCachedUser(user) {
+  try {
+    localStorage.setItem('y_khoa_user', JSON.stringify(user));
+  } catch (error) {
+    console.warn('[Save Cached User]', error);
+  }
+}
+
+function removeCachedUser() {
+  try {
+    localStorage.removeItem('y_khoa_user');
+  } catch (error) {
+    console.warn('[Remove Cached User]', error);
+  }
 }
 
 export function AuthProvider({ children }) {
@@ -132,7 +115,7 @@ export function AuthProvider({ children }) {
     try {
       cachedProfile = JSON.parse(localStorage.getItem('y_khoa_user') || 'null');
     } catch {
-      localStorage.removeItem('y_khoa_user');
+      removeCachedUser();
     }
     fetch('/api/auth/me', { credentials: 'include' })
       .then(async response => response.ok ? response.json() : null)
@@ -168,7 +151,7 @@ export function AuthProvider({ children }) {
           console.warn('[Fetch Cloud Progress Failed]', e);
         }
 
-        localStorage.setItem('y_khoa_user', JSON.stringify(verifiedUser));
+        saveCachedUser(verifiedUser);
         setUser(verifiedUser);
       })
       .catch(() => setUser(null))
@@ -177,7 +160,7 @@ export function AuthProvider({ children }) {
 
   const login = (userData) => {
     const newUser = mergeVerifiedUser(user, userData);
-    localStorage.setItem('y_khoa_user', JSON.stringify(newUser));
+    saveCachedUser(newUser);
     setUser(newUser);
 
     // Đồng bộ từ đám mây ngay khi đăng nhập
@@ -189,7 +172,7 @@ export function AuthProvider({ children }) {
           const mergedM = mergeMistakes(progData.mistakes, newUser.mistakes);
           const syncedUser = { ...newUser, progress: mergedP, mistakes: mergedM };
           saveUserData(syncedUser.phone, mergedP, mergedM);
-          localStorage.setItem('y_khoa_user', JSON.stringify(syncedUser));
+          saveCachedUser(syncedUser);
           setUser(syncedUser);
           syncUserDataToCloud(mergedP, mergedM);
         }
@@ -200,14 +183,18 @@ export function AuthProvider({ children }) {
   const updateProfile = (profileChanges) => {
     if (!user || !profileChanges || typeof profileChanges !== 'object') return false;
     const updatedUser = { ...user, ...profileChanges };
-    localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
+    saveCachedUser(updatedUser);
     setUser(updatedUser);
     return true;
   };
 
   const logout = () => {
+    if (syncTimer) {
+      clearTimeout(syncTimer);
+      syncTimer = null;
+    }
     fetch('/api/auth/me', { method: 'DELETE', credentials: 'include' }).catch(() => {});
-    localStorage.removeItem('y_khoa_user');
+    removeCachedUser();
     setUser(null);
   };
 
@@ -222,27 +209,29 @@ export function AuthProvider({ children }) {
   ) => {
     if (!user) return;
     
-    const updatedUser = { ...user };
-    if (!updatedUser.progress) updatedUser.progress = {};
-    if (!updatedUser.progress[subjectId]) updatedUser.progress[subjectId] = {};
-    
-    updatedUser.progress[subjectId][deckId] = {
-      score,
-      total,
-      timeSpentSeconds: timeSpentSeconds || 0,
-      date: new Date().toISOString(),
-      completedAt: new Date().toISOString()
+    const updatedProgress = {
+      ...(user.progress || {}),
+      [subjectId]: {
+        ...(user.progress?.[subjectId] || {}),
+        [deckId]: {
+          score,
+          total,
+          timeSpentSeconds: timeSpentSeconds || 0,
+          date: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        }
+      }
     };
 
     // Lưu vào Sổ tay câu sai (Mistakes Notebook)
-    if (!updatedUser.mistakes) updatedUser.mistakes = [];
+    let updatedMistakes = [...(Array.isArray(user.mistakes) ? user.mistakes : [])];
     
     const wrongIds = new Set((wrongQuestions || []).map(wq => String(wq.id || wq.questionId)).filter(Boolean));
     const answeredIds = new Set((answeredQuestionIds || []).map(String));
 
     // Câu đã làm đúng trong lượt này phải được gỡ khỏi sổ tay. Chỉ tác động
     // các ID thực sự xuất hiện trong lượt làm bài để không xóa nhầm dữ liệu khác.
-    updatedUser.mistakes = updatedUser.mistakes.filter(mistake => {
+    updatedMistakes = updatedMistakes.filter(mistake => {
       const mistakeId = String(mistake.id || mistake.questionId || '');
       return !answeredIds.has(mistakeId) || wrongIds.has(mistakeId);
     });
@@ -250,56 +239,57 @@ export function AuthProvider({ children }) {
     if (wrongQuestions && wrongQuestions.length > 0) {
       wrongQuestions.forEach(wq => {
         const qId = wq.id || wq.questionId;
-        const existingIdx = updatedUser.mistakes.findIndex(m => (m.id || m.questionId) === qId);
+        const existingIdx = updatedMistakes.findIndex(m => String(m.id || m.questionId || '') === String(qId || ''));
         if (existingIdx >= 0) {
-          updatedUser.mistakes[existingIdx] = { ...wq, id: qId, date: new Date().toISOString() };
+          updatedMistakes[existingIdx] = { ...wq, id: qId, date: new Date().toISOString() };
         } else {
-          updatedUser.mistakes.push({ ...wq, id: qId, subjectId, deckId, date: new Date().toISOString() });
+          updatedMistakes.push({ ...wq, id: qId, subjectId, deckId, date: new Date().toISOString() });
         }
       });
     }
 
-    localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
+    const updatedUser = { ...user, progress: updatedProgress, mistakes: updatedMistakes };
+
+    saveCachedUser(updatedUser);
     saveUserData(user.phone, updatedUser.progress, updatedUser.mistakes);
     setUser(updatedUser);
-    syncUserDataToCloud(updatedUser.progress, updatedUser.mistakes);
+    syncUserDataToCloud(updatedUser.progress, updatedUser.mistakes, { replaceMistakes: true });
   };
 
   const removeMistake = (questionId) => {
     if (!user || !user.mistakes) return;
     const updatedUser = {
       ...user,
-      mistakes: user.mistakes.filter(m => (m.id || m.questionId) !== questionId)
+      mistakes: user.mistakes.filter(m => String(m.id || m.questionId || '') !== String(questionId || ''))
     };
-    localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
+    saveCachedUser(updatedUser);
     saveUserData(user.phone, null, updatedUser.mistakes);
     setUser(updatedUser);
-    syncUserDataToCloud(updatedUser.progress, updatedUser.mistakes);
+    syncUserDataToCloud(updatedUser.progress, updatedUser.mistakes, { replaceMistakes: true });
   };
 
   const clearMistakes = (subjectId = null) => {
     if (!user) return;
-    const updatedUser = { ...user };
-    if (subjectId) {
-      updatedUser.mistakes = (updatedUser.mistakes || []).filter(m => m.subjectId !== subjectId);
-    } else {
-      updatedUser.mistakes = [];
-    }
-    localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
+    const updatedUser = {
+      ...user,
+      mistakes: subjectId
+        ? (user.mistakes || []).filter(m => String(m.subjectId || '') !== String(subjectId))
+        : []
+    };
+    saveCachedUser(updatedUser);
     saveUserData(user.phone, null, updatedUser.mistakes);
     setUser(updatedUser);
-    syncUserDataToCloud(updatedUser.progress, updatedUser.mistakes);
+    syncUserDataToCloud(updatedUser.progress, updatedUser.mistakes, { replaceMistakes: true });
   };
 
   // Thuật toán Spaced Repetition (SM-2)
   const reviewMistake = (questionId, quality) => {
     if (!user || !user.mistakes) return;
-    const updatedUser = { ...user };
-    
-    const mistakeIdx = updatedUser.mistakes.findIndex(m => (m.id || m.questionId) === questionId);
+    const updatedMistakes = [...user.mistakes];
+    const mistakeIdx = updatedMistakes.findIndex(m => String(m.id || m.questionId || '') === String(questionId || ''));
     if (mistakeIdx < 0) return;
 
-    const mistake = updatedUser.mistakes[mistakeIdx];
+    const mistake = updatedMistakes[mistakeIdx];
     
     // Khởi tạo các giá trị SM-2 nếu chưa có
     let ease = mistake.ease || 2.5;
@@ -330,7 +320,7 @@ export function AuthProvider({ children }) {
     const nextDate = new Date();
     nextDate.setDate(nextDate.getDate() + interval);
 
-    updatedUser.mistakes[mistakeIdx] = {
+    updatedMistakes[mistakeIdx] = {
       ...mistake,
       ease,
       repetitions,
@@ -339,7 +329,9 @@ export function AuthProvider({ children }) {
       nextReviewDate: nextDate.toISOString()
     };
 
-    localStorage.setItem('y_khoa_user', JSON.stringify(updatedUser));
+    const updatedUser = { ...user, mistakes: updatedMistakes };
+
+    saveCachedUser(updatedUser);
     saveUserData(user.phone, null, updatedUser.mistakes);
     setUser(updatedUser);
     syncUserDataToCloud(updatedUser.progress, updatedUser.mistakes);
@@ -373,7 +365,9 @@ export function AuthProvider({ children }) {
       { ...user, phone: data.user.phone },
       { ...data.user, isAuthenticated: true }
     );
-    localStorage.setItem('y_khoa_user', JSON.stringify(verifiedUser));
+    saveUserData(verifiedUser.phone, verifiedUser.progress, verifiedUser.mistakes);
+    if (user.phone !== verifiedUser.phone) removeUserData(user.phone);
+    saveCachedUser(verifiedUser);
     setUser(verifiedUser);
     return verifiedUser;
   };

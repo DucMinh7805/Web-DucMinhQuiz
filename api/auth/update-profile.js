@@ -2,6 +2,9 @@ import { checkRateLimit, enforceGlobalApiRateLimit, getClientIp } from '../_util
 import { normalizePhone } from '../_utils/normalize.js';
 import { callAuthSheet } from '../_utils/sheetGateway.js';
 import { authenticateSheetSession, setSheetSessionCookie } from '../_utils/sheetSession.js';
+import { connectToDatabase } from '../_utils/db.js';
+import { User } from '../_models/index.js';
+import { hashPassword } from '../_utils/passwordHash.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -25,8 +28,8 @@ export default async function handler(req, res) {
   if (name.length < 2 || name.length > 80) {
     return res.status(400).json({ success: false, message: 'Họ và tên phải có từ 2 đến 80 ký tự.' });
   }
-  if (!/^0\d{9}$/.test(phone)) {
-    return res.status(400).json({ success: false, message: 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.' });
+  if (!/^0[35789]\d{8}$/.test(phone)) {
+    return res.status(400).json({ success: false, message: 'Số điện thoại Việt Nam chưa đúng định dạng.' });
   }
   if (email && (email.length > 120 || !EMAIL_PATTERN.test(email))) {
     return res.status(400).json({ success: false, message: 'Địa chỉ Gmail/email không hợp lệ.' });
@@ -55,9 +58,32 @@ export default async function handler(req, res) {
     if (!data?.success || !data?.user) {
       return res.status(400).json({ success: false, message: data?.error || 'Không thể cập nhật hồ sơ.' });
     }
+
+    const updatedPhone = normalizePhone(data.user.phone || phone);
+    const passwordHash = await hashPassword(newPassword || currentPassword);
+    await connectToDatabase();
+    await User.findOneAndUpdate(
+      { phone: session.phone },
+      {
+        $set: {
+          phone: updatedPhone,
+          fullName: data.user.name || data.user.fullName || name,
+          email: data.user.email || email,
+          passwordHash,
+          role: data.user.role || session.role || 'user',
+          entitlements: Array.isArray(data.user.entitlements) ? data.user.entitlements : [],
+          isActive: true
+        }
+      },
+      { new: true, runValidators: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
     const user = setSheetSessionCookie(res, data.user);
     return res.status(200).json({ success: true, user, message: 'Đã đồng bộ hồ sơ với hệ thống.' });
   } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Số điện thoại mới đã thuộc về một tài khoản khác.' });
+    }
     console.error('[Profile Update]', error);
     return res.status(502).json({ success: false, message: 'Máy chủ tài khoản tạm thời không phản hồi.' });
   }

@@ -547,16 +547,6 @@ function deleteSelectedDecks() {
   }
 
   if (deletedCount > 0) {
-    try {
-      createContentBackupSet_('XoaDe', [dbSheet, sheet], { type: 'deck', deckPaths: deletedPaths });
-    } catch (backupError) {
-      return ui.alert(
-        'Chưa xóa',
-        'Không thể tạo bản sao lưu an toàn nên thao tác đã dừng. Lỗi: ' + backupError.message,
-        ui.ButtonSet.OK
-      );
-    }
-
     saveDB(dbSheet, manifest, allDecksData);
     if (typeof pushContentSyncToWeb_ === 'function') {
       deletedPaths.forEach(path => pushContentSyncToWeb_({ operation: 'deleteDeck', deckPath: path, manifest: manifest }));
@@ -569,26 +559,6 @@ function deleteSelectedDecks() {
     `Đã xóa ${deletedCount}/${numRows} đề được chọn. Xem Cột E để biết trạng thái từng dòng.`,
     ui.ButtonSet.OK
   );
-}
-
-function restoreLastDeckDeleteBackup() {
-  const ui = SpreadsheetApp.getUi();
-  const editor = ui.prompt('Mã biên tập', 'Nhập mã biên tập để khôi phục.', ui.ButtonSet.OK_CANCEL);
-  if (editor.getSelectedButton() !== ui.Button.OK) return;
-  const deletion = ui.prompt('Mã xóa', 'Nhập mã xóa riêng để khôi phục.', ui.ButtonSet.OK_CANCEL);
-  if (deletion.getSelectedButton() !== ui.Button.OK) return;
-  const confirm = ui.alert('Xác nhận khôi phục', 'Khôi phục cả Database_JSON và dòng nguồn của lần xóa gần nhất?', ui.ButtonSet.YES_NO);
-  if (confirm !== ui.Button.YES) return;
-  try {
-    const result = adminRestoreLastDeletion({
-      editorPin: editor.getResponseText(),
-      deletePin: deletion.getResponseText(),
-      confirmText: 'KHOI PHUC'
-    });
-    ui.alert('Hoàn tất', result.message, ui.ButtonSet.OK);
-  } catch (error) {
-    ui.alert('Không thể khôi phục', error.message, ui.ButtonSet.OK);
-  }
 }
 
 // -------------------------------------------------------------------------

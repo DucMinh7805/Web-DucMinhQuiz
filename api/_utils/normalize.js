@@ -15,7 +15,7 @@ export function normalizePhone(rawPhone) {
   }
 
   // Nếu đã bắt đầu bằng 0 và có độ dài 10 chữ số
-  const phoneRegex = /^0[3|5|7|8|9][0-9]{8}$/;
+  const phoneRegex = /^0[35789][0-9]{8}$/;
   if (phoneRegex.test(cleaned)) {
     return cleaned;
   }
@@ -33,5 +33,5 @@ export function normalizePhone(rawPhone) {
  */
 export function isValidVietnamesePhone(phone) {
   const normalized = normalizePhone(phone);
-  return /^0[3|5|7|8|9][0-9]{8}$/.test(normalized);
+  return /^0[35789][0-9]{8}$/.test(normalized);
 }

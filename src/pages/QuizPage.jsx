@@ -15,6 +15,7 @@ import QuestionCard from '../components/Quiz/QuestionCard';
 import SubmitConfirmModal from '../components/Quiz/SubmitConfirmModal';
 import ReviewPage from './ReviewPage';
 import usePageTitle from '../hooks/usePageTitle';
+import { safelyDecodeURIComponent } from '../../shared/routePath.js';
 
 /**
  * QuizPage: Phòng thi & luyện tập trắc nghiệm Y khoa
@@ -31,7 +32,7 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
   const { updateProgress } = useAuth();
 
   const rawPath = location.pathname.replace(/^\/quiz\/?/, '');
-  const actualPath = decodeURIComponent(rawPath || deckPath || '');
+  const actualPath = safelyDecodeURIComponent(rawPath || deckPath || '');
   const pathParts = actualPath.split('/').filter(Boolean);
   const subjectId = pathParts[0] || '';
   const deckId = pathParts.slice(1).join('/') || '';
@@ -91,6 +92,8 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
   
   // Timer & Real time tracking
   const startTimeRef = useRef(Date.now());
+  const submitQuizRef = useRef(null);
+  const hasSubmittedRef = useRef(false);
   const [timeLeft, setTimeLeft] = useState(0);
 
   // Touch gesture refs for Mobile / Tablet
@@ -120,6 +123,7 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
       setShuffledOptionsList(initialOptions);
       setTimeLeft(pool.length * 90); // 1.5 phút/câu
       startTimeRef.current = Date.now();
+      hasSubmittedRef.current = false;
     }
   }, [rawQuestions, isShuffleEnabled, questionLimit]);
 
@@ -136,22 +140,16 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
 
   // Exam Countdown Timer
   useEffect(() => {
-    let timer = null;
-    if (mode === 'exam' && !quizFinished && timeLeft > 0) {
-      timer = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            handleSubmitQuiz();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (mode !== 'exam' || quizFinished || timeLeft <= 0) return undefined;
+    const timer = setTimeout(() => setTimeLeft(previous => Math.max(0, previous - 1)), 1000);
+    return () => clearTimeout(timer);
   }, [mode, quizFinished, timeLeft]);
+
+  useEffect(() => {
+    if (mode === 'exam' && !quizFinished && timeLeft === 0 && activeQuestions.length > 0) {
+      submitQuizRef.current?.();
+    }
+  }, [mode, quizFinished, timeLeft, activeQuestions.length]);
 
   // Keyboard navigation & Shortcuts
   useEffect(() => {
@@ -261,6 +259,8 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
 
   // Submit & Calculate Score
   const handleSubmitQuiz = () => {
+    if (hasSubmittedRef.current) return;
+    hasSubmittedRef.current = true;
     setIsSubmitModalOpen(false);
 
     const timeSpentSeconds = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000));
@@ -315,6 +315,7 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
       answeredQuestionIds
     );
   };
+  submitQuizRef.current = handleSubmitQuiz;
 
   const handleRetakeAll = () => {
     setAnswers({});
@@ -322,6 +323,7 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
     setEliminations({});
     setCurrentIndex(0);
     setQuizFinished(false);
+    hasSubmittedRef.current = false;
     setTimeLeft(activeQuestions.length * 90);
     startTimeRef.current = Date.now();
   };
@@ -344,6 +346,7 @@ export default function QuizPage({ getQuestionsByDeckPath, manifest }) {
     setEliminations({});
     setCurrentIndex(0);
     setQuizFinished(false);
+    hasSubmittedRef.current = false;
     setTimeLeft(wrongList.length * 90);
     startTimeRef.current = Date.now();
   };

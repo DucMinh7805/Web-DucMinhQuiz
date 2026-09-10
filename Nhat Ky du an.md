@@ -4,8 +4,8 @@
 > **Kho lưu trữ:** `DucMinh7805/Web-DucMinhQuiz`
 > **Chủ nhiệm dự án (Product Owner / Lead):** Nguyễn Đức Minh
 > **Kỹ sư AI đồng hành (Fullstack & Cloud Architect):** Antigravity (Google DeepMind)
-> **Thời gian thực hiện:** 04/08/2026 – 06/09/2026
-> **Tình trạng hiện tại:** Đã hoàn thiện v2.1, triển khai Live trên Vercel, MongoDB Atlas, đồng bộ hai chiều Google Apps Script & Google Forms.
+> **Thời gian thực hiện:** 04/08/2026 – 10/09/2026
+> **Tình trạng hiện tại:** Đang tiếp tục hoàn thiện giao diện đa thiết bị, xác thực, xưởng kiểm định nội dung và quy trình triển khai an toàn trên Vercel.
 
 ---
 
@@ -661,3 +661,94 @@ Tài liệu **"Nhật Ký Dự Án"** này được tạo ra không chỉ để 
 - Rate limiting ở mã nguồn đã được bật cho toàn bộ `/api`; file tĩnh, logo và bundle vẫn đi qua CDN bình thường để không chặn nhầm người dùng chung IP và không làm chậm trang.
 - Vercel đã có chống DDoS tự động. Luật WAF rate limit đầu tiên có bước xem xét chi phí và ảnh hưởng traffic production, nên chưa tự ý publish.
 - Nếu bật WAF, phạm vi hợp lý là `/api/*`, bắt đầu ở chế độ **Log** để đo traffic thật rồi mới chuyển sang **Deny/Challenge**. Không đặt luật blanket `/*` lên cả website.
+
+---
+
+## NHẬT KÝ THAY ĐỔI TOÀN NGÀY — 10/09/2026
+
+> **Phạm vi ghi nhận:** Hai commit được tạo lúc rạng sáng ngày 10/09 và toàn bộ thay đổi đang có trong working tree đến trước lượt triển khai production cuối ngày. Nội dung được đối chiếu từ lịch sử Git, diff mã nguồn, kiểm thử và kiểm tra trực tiếp trên Chrome.
+
+### 1. Xưởng kiểm định câu hỏi và hàng chờ nội dung
+
+- Commit `c2e32e3` (`feat: add question review workshop`) bổ sung xưởng kiểm định câu hỏi dành cho quản trị viên, gồm màn tìm kiếm/chọn câu, chỉnh sửa, xem trước, kiểm tra thay đổi, lịch sử phiên bản và khôi phục phiên bản.
+- Bổ sung các model `QuestionIssue`, `QuestionImport`, `QuestionRevision`, `OutboxEvent`; mở rộng model câu hỏi, đề, môn, sách và audit log để theo dõi trạng thái nguồn, phiên bản nội dung và thao tác quản trị.
+- Bổ sung xác thực admin phía server, quy trình kiểm tra bản nháp, so sánh thay đổi và hàng đợi sự kiện để tích hợp cảnh báo/n8n mà không đưa dữ liệu nhạy cảm vào luồng ngoài.
+- Người học có thể báo lỗi theo câu hỏi hoặc theo bộ đề. Báo cáo trùng được gom theo khóa nội dung và loại lỗi để tránh tạo hàng loạt bản ghi lặp.
+- Commit `07ee420` (`fix: consolidate serverless review routes`) hợp nhất các route báo lỗi/import/revision vào API quản trị chung, giảm số lượng Vercel Functions và giữ luồng báo lỗi người dùng trong endpoint tiến độ đã xác thực.
+- Form báo lỗi được bổ sung xử lý mất mạng, phản hồi không phải JSON, trạng thái đang gửi, giới hạn ghi chú 1.000 ký tự, phím Escape và thông báo lỗi/thành công có ngữ nghĩa truy cập.
+- Hàng chờ admin và màn chỉnh nội dung không còn treo trạng thái khi API lỗi; request cũ được hủy khi đổi bộ lọc, thao tác khôi phục/xuất bản có `try/catch/finally` và thông báo rõ nguyên nhân.
+
+### 2. Thay đổi giao diện đăng nhập và tạo tài khoản
+
+- Thiết kế lại hoàn toàn `/login` theo hướng sáng, mềm và gần với sinh viên ngành sức khỏe hơn; không quay lại bố cục tối cũ.
+- Dùng logo DiamondQuiz không nền, giữ nền trắng/xanh rất nhạt và loại bỏ biểu tượng kim cương, card quảng cáo, nhãn viết tắt không rõ nghĩa cùng dòng “không quảng cáo...”.
+- Font giao diện được chốt là **Inter**; câu viết tay **“Kiến thức tốt hơn, cho bác sĩ tốt hơn.”** dùng Dancing Script có hỗ trợ tiếng Việt và được self-host trong bundle.
+- Bổ sung minh họa sách Y khoa và ống nghe đã làm mềm màu; ảnh cùng câu viết tay hiển thị trên desktop, tablet và điện thoại. Trên tablet/mobile, cụm sách nằm dưới form thay vì bị ghim vào góc.
+- Desktop trở lại card hai cột có khoảng thở, không mở tràn sát viền. Form được cân lại chiều cao để cả đăng nhập và đăng ký nằm gọn trong một viewport thấp, không bắt buộc cuộn.
+- Mobile ẩn cột giới thiệu nhưng giữ form căn giữa, quote và hình sách. Placeholder số điện thoại/mật khẩu được làm nhạt và in nghiêng; nút mắt giữ nguyên.
+- Đăng ký không yêu cầu Gmail. Form chỉ dùng họ tên, số điện thoại, mật khẩu và checkbox đồng ý **Điều khoản sử dụng & Chính sách bảo mật**.
+- Bổ sung trạng thái lỗi tại từng field; giữ placeholder `0912 345 678`; bỏ dòng “Đây cũng là tên đăng nhập của bạn.”
+- Luồng quên mật khẩu đổi nút hỗ trợ thành **Liên hệ FanPage**, trỏ đến FanPage DiamondQuiz chính thức `61594039586612`.
+- Modal yêu cầu đăng nhập ở các trang được chỉnh đồng bộ với nhận diện mới và bổ sung thông báo tiến độ/câu sai được đồng bộ an toàn.
+- Chính sách bảo mật được cập nhật đúng dữ liệu thực tế: số điện thoại + tên hiển thị, thêm mục Điều khoản sử dụng và lưu ý AI không thay thế quyết định chuyên môn.
+
+### 3. Giao diện Study Copilot trong Kho Sách
+
+- Làm mới modal “Hỏi AI” thành **Study Copilot** với tone xanh lam/xanh ngọc sáng, mềm hơn và ít cảm giác mẫu AI y khoa đại trà.
+- Bổ sung ba prompt nhanh: tóm tắt 5 ý cần nhớ, tạo ca lâm sàng ngắn và nhận diện bẫy thường gặp khi thi.
+- Chuyển ô nhập sang textarea hỗ trợ `Enter` để gửi và `Shift + Enter` để xuống dòng; bổ sung nhãn truy cập cho nút gửi.
+- Câu trả lời mẫu được trình bày rõ theo cơ chế, bẫy thi và gợi ý ôn tập; thêm cảnh báo luôn đối chiếu giáo trình và hướng dẫn lâm sàng.
+
+### 4. Apps Script và quy tắc xóa nội dung
+
+- Menu quản trị đổi từ **“Xóa và khôi phục”** sang **“Xóa nội dung”**.
+- Theo quyết định vận hành mới, xóa môn/đề là thao tác vĩnh viễn sau khi nhập đúng mã quyền riêng và câu xác nhận `XOA MON`/`XOA DE`; bỏ cơ chế tạo các tab backup ẩn và bỏ chức năng khôi phục lần xóa gần nhất.
+- Khi xóa một môn có nhiều đề, trạng thái nguồn ở `UpDe` được cập nhật theo một batch thay vì ghi từng ô, giảm số lượt gọi Spreadsheet API và nguy cơ timeout.
+- Các dòng đã đánh dấu xóa tiếp tục bị loại khỏi luồng đồng bộ để nội dung không tự xuất hiện lại trên web.
+- Hướng dẫn vận hành được cập nhật để nhấn mạnh đây là thao tác không thể phục hồi và phải sao lưu file Google Sheet thủ công nếu cần giữ bản lịch sử.
+
+### 5. Đồng bộ tiến độ và Sổ tay câu sai
+
+- Tách hàm hợp nhất tiến độ/câu sai dùng chung cho client và API, có kiểm tra kiểu dữ liệu để payload sai cấu trúc không làm server văng lỗi.
+- Sửa lỗi quan trọng: thao tác xóa câu sai, xóa theo môn, xóa toàn bộ hoặc làm đúng lại một câu được gửi lên server theo trạng thái chính thức; câu đã xóa không còn bị dữ liệu cũ trên cloud “hồi sinh” ở lần đồng bộ sau.
+- Tác vụ đồng bộ đang chờ được hủy khi người dùng đăng xuất, tránh request của tài khoản cũ chạy sau khi cookie phiên đã bị xóa.
+- Cập nhật progress/mistakes theo cấu trúc bất biến thay vì sửa trực tiếp object/array của state React.
+- Khi đổi số điện thoại tài khoản, tiến độ và Sổ tay câu sai local được chuyển sang khóa số điện thoại mới và xóa khóa cũ, tránh mất dữ liệu hoặc lẫn dữ liệu khi đăng nhập lại.
+
+### 6. Xác thực, mật khẩu và đồng bộ hồ sơ
+
+- Sửa biểu thức kiểm tra đầu số Việt Nam từ character class sai có chứa ký tự `|` sang danh sách đầu số hợp lệ `[35789]`.
+- Client và API cùng kiểm tra đúng định dạng `0xxxxxxxxx`; giới hạn mật khẩu tối đa 128 ký tự, họ tên 2–80 ký tự và email tùy chọn tối đa 120 ký tự để tránh payload bất thường.
+- Mật khẩu tài khoản mới trong MongoDB chuyển từ HMAC SHA-256 nhanh sang **bcrypt** có cost phù hợp cho serverless, giảm rủi ro dò mật khẩu hàng loạt nếu cơ sở dữ liệu bị lộ.
+- Tài khoản cũ vẫn đăng nhập được; sau lần xác minh đúng, hash cũ được tự động nâng cấp sang bcrypt mà không yêu cầu người dùng đổi mật khẩu.
+- Loại bỏ pepper mặc định hard-code trong nhánh tương thích; nếu thiếu secret thật thì hash cũ không được chấp nhận.
+- Đổi hồ sơ/mật khẩu hiện cập nhật cả Google Sheet và bản ghi MongoDB dùng cho đăng nhập nhanh. Việc đổi số điện thoại không còn dẫn đến tình trạng Sheet đã đổi nhưng MongoDB vẫn giữ số/mật khẩu cũ.
+- Trước khi tạo tài khoản MongoDB, API kiểm tra đủ `SHEET_SESSION_SECRET`, URL Apps Script và internal secret; thiếu cấu hình sẽ dừng trước khi tạo bản ghi dở dang.
+
+### 7. Phòng thi, route và độ bền giao diện
+
+- Đồng hồ thi dùng timeout một nhịp và khóa nộp bằng ref; hết giờ hoặc bấm nộp liên tiếp không còn nguy cơ ghi tiến độ hai lần.
+- Bộ đề hợp lệ nhưng chưa có câu hỏi hiển thị trạng thái rỗng với nút quay lại/tải lại, thay vì loading vô hạn.
+- Route chứa chuỗi percent-encoding lỗi không còn làm sập React; API câu hỏi xử lý `deckPath` theo kiểu an toàn và hỗ trợ query array.
+- API manifest chỉ chấp nhận `GET`/`OPTIONS`, từ chối phương thức ghi không được hỗ trợ.
+- Theme và Error Boundary vẫn hoạt động khi localStorage bị chặn bởi chế độ riêng tư hoặc chính sách trình duyệt.
+
+### 8. Kiểm thử và xác minh trước triển khai
+
+- `test:critical`: đạt; bổ sung kiểm thử số điện thoại, merge dữ liệu sai kiểu, thứ tự câu sai mới nhất, bcrypt, route encoding lỗi, cập nhật MongoDB khi đổi hồ sơ và method guard của manifest.
+- `test:security`: đạt; phiên ký, entitlement namespace, thời hạn quyền và cookie bị sửa đều được kiểm tra.
+- `lint`: đạt, không có lỗi.
+- `build` và `build:verify`: đạt; PWA tạo service worker và precache thành công.
+- Chrome desktop `1536 × 639`: đăng nhập và tạo tài khoản đều nằm gọn trong viewport, không tràn ngang/dọc; FanPage khôi phục mật khẩu đúng link.
+- Responsive `390 × 844`: `/login`, trang chủ và Trị số Lab không tràn ngang; quote viết tay và ảnh sách đều hiển thị; route 404 hoạt động đúng.
+- Trang chủ tải đúng dữ liệu production gồm 24 môn và không ghi nhận lỗi/warning trong console ở lượt kiểm tra.
+- Rà soát secret không phát hiện API key, private key hoặc MongoDB URI bị ghi cứng; các secret phía server không xuất hiện trong bundle client. Tệp `.vercelignore` loại khỏi gói upload toàn bộ file môi trường, private file, tài liệu vận hành, nhật ký, Apps Script và metadata máy.
+- Bổ sung các header phòng clickjacking, MIME sniffing, object injection, rò referrer và lạm dụng quyền trình duyệt: CSP giới hạn `frame-ancestors`/`base-uri`/`object-src`, COOP, Permissions Policy, Referrer Policy, `X-Content-Type-Options`, `X-Frame-Options` và `X-Permitted-Cross-Domain-Policies`. HSTS của Vercel tiếp tục được giữ nguyên.
+
+### 9. Trạng thái triển khai cuối ngày
+
+- **Mốc trước deploy:** HEAD local `07ee420`; working tree chứa toàn bộ thay đổi giao diện, logic, Apps Script, tài liệu, tài nguyên ảnh và kiểm thử nêu trên.
+- **Mục tiêu:** Vercel Production, region serverless `hkg1`; kiểm tra cấu hình môi trường theo tên, không ghi hoặc hiển thị giá trị secret trong nhật ký.
+- **Kết quả:** Hoàn tất lúc `00:23` ngày 11/09/2026 (UTC+7), ngay sau mốc kết ngày 10/09. Deployment cuối `dpl_2YA4f7LxfAgqLSUp9YXrADNZJ5xo` đạt `Ready` và đã được promote lên [https://www.quizdm.com](https://www.quizdm.com); apex `https://quizdm.com` chuyển hướng `308` sang `www`.
+- **Xác minh sau deploy:** `/`, `/login` và `/api/quiz/manifest` trả `200`; manifest JSON hợp lệ với 24 môn; `/api/auth/me` khi chưa đăng nhập trả đúng `401`; đủ `8/8` security header được kiểm tra; không có console warning/error, HTTP 500 hoặc runtime error trong lượt smoke test.
+- **Thiết bị đã duyệt:** Chrome desktop `1536 × 639`, mobile `390 × 844` và tablet `820 × 1180`. Form không tràn khung; logo, Inter, quote viết tay, hình sách, điều khoản đăng ký và liên kết FanPage đều hiển thị đúng.

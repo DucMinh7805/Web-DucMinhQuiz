@@ -25,6 +25,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { fetchManifest, fetchDeckQuestions } from './services/quizApi';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { safelyDecodeURIComponent } from '../shared/routePath.js';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -82,7 +83,7 @@ function AppDataWrapper({ children }) {
 function QuizDataLoader({ _manifest }) {
   const location = useLocation();
   const rawPath = location.pathname.replace(/^\/quiz\/?/, '');
-  const deckPath = decodeURIComponent(rawPath);
+  const deckPath = safelyDecodeURIComponent(rawPath);
   const deckRevision = (_manifest?.subjects || [])
     .flatMap(subject => subject.decks || [])
     .find(deck => String(deck.path || '').toLowerCase() === deckPath.toLowerCase())
@@ -129,6 +130,17 @@ function QuizDataLoader({ _manifest }) {
       >
         Tải lại Đề thi
       </button>
+    </div>
+  );
+
+  if (Array.isArray(questions) && questions.length === 0) return (
+    <div className="flex h-screen flex-col items-center justify-center bg-slate-50 p-6 text-center text-slate-800 dark:bg-slate-900 dark:text-slate-200">
+      <div className="mb-2 text-lg font-bold">Bộ đề này chưa có câu hỏi</div>
+      <p className="mb-5 max-w-md text-sm text-slate-500">Nội dung có thể đang được cập nhật. Bạn hãy quay lại danh sách hoặc thử tải lại.</p>
+      <div className="flex flex-wrap justify-center gap-3">
+        <button onClick={() => window.history.back()} className="rounded-xl bg-slate-200 px-5 py-2.5 font-bold text-slate-700 dark:bg-white/10 dark:text-slate-200">Quay lại</button>
+        <button onClick={() => refetch()} className="rounded-xl bg-teal-500 px-5 py-2.5 font-bold text-slate-950">Tải lại</button>
+      </div>
     </div>
   );
 

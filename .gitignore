@@ -32,3 +32,5 @@ ma Qr.jpg
 *.private.*
 scripts/latest-gas-manifest.json
 
+.vercel
+.env*

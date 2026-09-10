@@ -4,53 +4,7 @@ import { Deck, Question, QuestionIssue } from '../_models/index.js';
 import { enqueueN8nEvent } from '../_utils/outbox.js';
 import { authenticateSheetSession } from '../_utils/sheetSession.js';
 import { enforceGlobalApiRateLimit } from '../_utils/rateLimiter.js';
-
-function mergeProgress(serverProgress = {}, clientProgress = {}) {
-  const merged = { ...serverProgress };
-  for (const subjectId of Object.keys(clientProgress)) {
-    if (!merged[subjectId]) {
-      merged[subjectId] = { ...clientProgress[subjectId] };
-      continue;
-    }
-    for (const deckId of Object.keys(clientProgress[subjectId])) {
-      const clientDeck = clientProgress[subjectId][deckId];
-      const serverDeck = merged[subjectId][deckId];
-      if (!serverDeck) {
-        merged[subjectId][deckId] = clientDeck;
-      } else {
-        const clientTime = new Date(clientDeck.completedAt || clientDeck.date || 0).getTime();
-        const serverTime = new Date(serverDeck.completedAt || serverDeck.date || 0).getTime();
-        if (clientTime >= serverTime) {
-          merged[subjectId][deckId] = clientDeck;
-        }
-      }
-    }
-  }
-  return merged;
-}
-
-function mergeMistakes(serverMistakes = [], clientMistakes = []) {
-  const map = new Map();
-  (serverMistakes || []).forEach(m => {
-    const id = String(m?.id || m?.questionId || '');
-    if (id) map.set(id, m);
-  });
-  (clientMistakes || []).forEach(m => {
-    const id = String(m?.id || m?.questionId || '');
-    if (!id) return;
-    if (!map.has(id)) {
-      map.set(id, m);
-    } else {
-      const existing = map.get(id);
-      const clientTime = new Date(m.date || 0).getTime();
-      const existingTime = new Date(existing.date || 0).getTime();
-      if (clientTime >= existingTime) {
-        map.set(id, m);
-      }
-    }
-  });
-  return Array.from(map.values());
-}
+import { mergeMistakes, mergeProgress, normalizeMistakes } from '../../shared/userDataMerge.js';
 
 export default async function handler(req, res) {
   if (!enforceGlobalApiRateLimit(req, res)) return;
@@ -94,7 +48,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { progress: incomingProgress, mistakes: incomingMistakes } = req.body || {};
+      const { progress: incomingProgress, mistakes: incomingMistakes, replaceMistakes } = req.body || {};
 
       const user = await User.findOne({ phone });
       if (!user) {
@@ -107,7 +61,9 @@ export default async function handler(req, res) {
         : (user.progress || {});
 
       const mergedMistakes = incomingMistakes !== undefined && incomingMistakes !== null
-        ? mergeMistakes(user.mistakes || [], incomingMistakes)
+        ? (replaceMistakes === true
+            ? normalizeMistakes(incomingMistakes)
+            : mergeMistakes(user.mistakes || [], incomingMistakes))
         : (user.mistakes || []);
 
       user.progress = mergedProgress;

@@ -16,7 +16,7 @@ export default class AppErrorBoundary extends React.Component {
   }
 
   handleReload = () => {
-    localStorage.removeItem('medquiz_manifest');
+    try { localStorage.removeItem('medquiz_manifest'); } catch { /* vẫn tải lại nếu storage bị chặn */ }
     window.location.href = '/';
   };
 

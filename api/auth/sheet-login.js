@@ -1,22 +1,19 @@
-import crypto from 'crypto';
 import { checkRateLimit, enforceGlobalApiRateLimit, getClientIp } from '../_utils/rateLimiter.js';
-import { normalizePhone } from '../_utils/normalize.js';
+import { isValidVietnamesePhone, normalizePhone } from '../_utils/normalize.js';
 import { callAuthSheet } from '../_utils/sheetGateway.js';
 import { setSheetSessionCookie } from '../_utils/sheetSession.js';
 import { connectToDatabase } from '../_utils/db.js';
 import { User } from '../_models/index.js';
-
-function computeFastHash(phone, password) {
-  const secret = process.env.SHEET_SESSION_SECRET || 'medquiz_secure_pepper_2026';
-  return crypto.createHmac('sha256', secret).update(`${phone}:${password}`).digest('hex');
-}
+import { hashPassword, isLegacyPasswordHash, verifyPassword } from '../_utils/passwordHash.js';
 
 export default async function handler(req, res) {
   if (!enforceGlobalApiRateLimit(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Chỉ hỗ trợ POST.' });
   const phone = normalizePhone(req.body?.phone);
   const password = String(req.body?.password || '');
-  if (!phone || !password) return res.status(400).json({ success: false, message: 'Thiếu số điện thoại hoặc mật khẩu.' });
+  if (!isValidVietnamesePhone(phone) || !password || password.length > 128) {
+    return res.status(400).json({ success: false, message: 'Số điện thoại hoặc mật khẩu chưa hợp lệ.' });
+  }
   const limit = checkRateLimit(`sheet_login_${getClientIp(req)}_${phone}`, 5, 15 * 60 * 1000);
   if (!limit.allowed) return res.status(429).json({ success: false, message: 'Thử sai quá nhiều lần. Vui lòng chờ 15 phút.' });
 
@@ -26,7 +23,7 @@ export default async function handler(req, res) {
     const cachedUser = await User.findOne({ phone, isActive: true }).lean();
 
     if (cachedUser) {
-      const hashMatch = cachedUser.passwordHash === computeFastHash(phone, password);
+      const hashMatch = await verifyPassword(phone, password, cachedUser.passwordHash);
 
       if (hashMatch) {
         // Hash khớp → đăng nhập ngay, không cần GAS
@@ -40,13 +37,12 @@ export default async function handler(req, res) {
           entitlements: Array.isArray(cachedUser.entitlements) ? cachedUser.entitlements : []
         };
         const user = setSheetSessionCookie(res, userPayload);
-        User.updateOne({ _id: cachedUser._id }, { $set: { lastLoginAt: new Date() } }).exec().catch(() => {});
+        const loginUpdate = { lastLoginAt: new Date() };
+        if (isLegacyPasswordHash(cachedUser.passwordHash)) {
+          loginUpdate.passwordHash = await hashPassword(password);
+        }
+        User.updateOne({ _id: cachedUser._id }, { $set: loginUpdate }).exec().catch(() => {});
         return res.status(200).json({ success: true, user });
-      }
-
-      if (cachedUser.passwordHash) {
-        // Hash có nhưng không khớp → sai mật khẩu, không cần gọi GAS
-        return res.status(401).json({ success: false, message: 'Thông tin đăng nhập không đúng.' });
       }
     }
   } catch (dbErr) {
@@ -74,7 +70,7 @@ export default async function handler(req, res) {
           $set: {
             fullName: data.user.name || data.user.fullName || phone,
             email: data.user.email || '',
-            passwordHash: computeFastHash(phone, password),
+            passwordHash: await hashPassword(password),
             role: data.user.role || 'user',
             entitlements: Array.isArray(data.user.entitlements) ? data.user.entitlements : [],
             isActive: true,

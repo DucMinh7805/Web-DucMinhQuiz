@@ -6,7 +6,12 @@ const ThemeContext = createContext();
 export function ThemeProvider({ children }) {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // Kiểm tra trong localStorage hoặc thiết lập hệ thống
-    const stored = localStorage.getItem('theme');
+    let stored = null;
+    try {
+      stored = localStorage.getItem('theme');
+    } catch {
+      // Một số chế độ riêng tư chặn storage; vẫn cho phép app hoạt động.
+    }
     if (stored) {
       return stored === 'dark';
     }
@@ -17,10 +22,10 @@ export function ThemeProvider({ children }) {
     const root = window.document.documentElement;
     if (isDarkMode) {
       root.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
+      try { localStorage.setItem('theme', 'dark'); } catch { /* storage có thể bị chặn */ }
     } else {
       root.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+      try { localStorage.setItem('theme', 'light'); } catch { /* storage có thể bị chặn */ }
     }
   }, [isDarkMode]);
 

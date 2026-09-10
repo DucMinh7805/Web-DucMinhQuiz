@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   BookOpen, Search, Sparkles,
-  Bot, Send, X, FolderOpen
+  Bot, Send, X, FolderOpen, ShieldCheck
 } from 'lucide-react';
 import BookCard from '../components/Library/BookCard';
 import UnlockSubjectModal from '../components/Modals/UnlockSubjectModal';
@@ -32,6 +32,7 @@ export default function LibraryPage() {
   const [aiQuestion, setAiQuestion] = useState('');
   const [aiChatHistory, setAiChatHistory] = useState([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const quickPrompts = ['Tóm tắt 5 ý cần nhớ', 'Tạo một ca lâm sàng ngắn', 'Các bẫy thường gặp khi thi'];
 
   // Chỉ lấy những sách có thực trong Tab 'TaiLieu'
   const allBooks = useMemo(() => {
@@ -94,7 +95,7 @@ export default function LibraryPage() {
     setIsAiLoading(true);
 
     setTimeout(() => {
-      const mockResponse = `Theo tài liệu **${selectedBookForAi.title}** (${selectedBookForAi.author || selectedBookForAi.subjectName}):\n\n- **Cơ chế & Nguyên lý:** Điểm cốt lõi được nhấn mạnh trong phác đồ là đánh giá phân suất tống máu (EF), triệu chứng xung huyết phổi và dấu ấn sinh học (NT-proBNP).\n- **Bẫy thi lâm sàng:** Thường gặp ở các câu hỏi phối hợp thuốc (chống chỉ định ức chế men chuyển khi kali máu > 5.0 mmol/L hoặc hẹp động mạch thận hai bên).\n- **Khuyến nghị:** Bạn nên đối chiếu thêm bảng liều lượng khuyến cáo trong Slide của Bộ Môn.`;
+      const mockResponse = `Theo tài liệu “${selectedBookForAi.title}”:\n\nCơ chế & nguyên lý\nĐiểm cốt lõi là đánh giá phân suất tống máu (EF), triệu chứng xung huyết phổi và dấu ấn sinh học NT-proBNP.\n\nBẫy thi lâm sàng\nChú ý câu hỏi phối hợp thuốc và các chống chỉ định như tăng kali máu hoặc hẹp động mạch thận hai bên.\n\nGợi ý ôn tập\nHãy đối chiếu thêm bảng liều lượng trong slide của bộ môn trước khi áp dụng.`;
       
       setAiChatHistory(prev => [...prev, { role: 'assistant', content: mockResponse }]);
       setIsAiLoading(false);
@@ -107,11 +108,11 @@ export default function LibraryPage() {
 
         {/* 1. Header Banner */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 p-5 sm:p-8 rounded-3xl bg-white/80 dark:bg-[#0b1120]/80 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-teal-500 via-cyan-500 to-indigo-500" />
+          <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-blue-400 via-sky-400 to-indigo-400" />
           
           <div className="space-y-1 sm:space-y-1.5">
-            <div className="hidden sm:inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20 text-xs font-extrabold uppercase">
-              <BookOpen className="w-3.5 h-3.5 text-teal-500" />
+            <div className="hidden sm:inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 text-xs font-extrabold uppercase">
+              <BookOpen className="w-3.5 h-3.5 text-blue-500" />
               <span>Kho Tri Thức Chuẩn Y Học</span>
             </div>
             <h1 className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
@@ -133,7 +134,7 @@ export default function LibraryPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm tên sách, tác giả, môn học..."
-              className="w-full pl-10 pr-4 py-2.5 bg-white/80 dark:bg-[#0b1120]/80 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 rounded-2xl text-xs sm:text-sm text-slate-800 dark:text-white placeholder-slate-400 outline-none focus:border-teal-500 transition-all shadow-sm"
+              className="w-full pl-10 pr-4 py-2.5 bg-white/80 dark:bg-[#0b1120]/80 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 rounded-2xl text-xs sm:text-sm text-slate-800 dark:text-white placeholder-slate-400 outline-none focus:border-blue-400 transition-all shadow-sm"
             />
           </div>
 
@@ -146,7 +147,7 @@ export default function LibraryPage() {
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all ${
                     selectedCategory === cat
-                      ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-sm'
+                      ? 'bg-gradient-to-r from-blue-500 to-sky-500 text-white shadow-sm'
                       : 'bg-white/60 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-white/10'
                   }`}
                 >
@@ -179,7 +180,7 @@ export default function LibraryPage() {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center p-12 rounded-3xl bg-white/60 dark:bg-[#0b1120]/60 border border-slate-200/80 dark:border-white/10 text-center space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center">
               <FolderOpen className="w-6 h-6" />
             </div>
             <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
@@ -198,24 +199,27 @@ export default function LibraryPage() {
       {/* 4. Mini Modal Hỏi AI Sách */}
       <AnimatePresence>
         {selectedBookForAi && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-teal-950/30 p-0 backdrop-blur-sm sm:items-center sm:p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="w-full max-w-lg bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-white/15 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="ai-chat-title"
+              className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[30px] border border-white/80 bg-[#fbfefe] text-[#082b3b] shadow-[0_28px_90px_rgba(13,100,95,.2)] sm:max-h-[82vh] sm:rounded-[30px]"
             >
               {/* Top Modal */}
-              <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-white/10 flex items-center justify-between bg-slate-50/50 dark:bg-white/5">
+              <div className="flex items-center justify-between border-b border-slate-200/80 bg-white p-4 sm:px-5">
                 <div className="flex items-center space-x-2.5">
-                  <div className="p-2 rounded-xl bg-teal-500/20 text-teal-600 dark:text-teal-400">
-                    <Sparkles className="w-4 h-4" />
+                  <div className="grid h-10 w-10 place-items-center rounded-2xl bg-teal-50 text-teal-700 shadow-sm">
+                    <Sparkles className="h-4 w-4" />
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">
-                      Hỏi AI về tài liệu
+                    <h3 id="ai-chat-title" className="text-sm font-extrabold leading-tight text-[#082b3b]">
+                      Study Copilot
                     </h3>
-                    <p className="text-[11px] text-slate-400 truncate max-w-xs">
+                    <p className="mt-0.5 max-w-[230px] truncate text-xs text-slate-500 sm:max-w-md">
                       {selectedBookForAi.title}
                     </p>
                   </div>
@@ -224,20 +228,22 @@ export default function LibraryPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedBookForAi(null)}
-                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                  className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               {/* Chat Body */}
-              <div className="p-4 sm:p-5 overflow-y-auto space-y-3.5 flex-1 custom-scrollbar min-h-[220px]">
+              <div className="custom-scrollbar min-h-[320px] flex-1 space-y-4 overflow-y-auto bg-[radial-gradient(circle_at_10%_0%,rgba(45,212,191,.10),transparent_38%)] p-4 sm:p-6">
                 {aiChatHistory.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center py-6 text-slate-400 space-y-2">
-                    <Bot className="w-8 h-8 opacity-40 text-teal-500" />
-                    <p className="text-xs font-semibold">
-                      Đặt câu hỏi về phác đồ, cơ chế hoặc nội dung trong sách này
-                    </p>
+                  <div className="mx-auto flex h-full max-w-lg flex-col justify-center py-5">
+                    <div className="mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-teal-50 text-teal-700"><Bot className="h-6 w-6" /></div>
+                    <h4 className="text-xl font-black tracking-tight text-[#082b3b]">Bạn muốn hiểu phần nào?</h4>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">Mình sẽ bám theo tài liệu đang mở để giải thích ngắn gọn, đặt câu hỏi gợi nhớ hoặc chỉ ra bẫy thường gặp.</p>
+                    <div className="mt-5 grid gap-2 sm:grid-cols-3">
+                      {quickPrompts.map((prompt) => <button key={prompt} type="button" onClick={() => setAiQuestion(prompt)} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left text-sm font-semibold leading-5 text-slate-700 transition hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900">{prompt}</button>)}
+                    </div>
                   </div>
                 ) : (
                   aiChatHistory.map((msg, mIdx) => (
@@ -250,8 +256,8 @@ export default function LibraryPage() {
                       <div
                         className={`max-w-[85%] p-3 rounded-2xl text-xs sm:text-sm leading-relaxed ${
                           msg.role === 'user'
-                            ? 'bg-teal-500 text-white rounded-br-none'
-                            : 'bg-slate-100 dark:bg-white/10 text-slate-800 dark:text-slate-100 rounded-bl-none whitespace-pre-line'
+                            ? 'rounded-br-md bg-gradient-to-r from-[#178f87] to-[#08766f] font-semibold text-white'
+                            : 'rounded-bl-md border border-teal-100 bg-[#eaf8f6] text-[#123847] whitespace-pre-line'
                         }`}
                       >
                         {msg.content}
@@ -261,7 +267,7 @@ export default function LibraryPage() {
                 )}
 
                 {isAiLoading && (
-                  <div className="flex items-center space-x-2 text-xs text-teal-600 dark:text-teal-400 font-bold p-2">
+                  <div className="flex items-center space-x-2 p-2 text-xs font-bold text-teal-700">
                     <Sparkles className="w-3.5 h-3.5 animate-spin" />
                     <span>AI đang phân tích tài liệu...</span>
                   </div>
@@ -269,22 +275,12 @@ export default function LibraryPage() {
               </div>
 
               {/* Input Form */}
-              <form onSubmit={handleSendAiPrompt} className="p-3 border-t border-slate-100 dark:border-white/10 flex items-center space-x-2 bg-slate-50/50 dark:bg-white/5">
-                <input
-                  type="text"
-                  required
-                  value={aiQuestion}
-                  onChange={(e) => setAiQuestion(e.target.value)}
-                  placeholder="Hỏi bất kỳ điều gì về cuốn sách này..."
-                  className="flex-1 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl text-xs sm:text-sm text-slate-800 dark:text-white placeholder-slate-400 outline-none focus:border-teal-500 transition-all"
-                />
-                <button
-                  type="submit"
-                  disabled={isAiLoading || !aiQuestion.trim()}
-                  className="p-2.5 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:opacity-40 text-white shadow-sm transition-all"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
+              <form onSubmit={handleSendAiPrompt} className="border-t border-slate-200 bg-white p-3 sm:p-4">
+                <div className="flex items-end gap-2 rounded-[20px] border border-slate-200 bg-[#f8fcfc] p-1.5 focus-within:border-teal-400 focus-within:ring-4 focus-within:ring-teal-100">
+                  <textarea rows="1" required value={aiQuestion} onChange={(e) => setAiQuestion(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendAiPrompt(e); } }} placeholder="Hỏi về cơ chế, ca bệnh, chẩn đoán..." className="max-h-28 min-h-[44px] flex-1 resize-none bg-transparent px-3 py-3 text-sm text-[#082b3b] outline-none placeholder:text-slate-400" />
+                  <button type="submit" aria-label="Gửi câu hỏi" disabled={isAiLoading || !aiQuestion.trim()} className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#178f87] to-[#08766f] text-white shadow-lg shadow-teal-500/10 transition hover:brightness-105 disabled:opacity-40"><Send className="h-4 w-4" /></button>
+                </div>
+                <div className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-500"><ShieldCheck className="h-3.5 w-3.5" />AI hỗ trợ học tập · Luôn đối chiếu giáo trình và hướng dẫn lâm sàng.</div>
               </form>
             </motion.div>
           </div>

@@ -42,7 +42,7 @@ export default function PrivacyPolicyPage() {
                 Để cung cấp trải nghiệm học tập tốt nhất, DiamondQuiz có thể thu thập các thông tin sau:
               </p>
               <ul className="list-disc pl-5 text-slate-600 dark:text-slate-300 space-y-2 mt-2">
-                <li>Thông tin tài khoản: Email, Tên hiển thị, Số điện thoại (nếu có).</li>
+                <li>Thông tin tài khoản: Tên hiển thị và số điện thoại dùng để đăng nhập.</li>
                 <li>Dữ liệu học tập: Lịch sử làm bài, số câu đúng/sai, thời gian làm bài, tiến độ học tập.</li>
                 <li>Dữ liệu hệ thống: Địa chỉ IP, loại trình duyệt, hệ điều hành nhằm mục đích chẩn đoán và cải thiện hệ thống.</li>
               </ul>
@@ -91,9 +91,21 @@ export default function PrivacyPolicyPage() {
               </ul>
             </section>
 
+            <section id="terms" className="scroll-mt-8">
+              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
+                5. Điều khoản sử dụng
+              </h2>
+              <ul className="list-disc pl-5 text-slate-600 dark:text-slate-300 space-y-2">
+                <li>Bạn chịu trách nhiệm bảo mật số điện thoại và mật khẩu của tài khoản.</li>
+                <li>Nội dung và tính năng AI trên DiamondQuiz phục vụ mục đích học tập, không thay thế chẩn đoán hoặc quyết định điều trị chuyên môn.</li>
+                <li>Không sử dụng hệ thống để phát tán nội dung trái pháp luật, can thiệp vận hành hoặc truy cập dữ liệu của người khác.</li>
+                <li>DiamondQuiz có thể cập nhật nội dung và điều khoản để cải thiện dịch vụ; thay đổi quan trọng sẽ được thông báo phù hợp.</li>
+              </ul>
+            </section>
+
             <section>
               <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
-                5. Liên hệ
+                6. Liên hệ
               </h2>
               <p className="text-slate-600 dark:text-slate-300">
                 Nếu bạn có bất kỳ câu hỏi hoặc phản hồi nào về Chính sách bảo mật này, xin vui lòng liên hệ với chúng tôi:

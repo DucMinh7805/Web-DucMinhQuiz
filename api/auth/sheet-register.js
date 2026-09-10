@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import { checkRateLimit, enforceGlobalApiRateLimit, getClientIp } from '../_utils/rateLimiter.js';
 import { normalizePhone, isValidVietnamesePhone } from '../_utils/normalize.js';
 import { callAuthSheet } from '../_utils/sheetGateway.js';
@@ -6,11 +5,10 @@ import { setSheetSessionCookie } from '../_utils/sheetSession.js';
 import { connectToDatabase } from '../_utils/db.js';
 import { scheduleBackgroundTask } from '../_utils/backgroundTask.js';
 import { User } from '../_models/index.js';
+import { hashPassword } from '../_utils/passwordHash.js';
+import { SECURITY_CONFIG, requireSecurityValue } from '../_config/security.js';
 
-function computeFastHash(phone, password) {
-  const secret = process.env.SHEET_SESSION_SECRET || 'medquiz_secure_pepper_2026';
-  return crypto.createHmac('sha256', secret).update(`${phone}:${password}`).digest('hex');
-}
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default async function handler(req, res) {
   if (!enforceGlobalApiRateLimit(req, res)) return;
@@ -19,7 +17,14 @@ export default async function handler(req, res) {
   const password = String(req.body?.password || '');
   const name = String(req.body?.name || '').trim();
   const email = String(req.body?.email || '').trim();
-  if (!isValidVietnamesePhone(phone) || password.length < 6 || !name) {
+  if (
+    !isValidVietnamesePhone(phone)
+    || password.length < 6
+    || password.length > 128
+    || name.length < 2
+    || name.length > 80
+    || (email && (email.length > 120 || !EMAIL_PATTERN.test(email)))
+  ) {
     return res.status(400).json({ success: false, message: 'Thông tin đăng ký chưa hợp lệ.' });
   }
 
@@ -33,6 +38,12 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Kiểm tra cấu hình trước khi tạo bản ghi để tránh tài khoản được tạo dở
+    // nhưng không thể cấp phiên hoặc đồng bộ sang Sheet quản trị.
+    requireSecurityValue('SHEET_SESSION_SECRET', SECURITY_CONFIG.sessionSecret);
+    requireSecurityValue('AUTH_SHEET_WEB_APP_URL', SECURITY_CONFIG.authSheetUrl);
+    requireSecurityValue('AUTH_SHEET_INTERNAL_SECRET', SECURITY_CONFIG.authSheetInternalSecret);
+
     // 1. Kiểm tra tài khoản đã tồn tại trong nguồn chính MongoDB Atlas.
     await connectToDatabase();
     const existing = await User.findOne({ phone }).lean();
@@ -41,7 +52,7 @@ export default async function handler(req, res) {
     }
 
     const displayName = name || `Học viên ${phone.slice(-4)}`;
-    const passwordHash = computeFastHash(phone, password);
+    const passwordHash = await hashPassword(password);
     const userPayload = {
       phone,
       name: displayName,

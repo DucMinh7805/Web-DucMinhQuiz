@@ -7,6 +7,15 @@
 @tailwind components;
 @tailwind utilities;
 
+.auth-field:-webkit-autofill,
+.auth-field:-webkit-autofill:hover,
+.auth-field:-webkit-autofill:focus {
+  -webkit-text-fill-color: #082b3b;
+  -webkit-box-shadow: 0 0 0 1000px #f7fcfb inset;
+  caret-color: #082b3b;
+  transition: background-color 9999s ease-out 0s;
+}
+
 @layer base {
   html, body {
     /* Chặn hiệu ứng cuộn quá trớn (pull-to-refresh) trên mobile */

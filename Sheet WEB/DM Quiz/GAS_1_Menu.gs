@@ -23,10 +23,9 @@ function onOpen() {
       .addItem('Làm mới toàn bộ', 'syncAll')
       .addItem('Đẩy lại danh mục lên website', 'pushCurrentManifestToWeb');
 
-  const safetyMenu = ui.createMenu('🛡️ Xóa và khôi phục')
+  const safetyMenu = ui.createMenu('🛡️ Xóa nội dung')
       .addItem('Mở Web xóa môn/đề', 'showQuizContentAdminWebApp')
-      .addItem('Xóa đề đang bôi đen (dự phòng)', 'deleteSelectedDecks')
-      .addItem('Khôi phục lần xóa gần nhất', 'restoreLastDeckDeleteBackup');
+      .addItem('Xóa đề đang bôi đen (dự phòng)', 'deleteSelectedDecks');
 
   const setupMenu = ui.createMenu('⚙️ Cài đặt')
       .addItem('Cài URL, mã quyền và webhook', 'configureQuizContentAdmin')
