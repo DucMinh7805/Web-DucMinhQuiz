@@ -110,17 +110,21 @@ export default function BookCard({ book, onAskAi, onUnlock, isUnlocked }) {
             onClick={async () => {
               try {
                 const res = await fetch(`/api/library/book-link?id=${encodeURIComponent(book.id)}&format=json`);
-                if (res.ok) {
-                  const data = await res.json();
-                  if (data?.url) {
-                    window.open(data.url, '_blank', 'noopener,noreferrer');
-                    return;
-                  }
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data?.url) {
+                  window.open(data.url, '_blank', 'noopener,noreferrer');
+                  return;
                 }
+                // Endpoint là nguồn quyền chính xác. Nếu giá vừa đổi mà manifest
+                // trên tab hiện tại còn cũ, vẫn mở đúng màn hình thanh toán ngay.
+                if (res.status === 403 && data?.code === 'PAYMENT_REQUIRED') {
+                  if (onUnlock) onUnlock({ ...book, ...(data.item || {}), isPro: true });
+                  return;
+                }
+                throw new Error(data?.message || 'Không thể mở tài liệu.');
               } catch (err) {
                 console.warn('[Safe Book Open]', err);
               }
-              window.open(`/api/library/book-link?id=${encodeURIComponent(book.id)}`, '_blank', 'noopener,noreferrer');
             }}
             className="flex-1 py-1.5 sm:py-2.5 px-2 sm:px-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-extrabold text-[11px] sm:text-xs flex items-center justify-center shadow-sm shadow-teal-500/20 transition-all group/btn"
           >

@@ -204,7 +204,7 @@ function pushContentSyncToWeb_(payload) {
     var data = {};
     try { data = JSON.parse(text); } catch (ignore) {}
     if (status < 200 || status >= 300 || !data.success) return { success: false, message: data.message || ('Webhook trả HTTP ' + status) };
-    return { success: true, message: 'Đã cập nhật Sheet và MongoDB.' };
+    return { success: true, message: 'Đã cập nhật Sheet và MongoDB.', result: data.result || null };
   } catch (error) {
     return { success: false, message: 'Sheet đã cập nhật nhưng webhook lỗi: ' + error.message };
   }

@@ -19,6 +19,7 @@ import { mergeMistakes, mergeProgress, normalizeMistakes } from '../shared/userD
 import { isValidVietnamesePhone, normalizePhone } from '../api/_utils/normalize.js';
 import { hashPassword, isLegacyPasswordHash, verifyPassword } from '../api/_utils/passwordHash.js';
 import { safelyDecodeURIComponent } from '../shared/routePath.js';
+import { isLocallyManagedQuestion } from '../api/admin/content-sync.js';
 
 assert.equal(isOptionCorrect('A. Đáp án đúng', 0, 'A'), true);
 assert.equal(isOptionCorrect('B. Đáp án sai', 1, 'A'), false);
@@ -81,6 +82,10 @@ assert.equal(await verifyPassword('0912345678', 'mat-khau-thu', securePasswordHa
 assert.equal(await verifyPassword('0912345678', 'sai-mat-khau', securePasswordHash), false);
 assert.equal(safelyDecodeURIComponent('noi%2Ftim-mach'), 'noi/tim-mach');
 assert.equal(safelyDecodeURIComponent('noi%2'), 'noi%2', 'Malformed route encoding must not crash the app');
+assert.equal(isLocallyManagedQuestion(null), false);
+assert.equal(isLocallyManagedQuestion({ sourceState: 'synced' }), false);
+assert.equal(isLocallyManagedQuestion({ sourceState: 'locally_edited' }), true);
+assert.equal(isLocallyManagedQuestion({ locallyEditedAt: new Date() }), true);
 
 const gasUtils = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_4_Utils.gs', import.meta.url), 'utf8');
 const gasSync = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_3_Sync.gs', import.meta.url), 'utf8');
@@ -89,6 +94,7 @@ const gasAccessAdmin = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_User_Ac
 const gasApi = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_5_Api.gs', import.meta.url), 'utf8');
 const gasContentAdmin = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_6_Content_Admin.gs', import.meta.url), 'utf8');
 const gasAnswerKeySystem = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_7_Answer_Key_System.gs', import.meta.url), 'utf8');
+const gasQuestionOverrides = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_8_Question_Overrides.gs', import.meta.url), 'utf8');
 const gasMenu = fs.readFileSync(new URL('../Sheet WEB/DM Quiz/GAS_1_Menu.gs', import.meta.url), 'utf8');
 const questionsApi = fs.readFileSync(new URL('../api/quiz/questions.js', import.meta.url), 'utf8');
 const manifestApi = fs.readFileSync(new URL('../api/quiz/manifest.js', import.meta.url), 'utf8');
@@ -106,6 +112,10 @@ const authContext = fs.readFileSync(new URL('../src/context/AuthContext.jsx', im
 const homeHero = fs.readFileSync(new URL('../src/components/Home/HomeHero.jsx', import.meta.url), 'utf8');
 const windowsFileTree = fs.readFileSync(new URL('../src/components/Tree/WindowsFileTree.jsx', import.meta.url), 'utf8');
 const contentSyncApi = fs.readFileSync(new URL('../api/admin/content-sync.js', import.meta.url), 'utf8');
+const userProgressApi = fs.readFileSync(new URL('../api/user/progress.js', import.meta.url), 'utf8');
+const adminContentApi = fs.readFileSync(new URL('../api/admin/content.js', import.meta.url), 'utf8');
+const adminIssuesPage = fs.readFileSync(new URL('../src/pages/AdminIssuesPage.jsx', import.meta.url), 'utf8');
+const userIssueHistory = fs.readFileSync(new URL('../src/components/Profile/UserIssueHistory.jsx', import.meta.url), 'utf8');
 assert.match(contentSyncApi, /isPublished:\s*subject\?\.isPublished !== false/);
 const unlockModal = fs.readFileSync(new URL('../src/components/Modals/UnlockSubjectModal.jsx', import.meta.url), 'utf8');
 const mistakesNotebook = fs.readFileSync(new URL('../src/pages/MistakesNotebookPage.jsx', import.meta.url), 'utf8');
@@ -115,6 +125,8 @@ const obsidianGraph = fs.readFileSync(new URL('../src/components/Graph/ObsidianG
 const homePage = fs.readFileSync(new URL('../src/pages/HomePage.jsx', import.meta.url), 'utf8');
 const profilePage = fs.readFileSync(new URL('../src/pages/ProfilePage.jsx', import.meta.url), 'utf8');
 const floatingContactButton = fs.readFileSync(new URL('../src/components/Common/FloatingContactButton.jsx', import.meta.url), 'utf8');
+const bookCard = fs.readFileSync(new URL('../src/components/Library/BookCard.jsx', import.meta.url), 'utf8');
+const bookLinkApi = fs.readFileSync(new URL('../api/library/book-link.js', import.meta.url), 'utf8');
 const viteConfig = fs.readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
 const rateLimiter = fs.readFileSync(new URL('../api/_utils/rateLimiter.js', import.meta.url), 'utf8');
 const gasContext = vm.createContext({ console });
@@ -217,6 +229,17 @@ assert.equal(gasSync.includes('if (elapsed > 210)'), true, 'Selective sync must 
 assert.equal(gasSync.includes('count < 2500'), false, 'Selective sync must not scan thousands of Drive images before processing a deck');
 assert.equal(gasSync.includes('Đang chuẩn bị đồng bộ'), true, 'Selected rows must show immediate progress in column E');
 assert.equal(gasSync.includes("SpreadsheetApp.getUi().alert(timedOutEarly"), false, 'Completion feedback must not block Apps Script until its six-minute timeout');
+assert.equal(gasSync.includes('DOCUMENT_CATALOG_SPREADSHEET_ID'), true, 'Documents must support a standalone catalog spreadsheet');
+assert.equal(gasSync.includes("subjectName: ''"), true, 'Standalone documents must not require a subject');
+assert.equal(gasSync.includes('oldBook.priceFormatted'), true, 'Document sync must preserve pricing owned by the pricing sheet');
+assert.equal(gasSync.includes('oldBooksByLink[sourceLink]'), true, 'Renaming a document with the same link must preserve its ID, price and entitlements');
+assert.equal(gasSync.includes('row[5] || row[6]'), false, 'Document sync must never infer a price from document columns');
+assert.equal(gasQuestionOverrides.includes('sheet.hideSheet()'), true, 'Question overrides must remain a hidden system sheet');
+assert.equal(userProgressApi.includes("req.query?.action === 'myIssues'"), true, 'Users must be able to follow the status of their own issue reports');
+assert.equal(userProgressApi.includes('$addToSet: { reporterIds: user._id }'), true, 'Issue ownership must survive report deduplication');
+assert.equal(adminContentApi.includes('resolvedQuestionRevision'), true, 'Publishing a reported-question fix must close the linked issue with a revision trail');
+assert.equal(adminIssuesPage.includes('Sửa câu & phản hồi'), true, 'Admin issue review must lead into an actionable correction workflow');
+assert.equal(userIssueHistory.includes('Phản hồi từ Admin'), true, 'Users must see the admin resolution note in their profile');
 assert.equal(sheetLoginApi.includes('verifyPassword(phone, password, cachedUser.passwordHash)'), true, 'Cached passwords must be verified through the migration-safe password helper');
 assert.equal(sheetLoginApi.includes('isLegacyPasswordHash(cachedUser.passwordHash)'), true, 'Successful legacy logins must upgrade the fast password hash');
 assert.equal(sheetLoginApi.includes('Grace period'), false, 'Login must never create a session without verifying a password');
@@ -285,6 +308,8 @@ assert.equal(unlockModal.includes('addInfo='), true, 'Bank transfer QR must carr
 assert.equal(contentSyncApi.includes("process.env.CONTENT_SYNC_SECRET"), true, 'Sheet-to-Mongo content sync must require a server secret');
 assert.equal(contentSyncApi.includes('hasMultiKeyword'), false, 'Mongo normalization must not infer answer type from wording');
 assert.equal(contentSyncApi.includes('checkbox không có đáp án đúng'), true, 'Publishing must fail closed for an empty checkbox answer key');
+assert.equal(contentSyncApi.includes('counts.published += 1'), true, 'Safe Form imports must publish immediately instead of only creating review candidates');
+assert.equal(contentSyncApi.includes("kind: 'conflict', status: 'pending'"), true, 'Only locally edited conflicts should remain pending for review');
 assert.equal(contentSyncApi.includes("'deleteSubject'"), true, 'Content sync must support explicit subject deletion');
 assert.equal(contentSyncApi.includes('pruneMissingManifestContent'), true, 'Full manifest sync must prune records removed from Sheet');
 assert.equal(contentSyncApi.includes("syncManifest(req.body.manifest, { prune: true })"), true, 'Only a full manifest snapshot may prune stale Mongo content');
@@ -313,6 +338,8 @@ assert.equal(manifestApi.includes("link: ''"), true, 'Public manifest must not e
 assert.equal(manifestApi.includes("Access-Control-Allow-Origin', '*'"), true, 'Public manifest CORS must not reflect arbitrary origins with credentials');
 assert.equal(manifestApi.includes("req.method !== 'GET'"), true, 'Public manifest must reject unsupported write methods');
 assert.equal(manifestApi.includes('item.pricingSynced !== true'), true, 'Manifest must fail closed before secure pricing sync');
+assert.equal(bookLinkApi.includes("code: 'PAYMENT_REQUIRED'"), true, 'The protected book endpoint must identify a stale-price payment requirement');
+assert.equal(bookCard.includes("data?.code === 'PAYMENT_REQUIRED'"), true, 'A stale library card must open payment instead of leaking to an error tab');
 assert.equal(quizClient.includes('action=getDeck'), false, 'Client must not bypass authorization through the public GAS deck fallback');
 assert.equal(quizClient.includes('DEFAULT_SAMPLE_MANIFEST'), false, 'Production manifest must not silently fall back to stale sample data');
 assert.equal(manifestApi.includes('Promise.all(['), true, 'Independent manifest collections must be loaded in parallel');

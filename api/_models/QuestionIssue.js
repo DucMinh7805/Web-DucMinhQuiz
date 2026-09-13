@@ -18,10 +18,14 @@ const questionIssueSchema = new mongoose.Schema({
   status: { type: String, enum: ['open', 'in_review', 'resolved', 'dismissed'], default: 'open', index: true },
   priority: { type: String, enum: ['low', 'normal', 'high', 'critical'], default: 'normal', index: true },
   reportCount: { type: Number, default: 1, min: 1 },
+  reporterIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }],
   samples: { type: [reportSampleSchema], default: [] },
   lastReportedAt: { type: Date, default: Date.now, index: true },
   assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-  resolutionNote: { type: String, default: '', maxlength: 2000 }
+  resolutionNote: { type: String, default: '', maxlength: 2000 },
+  resolvedAt: { type: Date, default: null, index: true },
+  resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  resolvedQuestionRevision: { type: Number, default: null }
 }, { timestamps: true });
 
 questionIssueSchema.index({ status: 1, priority: 1, lastReportedAt: -1 });
@@ -29,4 +33,3 @@ questionIssueSchema.index({ deckPath: 1, status: 1 });
 
 export const QuestionIssue = mongoose.models.QuestionIssue || mongoose.model('QuestionIssue', questionIssueSchema);
 export default QuestionIssue;
-

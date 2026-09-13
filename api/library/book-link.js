@@ -25,9 +25,27 @@ export default async function handler(req, res) {
     const isPro = Boolean(book.isPro || Number(book.price) > 0);
     if (isPro) {
       const session = authenticateSheetSession(req);
-      if (!session) return res.status(401).json({ success: false, message: 'Vui lòng đăng nhập.' });
+      const paymentItem = {
+        id: book.id,
+        title: book.title,
+        price: Number(book.price) || 0,
+        priceFormatted: book.priceFormatted || '',
+        priceNote: book.priceNote || '',
+        isPro: true
+      };
+      if (!session) return res.status(401).json({
+        success: false,
+        code: 'LOGIN_REQUIRED',
+        message: 'Vui lòng đăng nhập.',
+        item: paymentItem
+      });
       if (!sessionHasEntitlement(session, 'book', book.id)) {
-        return res.status(403).json({ success: false, message: 'Tài khoản chưa được cấp quyền cho tài liệu này.' });
+        return res.status(403).json({
+          success: false,
+          code: 'PAYMENT_REQUIRED',
+          message: 'Tài khoản chưa được cấp quyền cho tài liệu này.',
+          item: paymentItem
+        });
       }
     }
     if (req.query?.format === 'json') {

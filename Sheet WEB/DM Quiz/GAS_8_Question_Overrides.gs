@@ -6,6 +6,7 @@ const QUESTION_OVERRIDE_HEADERS = [
 
 function getQuestionOverrideSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const previouslyActive = ss.getActiveSheet();
   let sheet = ss.getSheetByName(QUESTION_OVERRIDE_SHEET);
   if (!sheet) sheet = ss.insertSheet(QUESTION_OVERRIDE_SHEET);
   if (sheet.getMaxColumns() < QUESTION_OVERRIDE_HEADERS.length) {
@@ -19,7 +20,28 @@ function getQuestionOverrideSheet_() {
       .setBackground('#ccfbf1');
     sheet.setFrozenRows(1);
   }
+  if (previouslyActive && previouslyActive.getSheetId() !== sheet.getSheetId()) {
+    ss.setActiveSheet(previouslyActive);
+  }
+  hideQuestionOverrideSheet_();
   return sheet;
+}
+
+/**
+ * Đây là bảng hệ thống lưu các câu đã sửa trên Web để lần đồng bộ Google Form
+ * sau không ghi đè chỉnh sửa. Ẩn khỏi giao diện vận hành để tránh sửa nhầm.
+ */
+function hideQuestionOverrideSheet_() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(QUESTION_OVERRIDE_SHEET);
+  if (!sheet || sheet.isSheetHidden()) return;
+  if (SpreadsheetApp.getActiveSheet().getSheetId() === sheet.getSheetId()) {
+    const replacement = SpreadsheetApp.getActiveSpreadsheet().getSheets().find(function(candidate) {
+      return candidate.getSheetId() !== sheet.getSheetId() && !candidate.isSheetHidden();
+    });
+    if (!replacement) return;
+    SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(replacement);
+  }
+  sheet.hideSheet();
 }
 
 function upsertQuestionOverride_(params) {

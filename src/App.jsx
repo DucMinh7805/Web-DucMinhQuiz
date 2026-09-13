@@ -48,7 +48,9 @@ function AppDataWrapper({ children }) {
       }
       return data;
     },
-    staleTime: 30 * 1000,
+    // Giá có thể được đổi từ Sheet trong lúc trang đang mở. Luôn kiểm tra lại
+    // khi route/tab hoạt động để giao diện khóa theo trạng thái mới nhất.
+    staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
     retry: 2,

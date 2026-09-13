@@ -9,6 +9,27 @@ import { questionSnapshot, stableHash } from '../_utils/questionWorkflow.js';
 const ALLOWED_OPERATIONS = new Set(['syncManifest', 'upsertDeck', 'deleteDeck', 'deleteSubject']);
 export const config = { maxDuration: 60 };
 
+export function isLocallyManagedQuestion(question) {
+  return Boolean(
+    question && (
+      question.sourceState === 'locally_edited'
+      || question.sourceState === 'replaced'
+      || question.locallyEditedAt
+    )
+  );
+}
+
+function applyIncomingLocation(question, incoming) {
+  Object.assign(question, {
+    deckId: incoming.deckId,
+    deckPath: incoming.deckPath,
+    qId: incoming.qId,
+    sourceQuestionId: incoming.sourceQuestionId || question.sourceQuestionId,
+    publicId: incoming.publicId || question.publicId,
+    orderIndex: incoming.orderIndex
+  });
+}
+
 function secureSecretMatches(req) {
   const expected = String(process.env.CONTENT_SYNC_SECRET || '');
   const supplied = String(req.headers['x-content-sync-secret'] || '');
@@ -269,7 +290,7 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
     );
   }
   const seen = new Set();
-  const counts = { new: 0, changed: 0, conflict: 0, unchanged: 0, missing: 0 };
+  const counts = { new: 0, changed: 0, conflict: 0, unchanged: 0, missing: 0, published: 0 };
   for (const incoming of questions) {
     const sourceId = incoming.sourceQuestionId || `${path.toLowerCase()}:${incoming.qId}`;
     seen.add(sourceId);
@@ -280,17 +301,77 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
     const snapshot = questionSnapshot(incoming); const incomingHash = stableHash(snapshot);
     if (!current) {
       counts.new += 1;
-      await QuestionImport.findOneAndUpdate({ candidateKey: `${sourceId}:${incomingHash}` }, { $set: { questionId: null, deckId: deckDoc._id, deckPath: path.toLowerCase(), sourceQuestionId: sourceId, qId: incoming.qId, kind: 'new', status: 'pending', incomingHash, sourceSnapshot: snapshot, currentSnapshot: null, detectedAt: new Date() } }, { upsert: true });
+      counts.published += 1;
+      const created = await Question.create({
+        ...incoming,
+        sourceHash: incomingHash,
+        sourceSnapshot: snapshot,
+        sourceState: 'synced',
+        lastImportedAt: new Date(),
+        archivedAt: null,
+        archivedReason: ''
+      });
+      await QuestionImport.updateMany(
+        { sourceQuestionId: sourceId, status: 'pending' },
+        { $set: { questionId: created._id, status: 'published', reviewedAt: new Date() } }
+      );
       continue;
     }
     const currentSnapshot = questionSnapshot(current);
-    if (!current.sourceHash) {
-      current.sourceHash = incomingHash; current.sourceSnapshot = snapshot; current.lastImportedAt = new Date(); await current.save(); counts.unchanged += 1; continue;
+    const currentHash = stableHash(currentSnapshot);
+
+    // Bản sửa trên web đã được sao lưu vào Question_Overrides và quay lại đúng
+    // nội dung hiện tại thì chỉ cập nhật mốc nguồn, không tạo xung đột giả.
+    if (isLocallyManagedQuestion(current) && currentHash === incomingHash) {
+      applyIncomingLocation(current, incoming);
+      current.sourceHash = incomingHash;
+      current.sourceSnapshot = snapshot;
+      current.lastImportedAt = new Date();
+      await current.save();
+      counts.unchanged += 1;
+      continue;
     }
-    if (current.sourceHash === incomingHash) { current.lastImportedAt = new Date(); await current.save(); counts.unchanged += 1; continue; }
-    const kind = current.sourceState === 'locally_edited' || current.locallyEditedAt ? 'conflict' : 'changed'; counts[kind] += 1;
-    await QuestionImport.findOneAndUpdate({ candidateKey: `${sourceId}:${incomingHash}` }, { $set: { questionId: current._id, deckId: deckDoc._id, deckPath: path.toLowerCase(), sourceQuestionId: sourceId, qId: incoming.qId, kind, status: 'pending', incomingHash, sourceSnapshot: snapshot, currentSnapshot, detectedAt: new Date() } }, { upsert: true });
-    current.sourceState = kind === 'conflict' ? 'locally_edited' : 'source_changed'; current.lastImportedAt = new Date(); await current.save();
+
+    if (current.sourceHash === incomingHash && current.sourceState !== 'source_missing') {
+      applyIncomingLocation(current, incoming);
+      current.lastImportedAt = new Date();
+      await current.save();
+      counts.unchanged += 1;
+      continue;
+    }
+
+    if (isLocallyManagedQuestion(current)) {
+      counts.conflict += 1;
+      await QuestionImport.findOneAndUpdate(
+        { candidateKey: `${sourceId}:${incomingHash}` },
+        { $set: { questionId: current._id, deckId: deckDoc._id, deckPath: path.toLowerCase(), sourceQuestionId: sourceId, qId: incoming.qId, kind: 'conflict', status: 'pending', incomingHash, sourceSnapshot: snapshot, currentSnapshot, detectedAt: new Date() } },
+        { upsert: true }
+      );
+      applyIncomingLocation(current, incoming);
+      current.sourceState = 'locally_edited';
+      current.lastImportedAt = new Date();
+      await current.save();
+      continue;
+    }
+
+    counts.changed += 1;
+    counts.published += 1;
+    applyIncomingLocation(current, incoming);
+    Object.assign(current, snapshot, {
+      sourceHash: incomingHash,
+      sourceSnapshot: snapshot,
+      sourceState: 'synced',
+      lastImportedAt: new Date(),
+      locallyEditedAt: null,
+      archivedAt: null,
+      archivedReason: '',
+      contentRevision: (current.contentRevision || 1) + 1
+    });
+    await current.save();
+    await QuestionImport.updateMany(
+      { sourceQuestionId: sourceId, status: 'pending' },
+      { $set: { questionId: current._id, status: 'published', reviewedAt: new Date() } }
+    );
   }
   const existing = await Question.find({ deckId: deckDoc._id, archivedAt: null, sourceQuestionId: { $exists: true, $ne: '' } });
   for (const current of existing) if (!seen.has(current.sourceQuestionId)) {
@@ -300,6 +381,8 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
   return {
     deckPath: path,
     questions: questions.length,
+    publishedQuestions: counts.published + counts.unchanged,
+    pendingReviews: counts.conflict + counts.missing,
     multipleQuestions: questions.filter(question => question.type === 'multiple').length,
     shortAnswerQuestions: questions.filter(question => question.type === 'short_answer').length,
     acceptedShortAnswers: questions.reduce((total, question) => total + question.acceptedShortAnswers.length, 0), candidates: counts

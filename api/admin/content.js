@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { AuditLog, Deck, Question, QuestionRevision, Subject } from '../_models/index.js';
+import { AuditLog, Deck, Question, QuestionIssue, QuestionRevision, Subject } from '../_models/index.js';
 import { requireAdmin } from '../_utils/adminAuth.js';
 import { enforceGlobalApiRateLimit, getClientIp } from '../_utils/rateLimiter.js';
 import { createPublicQuestionId } from '../_utils/questionIdentity.js';
@@ -156,6 +156,13 @@ async function handlePatch(req, res, admin) {
   if (!mongoose.isValidObjectId(id)) return res.status(400).json({ success: false, message: 'ID bản ghi không hợp lệ.' });
   const question = await Question.findById(id);
   if (!question) return res.status(404).json({ success: false, message: 'Không tìm thấy câu hỏi.' });
+  const issueId = String(req.body?.issueId || '').trim();
+  let linkedIssue = null;
+  if (issueId) {
+    if (!mongoose.isValidObjectId(issueId)) return res.status(400).json({ success: false, message: 'ID báo lỗi không hợp lệ.' });
+    linkedIssue = await QuestionIssue.findOne({ _id: issueId, questionId: question._id });
+    if (!linkedIssue) return res.status(404).json({ success: false, message: 'Báo lỗi không thuộc câu hỏi đang sửa.' });
+  }
   if (req.body?.expectedUpdatedAt && new Date(question.updatedAt).toISOString() !== new Date(req.body.expectedUpdatedAt).toISOString()) {
     return res.status(409).json({ success: false, message: 'Câu hỏi vừa được thay đổi ở nơi khác. Hãy tải lại trước khi xuất bản.' });
   }
@@ -166,18 +173,37 @@ async function handlePatch(req, res, admin) {
   if (!comparison.changedFields.length) return res.status(400).json({ success: false, message: 'Bản nháp chưa có thay đổi.' });
   const mode = req.body?.mode === 'replace' ? 'replace' : 'edit';
   const reason = String(req.body?.reason || '').trim().slice(0, 500);
+  const resolutionNote = String(req.body?.resolutionNote || reason || '').trim().slice(0, 2000);
+  if (linkedIssue && !resolutionNote) return res.status(400).json({ success: false, message: 'Cần ghi phản hồi cho người báo lỗi trước khi xuất bản.' });
   const ipAddress = getClientIp(req);
   const published = mode === 'replace'
     ? await publishReplacement(question, inspection.draft, comparison, admin, reason, ipAddress)
     : await publishEdit(question, inspection.draft, comparison, admin, reason, ipAddress);
   const backup = await enqueueOutboxEvent({ type: 'question.backup.requested', destination: 'sheet', dedupeKey: `${published._id}:${published.contentRevision || 1}`, payload: sheetBackupPayload(published, inspection.draft) });
   await enqueueN8nEvent('question.published', { questionId: String(published._id), publicId: published.publicId, deckPath: published.deckPath, mode, revision: published.contentRevision || 1, changeScore: comparison.changeScore }, `${published._id}:${published.contentRevision || 1}`);
+  if (linkedIssue) {
+    const oldIssueValues = linkedIssue.toObject();
+    Object.assign(linkedIssue, {
+      status: 'resolved', resolutionNote, resolvedAt: new Date(), resolvedBy: admin._id,
+      resolvedQuestionRevision: published.contentRevision || 1
+    });
+    await linkedIssue.save();
+    await AuditLog.create({
+      adminId: admin._id, action: 'UPDATE', targetCollection: 'QuestionIssue', targetId: linkedIssue._id,
+      oldValues: oldIssueValues,
+      newValues: { status: linkedIssue.status, resolutionNote, resolvedAt: linkedIssue.resolvedAt, resolvedQuestionRevision: linkedIssue.resolvedQuestionRevision },
+      ipAddress
+    });
+    await enqueueN8nEvent('QUESTION_ISSUE_UPDATED', { issueId: String(linkedIssue._id), status: 'resolved', questionId: String(published._id) });
+  }
   const catalog = await getCatalogMaps();
   return res.status(200).json({
     success: true,
-    message: mode === 'replace' ? 'Đã lưu trữ câu cũ và xuất bản câu thay thế.' : 'Đã xuất bản bản sửa mới.',
+    message: linkedIssue
+      ? 'Đã xuất bản bản sửa và phản hồi người báo lỗi.'
+      : mode === 'replace' ? 'Đã lưu trữ câu cũ và xuất bản câu thay thế.' : 'Đã xuất bản bản sửa mới.',
     question: serializeQuestion(published, catalog.subjectMap, catalog.deckMap), comparison,
-    backup: { status: backup.status }
+    backup: { status: backup.status }, issueResolved: Boolean(linkedIssue)
   });
 }
 

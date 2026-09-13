@@ -26,6 +26,7 @@ Các tác vụ chuẩn hóa không cần chạy mỗi ngày. Sau khi hệ thốn
 
 - **Thao tác nhanh**: mở Web quản trị hoặc up các dòng đang chọn.
 - **Đồng bộ dữ liệu**: từng nhóm dữ liệu hoặc làm mới toàn bộ.
+- **Sheet Tài Liệu riêng**: tạo hoặc kết nối file Google Sheet chỉ dành cho sách/bài giảng.
 - **Xóa nội dung**: quyền xóa tách riêng; thao tác xóa là vĩnh viễn.
 - **Cài đặt**: URL, mã biên tập, mã xóa và webhook MongoDB.
 
@@ -37,6 +38,19 @@ Web quản trị nội dung hỗ trợ:
 - Xóa môn và toàn bộ đề thuộc môn.
 
 Mã biên tập không thể xóa. Muốn xóa phải có thêm mã xóa riêng và nhập câu xác nhận. Hệ thống không tạo backup và không hỗ trợ khôi phục sau khi xóa.
+
+### Sheet Tài Liệu riêng
+
+Chọn **Quản Lý Nội Dung → Sheet Tài Liệu riêng → Tạo Sheet Tài Liệu riêng** một lần. File mới chỉ cần:
+
+1. Tên tài liệu.
+2. Link tài liệu.
+3. Tác giả/đơn vị (tùy chọn).
+4. Ảnh bìa (tùy chọn).
+
+Tài liệu không còn bắt buộc chọn môn học và không còn nằm chung với file lên đề. Giá chỉ quản lý trong `GiaMonHoc`; đồng bộ tài liệu không được phép ghi giá về 0.
+
+`Question_Overrides` là tab hệ thống lưu bản sửa câu hỏi từ Web để lần nạp lại Google Form không ghi đè. Tab này được tự động ẩn; không xóa hoặc sửa tay. Câu mới và thay đổi chưa đụng bản sửa Web được xuất bản ngay. Chỉ xung đột với bản sửa Web mới chuyển sang hàng chờ duyệt.
 
 ## 4. Vì sao trước đây dữ liệu thay đổi chậm
 

@@ -26,16 +26,59 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST' && req.query?.action === 'reportIssue') {
       const user = await User.findOne({ phone, isActive: true });
+      if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản đang hoạt động.' });
       const allowedTypes = new Set(['wrong_answer', 'typo', 'image', 'source', 'explanation', 'other']);
       const type = allowedTypes.has(req.body?.type) ? req.body.type : 'other';
+      const note = String(req.body?.note || '').trim().slice(0, 1000);
+      if (note.length < 5) return res.status(400).json({ success: false, message: 'Vui lòng mô tả lỗi rõ hơn một chút (ít nhất 5 ký tự).' });
       const id = String(req.body?.questionId || '');
       const question = id ? await Question.findOne({ $or: [{ publicId: id }, ...(/^[a-f\d]{24}$/i.test(id) ? [{ _id: id }] : [])] }).lean() : null;
       const deck = question ? await Deck.findById(question.deckId).lean() : await Deck.findOne({ path: String(req.body?.deckPath || '').toLowerCase() }).lean();
       if (!deck) return res.status(404).json({ success: false, message: 'Không tìm thấy câu hỏi hoặc bộ đề.' });
       const scope = question ? 'question' : 'deck', dedupeKey = `${scope}:${question?._id || deck._id}:${type}`;
-      const issue = await QuestionIssue.findOneAndUpdate({ dedupeKey }, { $set: { questionId: question?._id || null, publicId: question?.publicId || '', deckId: deck._id, deckPath: deck.path, subjectId: String(deck.subjectId), scope, type, status: 'open', lastReportedAt: new Date() }, $inc: { reportCount: 1 }, $push: { samples: { $each: [{ reporterId: user?._id, message: String(req.body?.note || '').trim().slice(0, 1000), reportedAt: new Date() }], $slice: -5 } }, $setOnInsert: { dedupeKey, priority: 'normal' } }, { upsert: true, new: true, runValidators: true });
+      const issue = await QuestionIssue.findOneAndUpdate({ dedupeKey }, {
+        $set: {
+          questionId: question?._id || null, publicId: question?.publicId || '', deckId: deck._id,
+          deckPath: deck.path, subjectId: String(deck.subjectId), scope, type, status: 'open',
+          lastReportedAt: new Date(), resolvedAt: null, resolvedBy: null, resolvedQuestionRevision: null
+        },
+        $inc: { reportCount: 1 },
+        $addToSet: { reporterIds: user._id },
+        $push: { samples: { $each: [{ reporterId: user._id, message: note, reportedAt: new Date() }], $slice: -20 } },
+        $setOnInsert: { dedupeKey, priority: 'normal', resolutionNote: '' }
+      }, { upsert: true, new: true, runValidators: true });
       await enqueueN8nEvent('QUESTION_ISSUE_REPORTED', { issueId: String(issue._id), publicId: issue.publicId, deckPath: deck.path, type, reportCount: issue.reportCount });
-      return res.status(201).json({ success: true, message: 'Đã gửi báo lỗi. Các báo cáo trùng đã được gộp lại.' });
+      return res.status(201).json({ success: true, issueId: String(issue._id), message: 'Đã gửi báo lỗi. Bạn có thể theo dõi kết quả trong Hồ sơ.' });
+    }
+
+    if (req.method === 'GET' && req.query?.action === 'myIssues') {
+      const user = await User.findOne({ phone, isActive: true }).select('_id').lean();
+      if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản đang hoạt động.' });
+      const issues = await QuestionIssue.find({
+        $or: [{ reporterIds: user._id }, { 'samples.reporterId': user._id }]
+      }).sort({ lastReportedAt: -1 }).limit(100).lean();
+      const [questions, decks] = await Promise.all([
+        Question.find({ _id: { $in: issues.map(item => item.questionId).filter(Boolean) } }).select('question publicId').lean(),
+        Deck.find({ _id: { $in: issues.map(item => item.deckId).filter(Boolean) } }).select('title path').lean()
+      ]);
+      const questionMap = new Map(questions.map(item => [String(item._id), item]));
+      const deckMap = new Map(decks.map(item => [String(item._id), item]));
+      return res.status(200).json({
+        success: true,
+        issues: issues.map(item => {
+          const ownSamples = (item.samples || []).filter(sample => String(sample.reporterId || '') === String(user._id));
+          const latestSample = ownSamples.at(-1);
+          const questionItem = questionMap.get(String(item.questionId || ''));
+          const deckItem = deckMap.get(String(item.deckId || ''));
+          return {
+            id: String(item._id), publicId: item.publicId || questionItem?.publicId || '', scope: item.scope,
+            type: item.type, status: item.status, priority: item.priority,
+            question: questionItem?.question || '', deckName: deckItem?.title || '', deckPath: deckItem?.path || item.deckPath,
+            note: latestSample?.message || '', reportedAt: latestSample?.reportedAt || item.lastReportedAt,
+            resolutionNote: item.resolutionNote || '', resolvedAt: item.resolvedAt || null, updatedAt: item.updatedAt
+          };
+        })
+      });
     }
 
     if (req.method === 'GET') {

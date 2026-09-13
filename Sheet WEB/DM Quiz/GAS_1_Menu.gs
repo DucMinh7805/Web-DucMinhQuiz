@@ -31,12 +31,20 @@ function onOpen() {
       .addItem('Cài URL, mã quyền và webhook', 'configureQuizContentAdmin')
       .addItem('Khởi tạo tab Barem đáp án', 'initBaremSheet');
 
+  const documentMenu = ui.createMenu('📚 Sheet Tài Liệu riêng')
+      .addItem('Tạo Sheet Tài Liệu riêng', 'createStandaloneDocumentCatalog')
+      .addItem('Kết nối Sheet Tài Liệu có sẵn', 'configureStandaloneDocumentCatalog')
+      .addItem('Đồng bộ tài liệu ngay', 'syncSourcesOnly');
+
   ui.createMenu('🚀 Quản Lý Nội Dung')
       .addSubMenu(quickMenu)
       .addSubMenu(syncMenu)
+      .addSubMenu(documentMenu)
       .addSubMenu(safetyMenu)
       .addSubMenu(setupMenu)
       .addToUi();
+
+  if (typeof hideQuestionOverrideSheet_ === 'function') hideQuestionOverrideSheet_();
 }
 
 function initBaremSheet() {

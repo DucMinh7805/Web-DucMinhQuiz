@@ -34,13 +34,13 @@ export default function LibraryPage() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const quickPrompts = ['Tóm tắt 5 ý cần nhớ', 'Tạo một ca lâm sàng ngắn', 'Các bẫy thường gặp khi thi'];
 
-  // Chỉ lấy những sách có thực trong Tab 'TaiLieu'
+  // Chỉ lấy những sách có thực trong Sheet tài liệu độc lập.
   const allBooks = useMemo(() => {
     if (books && books.length > 0) {
       return books;
     }
     
-    // Nếu chưa có mảng books riêng, chỉ lấy từ các môn học có điền Tab TaiLieu
+    // Tương thích dữ liệu cũ trong lúc chuyển sang Sheet tài liệu độc lập.
     const list = [];
     if (subjects && subjects.length > 0) {
       subjects.forEach(s => {
@@ -76,8 +76,8 @@ export default function LibraryPage() {
     return allBooks.filter(b => {
       const matchCat = selectedCategory === 'ALL' || b.department === selectedCategory;
       const matchSearch = !searchQuery.trim() || 
-        b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        b.subjectName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(b.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(b.subjectName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (b.author && b.author.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchCat && matchSearch;
     });
@@ -119,7 +119,7 @@ export default function LibraryPage() {
               Thư Viện Sách & Slide Y Khoa
             </h1>
             <p className="hidden sm:block text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-xl">
-              Nơi lưu trữ và tra cứu các giáo trình, khuyến cáo chính thức và bài giảng của giảng viên trong Tab Tài Liệu.
+              Nơi lưu trữ và tra cứu giáo trình, sách và bài giảng từ Sheet Tài Liệu riêng.
             </p>
           </div>
         </div>
@@ -133,7 +133,7 @@ export default function LibraryPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm tên sách, tác giả, môn học..."
+              placeholder="Tìm tên sách hoặc tác giả..."
               className="w-full pl-10 pr-4 py-2.5 bg-white/80 dark:bg-[#0b1120]/80 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 rounded-2xl text-xs sm:text-sm text-slate-800 dark:text-white placeholder-slate-400 outline-none focus:border-blue-400 transition-all shadow-sm"
             />
           </div>
@@ -189,7 +189,7 @@ export default function LibraryPage() {
             <p className="text-xs text-slate-400 max-w-md">
               {searchQuery
                 ? 'Hãy thử tìm kiếm với từ khóa khác hoặc xóa bộ lọc chuyên khoa.'
-                : 'Thêm tên sách, link đọc và ảnh bìa vào Tab "TaiLieu" trong Google Sheet để hiển thị tại đây.'}
+                : 'Thêm tên tài liệu và link đọc vào Sheet Tài Liệu riêng để hiển thị tại đây.'}
             </p>
           </div>
         )}

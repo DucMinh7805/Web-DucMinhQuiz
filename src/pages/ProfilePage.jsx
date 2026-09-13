@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Navigate, useNavigate, useOutletContext } from 'react-router-dom';
 import usePageTitle from '../hooks/usePageTitle';
+import UserIssueHistory from '../components/Profile/UserIssueHistory';
 
 function getSubjectDisplayName(subjectId, manifest) {
   if (!subjectId) return 'Y Khoa';
@@ -465,6 +466,8 @@ export default function ProfilePage() {
           </div>
         </motion.div>
       )}
+
+      <UserIssueHistory />
 
       {/* Lịch sử làm bài chi tiết (Mobile/iPad: Chỉ hiện Tên Đề; Desktop: Hiện cả Tên Môn + Đề) */}
       <motion.div
