@@ -2,11 +2,10 @@ const DB_SHEET_NAME = 'Database_JSON';
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
-  const quickMenu = ui.createMenu('⚡ Thao tác nhanh')
+  ui.createMenu('📝 Lên đề DM|Quiz')
       .addItem('Mở Web quản trị nội dung', 'showQuizContentAdminWebApp')
-      .addItem('Up các đề đang bôi đen', 'syncSelectedDecks');
-
-  const syncMenu = ui.createMenu('🔄 Đồng bộ dữ liệu')
+      .addItem('Up các đề đang bôi đen', 'syncSelectedDecks')
+      .addSeparator()
       .addItem('Đồng bộ các đề đang bôi đen (khuyên dùng)', 'syncSelectedDecks')
       .addSeparator()
       .addItem('Sửa barem toàn hệ thống (Forms API)', 'startAnswerKeyRepairAll')
@@ -17,31 +16,25 @@ function onOpen() {
       .addItem('Đồng bộ tất cả đề trong UpDe', 'syncDecksOnly')
       .addItem('Đồng bộ chuyên khoa/môn', 'syncChuyenKhoa')
       .addItem('Đồng bộ hình ảnh', 'syncImagesOnly')
-      .addItem('Đồng bộ tài liệu', 'syncSourcesOnly')
-      .addItem('Đồng bộ giá (4 cột)', 'syncPricingOnly')
+      .addItem('Đồng bộ giá môn (tab GiaMonHoc)', 'syncPricingOnly')
       .addSeparator()
-      .addItem('Làm mới toàn bộ', 'syncAll')
-      .addItem('Đẩy lại danh mục lên website', 'pushCurrentManifestToWeb');
-
-  const safetyMenu = ui.createMenu('🛡️ Xóa nội dung')
+      .addItem('Làm mới toàn bộ dữ liệu đề', 'syncAll')
+      .addSeparator()
       .addItem('Mở Web xóa môn/đề', 'showQuizContentAdminWebApp')
-      .addItem('Xóa đề đang bôi đen (dự phòng)', 'deleteSelectedDecks');
-
-  const setupMenu = ui.createMenu('⚙️ Cài đặt')
+      .addItem('Xóa đề đang bôi đen (dự phòng)', 'deleteSelectedDecks')
+      .addSeparator()
       .addItem('Cài URL, mã quyền và webhook', 'configureQuizContentAdmin')
-      .addItem('Khởi tạo tab Barem đáp án', 'initBaremSheet');
+      .addItem('Khởi tạo tab Barem đáp án', 'initBaremSheet')
+      .addItem('Đẩy lại danh mục lên website', 'pushCurrentManifestToWeb')
+      .addToUi();
 
-  const documentMenu = ui.createMenu('📚 Sheet Tài Liệu riêng')
+  ui.createMenu('📚 Tài liệu DM|Quiz')
+      .addItem('Mở Sheet Tài Liệu riêng', 'openStandaloneDocumentCatalog')
       .addItem('Tạo Sheet Tài Liệu riêng', 'createStandaloneDocumentCatalog')
       .addItem('Kết nối Sheet Tài Liệu có sẵn', 'configureStandaloneDocumentCatalog')
-      .addItem('Đồng bộ tài liệu ngay', 'syncSourcesOnly');
-
-  ui.createMenu('🚀 Quản Lý Nội Dung')
-      .addSubMenu(quickMenu)
-      .addSubMenu(syncMenu)
-      .addSubMenu(documentMenu)
-      .addSubMenu(safetyMenu)
-      .addSubMenu(setupMenu)
+      .addSeparator()
+      .addItem('Chuẩn hóa cột & khôi phục giá', 'prepareStandaloneDocumentCatalog')
+      .addItem('Đồng bộ tài liệu lên web', 'syncSourcesOnly')
       .addToUi();
 
   if (typeof hideQuestionOverrideSheet_ === 'function') hideQuestionOverrideSheet_();

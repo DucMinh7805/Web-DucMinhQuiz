@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * GOOGLE APPS SCRIPT: HỆ THỐNG XÁC THỰC NGƯỜI DÙNG & QUẢN LÝ MẬT KHẨU (SHEET 2)
- * Thư mục: Sheet WEB/DM Quiz/GAS_User_Auth.gs
+ * Thư mục: Sheet WEB/DM_Bao Mat/GAS_User_Auth.gs
  * ============================================================================
  * Chức năng:
  * 1. Đăng ký tài khoản mới: Tự động ép kiểu Văn Bản thuần túy cho SĐT (Cột A)
