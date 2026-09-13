@@ -1,10 +1,9 @@
 // -------------------------------------------------------------------------
 // TASK 6: ĐỒNG BỘ GIÁ MÔN HỌC (Tab GiaMonHoc / Giá Bán)
-// Schema chuẩn 4 cột:
-// A: Tên Môn | B: Tên Sách/Tài Liệu | C: Giá Bán | D: Ghi Chú
-// Cột E do script ghi trạng thái, không phải dữ liệu đầu vào.
-// Cột B chỉ còn để nhận diện dữ liệu cũ; giá tài liệu được quản lý hoàn toàn
-// trong Sheet Tài Liệu riêng.
+// Schema chuẩn mới:
+// A: Tên Môn | B: Giá Bán | C: Ghi Chú | D: Trạng thái
+// Script tìm cột theo tiêu đề, nên vẫn đọc được schema cũ có cột
+// "Tên Sách/Tài Liệu" trong giai đoạn chuyển đổi.
 // -------------------------------------------------------------------------
 function syncPricingOnly(showToast = true) {
   const { manifest, allDecksData, dbSheet, ss } = getDB();
@@ -13,7 +12,7 @@ function syncPricingOnly(showToast = true) {
     "SetGia", "Set Giá", "BangGia", "Bảng Giá", "Price", "Pricing"
   ]);
   if (!priceSheet) {
-    if (showToast) SpreadsheetApp.getUi().alert('Thông báo', 'Không tìm thấy Tab Giá.\nHãy đặt tên Tab là "GiaMonHoc" hoặc "Giá Bán" với 4 cột: [Tên Môn | Tên Sách/Tài Liệu | Giá Bán | Ghi Chú]', SpreadsheetApp.getUi().ButtonSet.OK);
+    if (showToast) SpreadsheetApp.getUi().alert('Thông báo', 'Không tìm thấy Tab Giá.\nHãy đặt tên Tab là "GiaMonHoc" hoặc "Giá Bán" với các cột: [Tên Môn | Giá Bán | Ghi Chú | Trạng thái]', SpreadsheetApp.getUi().ButtonSet.OK);
     return;
   }
 
@@ -25,16 +24,40 @@ function syncPricingOnly(showToast = true) {
   });
 
   const priceData = priceSheet.getDataRange().getValues();
+  const headers = (priceData[0] || []).map(value => normalizeName(String(value || '')).replace(/\s+/g, ''));
+  const findColumn = aliases => {
+    const normalizedAliases = aliases.map(value => normalizeName(value).replace(/\s+/g, ''));
+    return headers.findIndex(value => normalizedAliases.indexOf(value) >= 0);
+  };
+  const subjectColumn = findColumn(['Tên Môn', 'Tên Môn Học', 'Môn']);
+  const legacyBookColumn = findColumn(['Tên Sách', 'Tên Tài Liệu', 'Tên Sách/Tài Liệu']);
+  const priceColumn = findColumn(['Giá Bán', 'Giá', 'Price']);
+  const noteColumn = findColumn(['Ghi Chú', 'Ghi Chú Giá', 'Price Note']);
+  let statusColumn = findColumn(['Trạng thái', 'Status']);
+
+  if (subjectColumn < 0 || priceColumn < 0) {
+    if (showToast) SpreadsheetApp.getUi().alert(
+      'Thiếu cột bắt buộc',
+      'Tab GiaMonHoc phải có cột "Tên Môn" và "Giá Bán". Vị trí cột có thể thay đổi.',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    return;
+  }
+
+  if (statusColumn < 0) {
+    statusColumn = headers.length;
+    priceSheet.getRange(1, statusColumn + 1).setValue('Trạng thái');
+  }
   let updatedCount = 0;
 
   const statusUpdates = [];
 
   for (let i = 1; i < priceData.length; i++) {
     const row = priceData[i];
-    const monName = String(row[0] || '').trim();  // Cột A: Tên Môn
-    const bookName = String(row[1] || '').trim(); // Cột B: Tên Sách/Tài Liệu
-    const rawPrice = row[2];                      // Cột C: Giá Bán
-    const note = String(row[3] || '').trim();     // Cột D: Ghi Chú
+    const monName = String(row[subjectColumn] || '').trim();
+    const bookName = legacyBookColumn >= 0 ? String(row[legacyBookColumn] || '').trim() : '';
+    const rawPrice = row[priceColumn];
+    const note = noteColumn >= 0 ? String(row[noteColumn] || '').trim() : '';
 
     const parsedPrice = parsePricingCell(rawPrice);
     const priceNum = parsedPrice.value;
@@ -54,7 +77,7 @@ function syncPricingOnly(showToast = true) {
     }
 
     if (rawPriceText === '') {
-      statusUpdates.push(['❌ Thiếu giá bán ở Cột C']);
+      statusUpdates.push(['❌ Thiếu giá bán']);
       continue;
     }
 
@@ -83,13 +106,13 @@ function syncPricingOnly(showToast = true) {
     statusUpdates.push([rowStatus || '⚠️ Không tìm thấy mục khớp']);
   }
 
-  // Tự động ghi trạng thái vào Cột E (Trạng thái) trên Google Sheet
+  // Ghi vào cột "Trạng thái" theo tiêu đề, không phụ thuộc vị trí.
   try {
     if (statusUpdates.length > 0) {
-      if (priceSheet.getMaxColumns() < 5) {
-        priceSheet.insertColumnsAfter(priceSheet.getMaxColumns(), 5 - priceSheet.getMaxColumns());
+      if (priceSheet.getMaxColumns() < statusColumn + 1) {
+        priceSheet.insertColumnsAfter(priceSheet.getMaxColumns(), statusColumn + 1 - priceSheet.getMaxColumns());
       }
-      priceSheet.getRange(2, 5, statusUpdates.length, 1).setValues(statusUpdates);
+      priceSheet.getRange(2, statusColumn + 1, statusUpdates.length, 1).setValues(statusUpdates);
     }
   } catch (e) {
     Logger.log('Không thể ghi cột trạng thái: ' + e);

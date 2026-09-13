@@ -255,6 +255,8 @@ assert.equal(gasDocuments.includes('function getSelectedDocumentRows_(sheet)'), 
 assert.equal(gasDocuments.includes("setValue('🗑️ Đã gỡ khỏi web')"), true, 'Removing a document must retain the Sheet row as a recoverable audit trail');
 assert.equal(gasSync.includes("syncSourcesOnly(false);"), false, 'The quiz-wide refresh must not silently mix in the document workflow');
 assert.equal(gasSync.includes('Giá tài liệu đã chuyển sang Sheet Tài Liệu riêng'), true, 'Legacy document pricing rows must point admins to the standalone catalog');
+assert.equal(gasPricing.includes("findColumn(['Giá Bán', 'Giá', 'Price'])"), true, 'Course pricing must locate the price column by header');
+assert.equal(gasPricing.includes('priceSheet.getRange(2, statusColumn + 1'), true, 'Course pricing status must follow its header instead of a fixed column');
 assert.equal(gasSync.includes('Giá và khóa PRO trên web chưa đổi'), true, 'Document sync must never report success when the live website update failed');
 assert.equal(gasSync.includes("'Sheet đã cập nhật; web chưa cập nhật'"), true, 'Sheet sync failures must clearly separate local success from live-web failure');
 assert.equal(gasSync.includes('Không có thông báo thành công giả'), true, 'A full sync must stop before showing success when the live website update failed');
