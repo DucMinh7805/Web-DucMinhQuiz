@@ -37,6 +37,22 @@ function saveDB(dbSheet, manifest, allDecksData) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
+    const expectedRevision = String(manifest.dataRevision || '');
+    const currentRows = dbSheet.getDataRange().getValues();
+    const manifestRow = currentRows.find(function(row) { return row[0] === 'manifest'; });
+    if (manifestRow) {
+      const currentJson = manifestRow.slice(1).filter(function(cell) { return cell !== ''; }).join('');
+      try {
+        const currentManifest = JSON.parse(currentJson);
+        const currentRevision = String(currentManifest.dataRevision || '');
+        if (expectedRevision && currentRevision && expectedRevision !== currentRevision) {
+          throw new Error('Dữ liệu Lên đề vừa thay đổi ở nơi khác. Hãy chạy lại Đồng bộ tài liệu để tránh ghi đè.');
+        }
+      } catch (error) {
+        if (/vừa thay đổi/.test(error.message)) throw error;
+        throw new Error('Không đọc được phiên bản danh mục hiện tại; đã dừng để tránh ghi đè dữ liệu.');
+      }
+    }
     manifest.dataRevision = Utilities.getUuid();
     manifest.updatedAt = new Date().toISOString();
     const rows = [['manifest'].concat(chunkString(JSON.stringify(manifest), 45000))];

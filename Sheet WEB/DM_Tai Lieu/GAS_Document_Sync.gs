@@ -8,6 +8,24 @@ const DOCUMENT_CATALOG_HEADERS = [
   'Tác Giả / Đơn Vị (tùy chọn)', 'Ảnh Bìa (tùy chọn)', 'Trạng Thái'
 ];
 
+function parsePricingCell(rawPrice) {
+  if (typeof rawPrice === 'number') {
+    return { valid: Number.isFinite(rawPrice) && rawPrice >= 0, value: rawPrice };
+  }
+
+  const text = String(rawPrice === undefined || rawPrice === null ? '' : rawPrice).trim();
+  if (!text) return { valid: false, value: 0 };
+  const normalized = normalizeName(text);
+  if (normalized === 'mien phi' || normalized === 'free' || normalized === '0') {
+    return { valid: true, value: 0 };
+  }
+
+  if (!/^[0-9\s.,]+(?:đ|vnd)?$/i.test(text)) return { valid: false, value: 0 };
+  const digits = text.replace(/[^0-9]/g, '');
+  const value = digits ? parseInt(digits, 10) : NaN;
+  return { valid: Number.isFinite(value) && value >= 0, value: Number.isFinite(value) ? value : 0 };
+}
+
 function documentHeaderKey_(value) {
   return normalizeName(value).replace(/[^a-z0-9]+/g, ' ').trim();
 }

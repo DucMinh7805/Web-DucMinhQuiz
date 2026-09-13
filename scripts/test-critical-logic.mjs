@@ -232,6 +232,8 @@ assert.equal(gasMenu.includes("createMenu('📚 Tài liệu DM|Quiz')"), false, 
 assert.equal(gasDocumentMenu.includes("createMenu('📚 Tài liệu DM|Quiz')"), true, 'The standalone document Sheet must own the document menu');
 assert.equal(gasDocumentMenu.includes("addItem('Đồng bộ tài liệu lên web', 'syncSourcesOnly')"), true, 'Document synchronization must be launched from the document Sheet');
 assert.equal(gasDocumentDatabase.includes('SpreadsheetApp.openById'), true, 'The document project must update the central quiz database instead of creating a local database');
+assert.equal(gasDocumentDatabase.includes('expectedRevision !== currentRevision'), true, 'Standalone document sync must reject stale writes instead of overwriting concurrent quiz updates');
+assert.equal(gasDocuments.includes('function parsePricingCell(rawPrice)'), true, 'Standalone document sync must include its own price parser');
 assert.equal(gasDocumentWebSync.includes("headers: { 'x-content-sync-secret': secret }"), true, 'The standalone document sync must authenticate its website update');
 assert.equal(gasAnswerKeySystem.includes("handler: 'continueAnswerKeyRepair_'"), true, 'Bulk answer repair must resume through a time trigger');
 assert.equal(gasAnswerKeySystem.includes('applyRestAnswerKeysToQuestions_'), true, 'Bulk repair must update existing decks without reprocessing images');
