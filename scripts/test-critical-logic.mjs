@@ -226,11 +226,14 @@ assert.equal(gasUtils.includes('Array.isArray(grading[3])'), true, 'Short-answer
 assert.equal(gasUtils.includes('findScrapedImageUrl_(it[4][0][1], 0)'), true, 'Inline question or option images need a grading-payload fallback');
 assert.equal(gasUtils.includes('imageMapByIndex[qIdx]'), true, 'Legacy Forms without entry IDs need an index fallback');
 assert.equal(gasUtils.includes('fileCache = null'), true, 'Drive image lookup must reuse the shared in-memory file cache');
-assert.equal(gasMenu.includes('Đồng bộ các đề đang bôi đen (khuyên dùng)'), true, 'Selective sync must be visible inside the data-sync menu');
-assert.equal(gasMenu.includes('Sửa barem toàn hệ thống (Forms API)'), true, 'The answer-key repair workflow must be accessible from the Sheet menu');
+assert.equal(gasMenu.includes("addItem('Chạy chức năng của tab hiện tại', 'runCurrentSheetAction')"), true, 'The quiz Sheet must expose one context-aware action');
+assert.equal(gasMenu.includes("createMenu('Công cụ ít dùng')"), true, 'Rare quiz operations must be grouped away from the main menu');
+assert.equal(gasMenu.includes('Cài URL, mã quyền và webhook'), false, 'One-time setup must not clutter the quiz menu');
 assert.equal(gasMenu.includes("createMenu('📚 Tài liệu DM|Quiz')"), false, 'The quiz Sheet must not own the document menu');
 assert.equal(gasDocumentMenu.includes("createMenu('📚 Tài liệu DM|Quiz')"), true, 'The standalone document Sheet must own the document menu');
-assert.equal(gasDocumentMenu.includes("addItem('Đồng bộ tài liệu lên web', 'syncSourcesOnly')"), true, 'Document synchronization must be launched from the document Sheet');
+assert.equal(gasDocumentMenu.includes("addItem('Đồng bộ tài liệu đang bôi đen', 'syncSelectedSources')"), true, 'Document synchronization must target highlighted rows');
+assert.equal(gasDocumentMenu.includes("addItem('Gỡ tài liệu đang bôi đen khỏi web', 'removeSelectedSourcesFromWeb')"), true, 'Selected documents must be removable from the web without deleting Sheet rows');
+assert.equal(gasDocumentMenu.includes('Cài kết nối dữ liệu/web'), false, 'One-time document setup must not clutter the menu');
 assert.equal(gasDocumentDatabase.includes('SpreadsheetApp.openById'), true, 'The document project must update the central quiz database instead of creating a local database');
 assert.equal(gasDocumentDatabase.includes('expectedRevision !== currentRevision'), true, 'Standalone document sync must reject stale writes instead of overwriting concurrent quiz updates');
 assert.equal(gasDocuments.includes('function parsePricingCell(rawPrice)'), true, 'Standalone document sync must include its own price parser');
@@ -248,6 +251,8 @@ assert.equal(gasSync.includes("'Giá Bán', 'Ghi Chú Giá'"), true, 'Standalone
 assert.equal(gasSync.includes('oldBooksByLink[sourceLink]'), true, 'Renaming a document with the same link must preserve its ID, price and entitlements');
 assert.equal(gasSync.includes('const rawPrice = row[columns.price]'), true, 'Document price must be read from the standalone catalog');
 assert.equal(gasSync.includes('isPro: price > 0'), true, 'Changing a document price must update its PRO lock deterministically');
+assert.equal(gasDocuments.includes('function getSelectedDocumentRows_(sheet)'), true, 'Document actions must use the highlighted rows');
+assert.equal(gasDocuments.includes("setValue('🗑️ Đã gỡ khỏi web')"), true, 'Removing a document must retain the Sheet row as a recoverable audit trail');
 assert.equal(gasSync.includes("syncSourcesOnly(false);"), false, 'The quiz-wide refresh must not silently mix in the document workflow');
 assert.equal(gasSync.includes('Giá tài liệu đã chuyển sang Sheet Tài Liệu riêng'), true, 'Legacy document pricing rows must point admins to the standalone catalog');
 assert.equal(gasSync.includes('Giá và khóa PRO trên web chưa đổi'), true, 'Document sync must never report success when the live website update failed');

@@ -238,6 +238,83 @@ function prepareStandaloneDocumentCatalog() {
   return { spreadsheetId: context.spreadsheet.getId(), sheetName: context.sheet.getName() };
 }
 
+function getSelectedDocumentRows_(sheet) {
+  const activeSheet = SpreadsheetApp.getActiveSheet();
+  if (!activeSheet || activeSheet.getSheetId() !== sheet.getSheetId()) {
+    throw new Error('Hãy mở tab TaiLieu và bôi đen các dòng cần xử lý.');
+  }
+  const range = activeSheet.getActiveRange();
+  if (!range) throw new Error('Chưa có vùng tài liệu nào được bôi đen.');
+  const firstRow = Math.max(2, range.getRow());
+  const lastRow = Math.min(sheet.getLastRow(), range.getLastRow());
+  if (lastRow < firstRow) throw new Error('Hãy bôi đen ít nhất một dòng tài liệu từ dòng 2 trở đi.');
+  const rows = [];
+  for (let row = firstRow; row <= lastRow; row++) rows.push(row);
+  return rows;
+}
+
+function syncSelectedSources() {
+  const db = getDB();
+  const context = getDocumentCatalogContext_(db.ss);
+  const sheet = prepareDocumentCatalogSheet_(context.sheet, db.manifest.books || []);
+  const rows = getSelectedDocumentRows_(sheet);
+  const columns = documentCatalogHeaderMap_(sheet);
+  const values = sheet.getDataRange().getValues();
+  let books = (db.manifest.books || []).slice();
+  let synced = 0;
+
+  rows.forEach(function(rowNumber) {
+    const row = values[rowNumber - 1] || [];
+    const title = String(row[columns.title] || '').trim();
+    const link = String(row[columns.link] || '').trim();
+    const oldBook = books.find(function(book) {
+      return (link && String(book.link || '').trim() === link) || normalizeName(book.title) === normalizeName(title);
+    }) || {};
+    if (!title || !/^https:\/\//i.test(link)) {
+      sheet.getRange(rowNumber, columns.status + 1).setValue(!title ? '❌ Thiếu tên tài liệu' : '❌ Link phải bắt đầu bằng https://');
+      return;
+    }
+    const rawPrice = row[columns.price];
+    const parsedPrice = String(rawPrice === undefined || rawPrice === null ? '' : rawPrice).trim() === ''
+      ? { valid: true, value: Math.max(0, Number(oldBook.price) || 0) }
+      : parsePricingCell(rawPrice);
+    if (!parsedPrice.valid) {
+      sheet.getRange(rowNumber, columns.status + 1).setValue('❌ Giá không hợp lệ; chưa đồng bộ');
+      return;
+    }
+    let coverUrl = String(row[columns.cover] || '').trim();
+    const driveMatch = coverUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || coverUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (driveMatch) coverUrl = 'https://drive.google.com/thumbnail?id=' + driveMatch[1] + '&sz=w1000';
+    const book = {
+      id: oldBook.id || generateSlug(title, 'BOOK_' + rowNumber), title: title,
+      subjectName: '', department: 'Tài liệu Y khoa', code: 'TL', link: link,
+      author: String(row[columns.author] || '').trim(), coverUrl: coverUrl,
+      price: parsedPrice.value,
+      priceFormatted: parsedPrice.value > 0 ? parsedPrice.value.toLocaleString('vi-VN') + ' đ' : 'Miễn phí',
+      priceNote: String(row[columns.priceNote] || '').trim(), isPro: parsedPrice.value > 0
+    };
+    books = books.filter(function(item) {
+      if (oldBook.id) return String(item.id || '') !== String(oldBook.id);
+      return String(item.link || '').trim() !== link && normalizeName(item.title) !== normalizeName(title);
+    });
+    books.push(book);
+    sheet.getRange(rowNumber, columns.status + 1).setValue(parsedPrice.value > 0
+      ? '✅ PRO ' + parsedPrice.value.toLocaleString('vi-VN') + ' đ' : '✅ Miễn phí');
+    synced++;
+  });
+
+  db.manifest.books = books;
+  saveDB(db.dbSheet, db.manifest, db.allDecksData);
+  const webSync = typeof pushContentSyncToWeb_ === 'function'
+    ? pushContentSyncToWeb_({ operation: 'syncManifest', manifest: db.manifest }) : null;
+  if (webSync && !webSync.success) {
+    SpreadsheetApp.getUi().alert('Sheet đã lưu, website chưa cập nhật', webSync.message, SpreadsheetApp.getUi().ButtonSet.OK);
+  } else {
+    SpreadsheetApp.getActiveSpreadsheet().toast('Đã đồng bộ ' + synced + '/' + rows.length + ' tài liệu đang bôi đen.', 'Hoàn tất', 8);
+  }
+  return { books: books, synced: synced, webSync: webSync };
+}
+
 function configureStandaloneDocumentCatalog() {
   const ui = SpreadsheetApp.getUi();
   const response = ui.prompt(
@@ -256,7 +333,7 @@ function configureStandaloneDocumentCatalog() {
   ui.alert('Đã kết nối', 'Tài liệu sẽ được đọc từ: ' + catalogSs.getName(), ui.ButtonSet.OK);
 }
 
-function syncSourcesOnly(showToast = true) {
+function syncSourcesOnly(showToast = true, selectedRows) {
   const { manifest, allDecksData, dbSheet, ss } = getDB();
   const catalogContext = getDocumentCatalogContext_(ss);
   const isStandalone = catalogContext.standalone;
@@ -270,12 +347,17 @@ function syncSourcesOnly(showToast = true) {
     const linkKey = String(book.link || '').trim();
     if (linkKey) oldBooksByLink[linkKey] = book;
   });
-  const booksList = [];
+  const selectedRowSet = Array.isArray(selectedRows)
+    ? new Set(selectedRows.map(function(row) { return Number(row); }))
+    : null;
+  let booksList = selectedRowSet ? (manifest.books || []).slice() : [];
   const sourceData = sourceSheet.getDataRange().getValues();
   const columns = isStandalone ? documentCatalogHeaderMap_(sourceSheet) : null;
   const statusUpdates = [];
   const seenLinks = {};
   for (let i = 1; i < sourceData.length; i++) {
+    const sheetRow = i + 1;
+    if (selectedRowSet && !selectedRowSet.has(sheetRow)) continue;
     const row = sourceData[i];
     const sourceName = String(row[isStandalone ? columns.title : 1] || '').trim();
     const sourceLink = String(row[isStandalone ? columns.link : 2] || '').trim();
@@ -283,25 +365,26 @@ function syncSourcesOnly(showToast = true) {
     let coverImg = String(row[isStandalone ? columns.cover : 4] || '').trim();
     const oldBook = oldBooksByLink[sourceLink] || oldBooksByTitle[normalizeName(sourceName)] || {};
     const preserveOldBook = function() {
+      if (selectedRowSet) return;
       if (oldBook.id && !booksList.some(function(book) { return book.id === oldBook.id; })) booksList.push(oldBook);
     };
 
     if (!sourceName && !sourceLink) {
-      statusUpdates.push(['']);
+      statusUpdates.push({ row: sheetRow, value: '' });
       continue;
     }
     if (!sourceName) {
       preserveOldBook();
-      statusUpdates.push(['❌ Thiếu tên tài liệu']);
+      statusUpdates.push({ row: sheetRow, value: '❌ Thiếu tên tài liệu' });
       continue;
     }
     if (!/^https:\/\//i.test(sourceLink)) {
       preserveOldBook();
-      statusUpdates.push(['❌ Link tài liệu phải bắt đầu bằng https://']);
+      statusUpdates.push({ row: sheetRow, value: '❌ Link tài liệu phải bắt đầu bằng https://' });
       continue;
     }
     if (seenLinks[sourceLink]) {
-      statusUpdates.push(['❌ Trùng link với dòng ' + seenLinks[sourceLink]]);
+      statusUpdates.push({ row: sheetRow, value: '❌ Trùng link với dòng ' + seenLinks[sourceLink] });
       continue;
     }
     seenLinks[sourceLink] = i + 1;
@@ -315,7 +398,7 @@ function syncSourcesOnly(showToast = true) {
         const parsedPrice = parsePricingCell(rawPrice);
         if (!parsedPrice.valid) {
           preserveOldBook();
-          statusUpdates.push(['❌ Giá không hợp lệ; giữ nguyên giá đang dùng']);
+          statusUpdates.push({ row: sheetRow, value: '❌ Giá không hợp lệ; giữ nguyên giá đang dùng' });
           continue;
         }
         price = parsedPrice.value;
@@ -332,7 +415,7 @@ function syncSourcesOnly(showToast = true) {
 
     // Đổi tên tài liệu không được tạo ID mới hoặc làm mất giá/quyền PRO nếu
     // link nguồn vẫn là cùng một tài liệu.
-    booksList.push({
+    const nextBook = {
       id: oldBook.id || generateSlug(sourceName, `BOOK_${i}`),
       title: sourceName,
       subjectName: '',
@@ -345,10 +428,18 @@ function syncSourcesOnly(showToast = true) {
       priceFormatted: price > 0 ? price.toLocaleString('vi-VN') + ' đ' : 'Miễn phí',
       priceNote: priceNote,
       isPro: price > 0
-    });
-    statusUpdates.push([price > 0
+    };
+    if (selectedRowSet) {
+      booksList = booksList.filter(function(book) {
+        if (oldBook.id) return String(book.id || '') !== String(oldBook.id);
+        if (sourceLink) return String(book.link || '').trim() !== sourceLink;
+        return normalizeName(book.title) !== normalizeName(sourceName);
+      });
+    }
+    booksList.push(nextBook);
+    statusUpdates.push({ row: sheetRow, value: price > 0
       ? '✅ PRO ' + price.toLocaleString('vi-VN') + ' đ'
-      : '✅ Miễn phí']);
+      : '✅ Miễn phí' });
   }
 
   const statusColumn = isStandalone ? columns.status + 1 : 6;
@@ -356,7 +447,14 @@ function syncSourcesOnly(showToast = true) {
     if (sourceSheet.getMaxColumns() < statusColumn) {
       sourceSheet.insertColumnsAfter(sourceSheet.getMaxColumns(), statusColumn - sourceSheet.getMaxColumns());
     }
-    sourceSheet.getRange(2, statusColumn, statusUpdates.length, 1).setValues(statusUpdates);
+    if (selectedRowSet) {
+      statusUpdates.forEach(function(update) {
+        sourceSheet.getRange(update.row, statusColumn).setValue(update.value);
+      });
+    } else {
+      sourceSheet.getRange(2, statusColumn, statusUpdates.length, 1)
+        .setValues(statusUpdates.map(function(update) { return [update.value]; }));
+    }
   }
   manifest.books = booksList;
   saveDB(dbSheet, manifest, allDecksData);
@@ -372,9 +470,56 @@ function syncSourcesOnly(showToast = true) {
     );
   } else if (showToast) {
     SpreadsheetApp.getActiveSpreadsheet().toast(
-      `Đã đồng bộ ${booksList.length} tài liệu từ ${isStandalone ? 'Sheet riêng' : 'tab cũ'} lên website!`,
+      selectedRowSet
+        ? `Đã đồng bộ ${selectedRowSet.size} dòng tài liệu đang bôi đen lên website!`
+        : `Đã đồng bộ ${booksList.length} tài liệu từ ${isStandalone ? 'Sheet riêng' : 'tab cũ'} lên website!`,
       'Thành công'
     );
   }
   return { books: booksList, webSync: webSync };
+}
+
+function removeSelectedSourcesFromWeb() {
+  const ui = SpreadsheetApp.getUi();
+  const db = getDB();
+  const context = getDocumentCatalogContext_(db.ss);
+  const sheet = context.sheet;
+  const rows = getSelectedDocumentRows_(sheet);
+  const confirm = ui.alert(
+    'Gỡ tài liệu khỏi web',
+    'Gỡ ' + rows.length + ' dòng đang bôi đen khỏi website? Dòng dữ liệu vẫn được giữ trong Sheet để có thể đồng bộ lại.',
+    ui.ButtonSet.YES_NO
+  );
+  if (confirm !== ui.Button.YES) return { removed: 0, cancelled: true };
+
+  const columns = documentCatalogHeaderMap_(sheet);
+  const values = sheet.getDataRange().getValues();
+  const selectedKeys = rows.map(function(rowNumber) {
+    const row = values[rowNumber - 1] || [];
+    return {
+      link: String(row[columns.link] || '').trim(),
+      title: normalizeName(row[columns.title])
+    };
+  });
+  const before = (db.manifest.books || []).length;
+  db.manifest.books = (db.manifest.books || []).filter(function(book) {
+    return !selectedKeys.some(function(key) {
+      if (key.link) return String(book.link || '').trim() === key.link;
+      return key.title && normalizeName(book.title) === key.title;
+    });
+  });
+  const removed = before - db.manifest.books.length;
+  saveDB(db.dbSheet, db.manifest, db.allDecksData);
+  const webSync = typeof pushContentSyncToWeb_ === 'function'
+    ? pushContentSyncToWeb_({ operation: 'syncManifest', manifest: db.manifest })
+    : null;
+  rows.forEach(function(rowNumber) {
+    sheet.getRange(rowNumber, columns.status + 1).setValue('🗑️ Đã gỡ khỏi web');
+  });
+  if (webSync && !webSync.success) {
+    ui.alert('Sheet đã lưu, website chưa cập nhật', webSync.message, ui.ButtonSet.OK);
+  } else {
+    SpreadsheetApp.getActiveSpreadsheet().toast('Đã gỡ ' + removed + ' tài liệu khỏi website. Dữ liệu trong Sheet vẫn được giữ.', 'Hoàn tất', 8);
+  }
+  return { removed: removed, webSync: webSync };
 }

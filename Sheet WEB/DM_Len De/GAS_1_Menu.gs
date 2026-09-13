@@ -2,33 +2,39 @@ const DB_SHEET_NAME = 'Database_JSON';
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
-  ui.createMenu('📝 Lên đề DM|Quiz')
-      .addItem('Mở Web quản trị nội dung', 'showQuizContentAdminWebApp')
-      .addItem('Up các đề đang bôi đen', 'syncSelectedDecks')
-      .addSeparator()
-      .addItem('Đồng bộ các đề đang bôi đen (khuyên dùng)', 'syncSelectedDecks')
-      .addSeparator()
-      .addItem('Sửa barem toàn hệ thống (Forms API)', 'startAnswerKeyRepairAll')
-      .addItem('Kiểm tra barem dòng đang chọn', 'testSelectedAnswerKeySource')
+  const advancedMenu = ui.createMenu('Công cụ ít dùng')
+      .addItem('Sửa barem toàn hệ thống', 'startAnswerKeyRepairAll')
       .addItem('Xem trạng thái sửa barem', 'showAnswerKeyRepairStatus')
       .addItem('Dừng sửa barem tự động', 'stopAnswerKeyRepairAll')
       .addSeparator()
-      .addItem('Đồng bộ tất cả đề trong UpDe', 'syncDecksOnly')
-      .addItem('Đồng bộ chuyên khoa/môn', 'syncChuyenKhoa')
-      .addItem('Đồng bộ hình ảnh', 'syncImagesOnly')
-      .addItem('Đồng bộ giá môn (tab GiaMonHoc)', 'syncPricingOnly')
-      .addSeparator()
+      .addItem('Đồng bộ tất cả đề', 'syncDecksOnly')
       .addItem('Làm mới toàn bộ dữ liệu đề', 'syncAll')
-      .addSeparator()
-      .addItem('Mở Web xóa môn/đề', 'showQuizContentAdminWebApp')
-      .addItem('Xóa đề đang bôi đen (dự phòng)', 'deleteSelectedDecks')
-      .addSeparator()
-      .addItem('Cài URL, mã quyền và webhook', 'configureQuizContentAdmin')
-      .addItem('Khởi tạo tab Barem đáp án', 'initBaremSheet')
       .addItem('Đẩy lại danh mục lên website', 'pushCurrentManifestToWeb')
+      .addSeparator()
+      .addItem('Gỡ đề đang bôi đen khỏi web', 'deleteSelectedDecks');
+
+  ui.createMenu('📝 Lên đề DM|Quiz')
+      .addItem('Mở Web quản trị nội dung', 'showQuizContentAdminWebApp')
+      .addItem('Chạy chức năng của tab hiện tại', 'runCurrentSheetAction')
+      .addSubMenu(advancedMenu)
       .addToUi();
 
   if (typeof hideQuestionOverrideSheet_ === 'function') hideQuestionOverrideSheet_();
+}
+
+function runCurrentSheetAction() {
+  const ui = SpreadsheetApp.getUi();
+  const sheetName = normalizeName(SpreadsheetApp.getActiveSheet().getName()).replace(/\s+/g, '');
+  if (['upde', 'upmon', 'decks'].indexOf(sheetName) >= 0) return syncSelectedDecks();
+  if (['chuyenkhoa', 'monhoc', 'subjects'].indexOf(sheetName) >= 0) return syncChuyenKhoa();
+  if (['hinhanh', 'anh', 'picture'].indexOf(sheetName) >= 0) return syncImagesOnly();
+  if (['giamonhoc', 'pricing', 'gia'].indexOf(sheetName) >= 0) return syncPricingOnly();
+  if (['barem', 'baremdapan', 'dapan', 'answerkey'].indexOf(sheetName) >= 0) return testSelectedAnswerKeySource();
+  return ui.alert(
+    'Tab này không có thao tác nhanh',
+    'Hãy mở UpDe, ChuyenKhoa, HinhAnh, GiaMonHoc hoặc Barem rồi chạy lại.',
+    ui.ButtonSet.OK
+  );
 }
 
 function initBaremSheet() {
