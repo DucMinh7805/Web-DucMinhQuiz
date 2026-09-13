@@ -15,26 +15,10 @@ function onOpen() {
 
   ui.createMenu('📝 Lên đề DM|Quiz')
       .addItem('Mở Web quản trị nội dung', 'showQuizContentAdminWebApp')
-      .addItem('Chạy chức năng của tab hiện tại', 'runCurrentSheetAction')
       .addSubMenu(advancedMenu)
       .addToUi();
 
   if (typeof hideQuestionOverrideSheet_ === 'function') hideQuestionOverrideSheet_();
-}
-
-function runCurrentSheetAction() {
-  const ui = SpreadsheetApp.getUi();
-  const sheetName = normalizeName(SpreadsheetApp.getActiveSheet().getName()).replace(/\s+/g, '');
-  if (['upde', 'upmon', 'decks'].indexOf(sheetName) >= 0) return syncSelectedDecks();
-  if (['chuyenkhoa', 'monhoc', 'subjects'].indexOf(sheetName) >= 0) return syncChuyenKhoa();
-  if (['hinhanh', 'anh', 'picture'].indexOf(sheetName) >= 0) return syncImagesOnly();
-  if (['giamonhoc', 'pricing', 'gia'].indexOf(sheetName) >= 0) return syncPricingOnly();
-  if (['barem', 'baremdapan', 'dapan', 'answerkey'].indexOf(sheetName) >= 0) return testSelectedAnswerKeySource();
-  return ui.alert(
-    'Tab này không có thao tác nhanh',
-    'Hãy mở UpDe, ChuyenKhoa, HinhAnh, GiaMonHoc hoặc Barem rồi chạy lại.',
-    ui.ButtonSet.OK
-  );
 }
 
 function initBaremSheet() {

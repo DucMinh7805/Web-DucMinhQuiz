@@ -226,7 +226,7 @@ assert.equal(gasUtils.includes('Array.isArray(grading[3])'), true, 'Short-answer
 assert.equal(gasUtils.includes('findScrapedImageUrl_(it[4][0][1], 0)'), true, 'Inline question or option images need a grading-payload fallback');
 assert.equal(gasUtils.includes('imageMapByIndex[qIdx]'), true, 'Legacy Forms without entry IDs need an index fallback');
 assert.equal(gasUtils.includes('fileCache = null'), true, 'Drive image lookup must reuse the shared in-memory file cache');
-assert.equal(gasMenu.includes("addItem('Chạy chức năng của tab hiện tại', 'runCurrentSheetAction')"), true, 'The quiz Sheet must expose one context-aware action');
+assert.equal(gasMenu.includes("Chạy chức năng của tab hiện tại"), false, 'Per-sheet drawings replace the generic context-aware menu action');
 assert.equal(gasMenu.includes("createMenu('Công cụ ít dùng')"), true, 'Rare quiz operations must be grouped away from the main menu');
 assert.equal(gasMenu.includes('Cài URL, mã quyền và webhook'), false, 'One-time setup must not clutter the quiz menu');
 assert.equal(gasMenu.includes("createMenu('📚 Tài liệu DM|Quiz')"), false, 'The quiz Sheet must not own the document menu');
