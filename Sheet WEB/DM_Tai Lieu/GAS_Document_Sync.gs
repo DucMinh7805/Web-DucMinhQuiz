@@ -126,6 +126,14 @@ function prepareDocumentCatalogSheet_(sheet, currentBooks) {
 }
 
 function getDocumentCatalogContext_(quizSs) {
+  const activeSs = SpreadsheetApp.getActiveSpreadsheet();
+  if (activeSs && activeSs.getId() !== quizSs.getId()) {
+    const activeSheet = findSheetByAliases(activeSs, [DOCUMENT_CATALOG_SHEET_NAME, 'Tài Liệu', 'Tai Lieu', 'Documents', 'Books']);
+    if (activeSheet) {
+      PropertiesService.getScriptProperties().setProperty(DOCUMENT_CATALOG_ID_PROPERTY, activeSs.getId());
+      return { spreadsheet: activeSs, sheet: activeSheet, standalone: true };
+    }
+  }
   const configuredId = String(PropertiesService.getScriptProperties().getProperty(DOCUMENT_CATALOG_ID_PROPERTY) || '').trim();
   if (configuredId) {
     let catalogSs;
@@ -146,6 +154,13 @@ function getDocumentCatalogContext_(quizSs) {
 function createStandaloneDocumentCatalog() {
   const quizSs = SpreadsheetApp.getActiveSpreadsheet();
   const currentBooks = (getDB().manifest.books || []);
+  const activeSheet = findSheetByAliases(quizSs, [DOCUMENT_CATALOG_SHEET_NAME, 'Tài Liệu', 'Tai Lieu', 'Documents', 'Books']);
+  if (activeSheet && quizSs.getSheetByName(DB_SHEET_NAME) === null) {
+    prepareDocumentCatalogSheet_(activeSheet, currentBooks);
+    PropertiesService.getScriptProperties().setProperty(DOCUMENT_CATALOG_ID_PROPERTY, quizSs.getId());
+    SpreadsheetApp.getUi().alert('Đang dùng Sheet Tài Liệu hiện tại', 'Không tạo file trùng. Danh mục hiện tại đã được chuẩn hóa.', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
   const existingId = String(PropertiesService.getScriptProperties().getProperty(DOCUMENT_CATALOG_ID_PROPERTY) || '').trim();
   if (existingId) {
     const existing = SpreadsheetApp.openById(existingId);

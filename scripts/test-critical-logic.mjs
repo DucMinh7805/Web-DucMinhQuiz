@@ -91,6 +91,9 @@ const gasUtils = fs.readFileSync(new URL('../Sheet WEB/DM_Len De/GAS_4_Utils.gs'
 const gasSyncCore = fs.readFileSync(new URL('../Sheet WEB/DM_Len De/GAS_3_Sync.gs', import.meta.url), 'utf8');
 const gasPricing = fs.readFileSync(new URL('../Sheet WEB/DM_Len De/GAS_3_Pricing.gs', import.meta.url), 'utf8');
 const gasDocuments = fs.readFileSync(new URL('../Sheet WEB/DM_Tai Lieu/GAS_Document_Sync.gs', import.meta.url), 'utf8');
+const gasDocumentMenu = fs.readFileSync(new URL('../Sheet WEB/DM_Tai Lieu/GAS_Document_Menu.gs', import.meta.url), 'utf8');
+const gasDocumentDatabase = fs.readFileSync(new URL('../Sheet WEB/DM_Tai Lieu/GAS_Document_Database.gs', import.meta.url), 'utf8');
+const gasDocumentWebSync = fs.readFileSync(new URL('../Sheet WEB/DM_Tai Lieu/GAS_Document_Web_Sync.gs', import.meta.url), 'utf8');
 const gasSync = `${gasSyncCore}\n${gasPricing}\n${gasDocuments}`;
 const gasAuth = fs.readFileSync(new URL('../Sheet WEB/DM_Bao Mat/GAS_User_Auth.gs', import.meta.url), 'utf8');
 const gasAccessAdmin = fs.readFileSync(new URL('../Sheet WEB/DM_Bao Mat/GAS_User_Access_Admin.gs', import.meta.url), 'utf8');
@@ -225,6 +228,11 @@ assert.equal(gasUtils.includes('imageMapByIndex[qIdx]'), true, 'Legacy Forms wit
 assert.equal(gasUtils.includes('fileCache = null'), true, 'Drive image lookup must reuse the shared in-memory file cache');
 assert.equal(gasMenu.includes('Đồng bộ các đề đang bôi đen (khuyên dùng)'), true, 'Selective sync must be visible inside the data-sync menu');
 assert.equal(gasMenu.includes('Sửa barem toàn hệ thống (Forms API)'), true, 'The answer-key repair workflow must be accessible from the Sheet menu');
+assert.equal(gasMenu.includes("createMenu('📚 Tài liệu DM|Quiz')"), false, 'The quiz Sheet must not own the document menu');
+assert.equal(gasDocumentMenu.includes("createMenu('📚 Tài liệu DM|Quiz')"), true, 'The standalone document Sheet must own the document menu');
+assert.equal(gasDocumentMenu.includes("addItem('Đồng bộ tài liệu lên web', 'syncSourcesOnly')"), true, 'Document synchronization must be launched from the document Sheet');
+assert.equal(gasDocumentDatabase.includes('SpreadsheetApp.openById'), true, 'The document project must update the central quiz database instead of creating a local database');
+assert.equal(gasDocumentWebSync.includes("headers: { 'x-content-sync-secret': secret }"), true, 'The standalone document sync must authenticate its website update');
 assert.equal(gasAnswerKeySystem.includes("handler: 'continueAnswerKeyRepair_'"), true, 'Bulk answer repair must resume through a time trigger');
 assert.equal(gasAnswerKeySystem.includes('applyRestAnswerKeysToQuestions_'), true, 'Bulk repair must update existing decks without reprocessing images');
 assert.equal(gasSync.includes('MAX_SELECTED_DECKS_PER_RUN = 10'), true, 'Selective sync must cap batches before Apps Script times out');
