@@ -226,7 +226,7 @@ assert.equal(gasUtils.includes('Array.isArray(grading[3])'), true, 'Short-answer
 assert.equal(gasUtils.includes('findScrapedImageUrl_(it[4][0][1], 0)'), true, 'Inline question or option images need a grading-payload fallback');
 assert.equal(gasUtils.includes('imageMapByIndex[qIdx]'), true, 'Legacy Forms without entry IDs need an index fallback');
 assert.equal(gasUtils.includes('fileCache = null'), true, 'Drive image lookup must reuse the shared in-memory file cache');
-assert.equal(gasMenu.includes("Chạy chức năng của tab hiện tại"), false, 'Per-sheet drawings replace the generic context-aware menu action');
+assert.equal(gasMenu.includes("Chạy chức năng của tab hiện tại"), false, 'Per-sheet drawings must replace the generic current-tab action');
 assert.equal(gasMenu.includes("createMenu('Công cụ ít dùng')"), true, 'Rare quiz operations must be grouped away from the main menu');
 assert.equal(gasMenu.includes('Cài URL, mã quyền và webhook'), false, 'One-time setup must not clutter the quiz menu');
 assert.equal(gasMenu.includes("createMenu('📚 Tài liệu DM|Quiz')"), false, 'The quiz Sheet must not own the document menu');
@@ -348,6 +348,8 @@ assert.equal(gasContentAdmin.includes("createContentBackupSet_('XoaDe'"), false,
 assert.equal(gasContentAdmin.includes("confirmText || '').trim().toUpperCase() !== 'XOA DE'"), true, 'Deck deletion must require explicit confirmation text');
 assert.equal(gasContentAdmin.includes('markDeckSourcesDeleted_(upSheet, subject.name, subject.decks || [])'), true, 'Subject deletion must update deck source statuses in one batch');
 assert.equal(gasApi.includes('renderQuizContentAdminWebApp_'), true, 'Quiz Apps Script must serve the standalone content admin web page');
+assert.equal(gasMenu.includes("action: 'syncSelectedDecks', column: 7"), true, 'UpDe drawing must be restored in a visible column and run selected-deck sync');
+assert.equal(gasMenu.includes('.setWidth(180)'), true, 'Sheet action drawings must be restored to a usable size');
 assert.equal(migrationScript.includes("process.argv.includes('--use-cache')"), true, 'Bulk migration must not silently reuse stale question cache');
 assert.equal(gasApi.includes('Nội dung PRO chỉ được tải qua API máy chủ đã xác thực'), true, 'Public GAS must reject PRO decks');
 assert.equal(gasApi.includes("if (!isPost) throw new Error"), true, 'Internal GAS actions must reject public GET requests');
