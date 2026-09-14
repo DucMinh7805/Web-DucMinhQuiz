@@ -2,6 +2,7 @@
  * =========================================================================
  * BẢNG DỮ LIỆU TRỊ SỐ XÉT NGHIỆM Y KHOA (LAB REFERENCE VALUES)
  * =========================================================================
+ * @deprecated Use API data instead. This is kept only as fallback.
  * HƯỚNG DẪN TỰ CHỈNH SỬA / THÊM MỚI DỮ LIỆU:
  * Bạn có thể dễ dàng thay đổi số liệu, tên xét nghiệm hoặc thêm ảnh bằng cách sửa các object bên dưới:
  * 
@@ -14,6 +15,33 @@
  *   image: '/images/xet-nghiem-1.png'   // Link ảnh hoặc file trong thư mục /public (tùy chọn)
  * }
  */
+
+export function transformFallbackData(categories) {
+  return categories.map((cat, i) => ({
+    _id: cat.id,
+    name: cat.name,
+    slug: cat.id,
+    description: cat.subtitle || '',
+    image: cat.image || '',
+    order: i,
+    sections: [{
+      _id: `${cat.id}-default`,
+      name: cat.name,
+      tests: cat.tests.map((test, j) => ({
+        _id: test.id,
+        name: test.name,
+        shortName: '',
+        unit: test.unit,
+        specimen: '',
+        interpretations: [
+          { type: 'reference', label: 'Khoảng tham chiếu', referenceText: test.normal, unit: test.unit },
+          ...(test.notes ? [{ type: 'interpretation', label: 'Ý nghĩa lâm sàng', meaning: test.notes }] : [])
+        ],
+        order: j
+      }))
+    }]
+  }));
+}
 
 export const LAB_CATEGORIES = [
   {

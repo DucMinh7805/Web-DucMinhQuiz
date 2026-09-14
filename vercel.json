@@ -16,6 +16,14 @@
       "continue": true
     },
     {
+      "src": "/api/admin/lab-values",
+      "dest": "/api/admin/content?module=lab-values"
+    },
+    {
+      "src": "/api/lab-values",
+      "dest": "/api/quiz/manifest?module=lab-values"
+    },
+    {
       "handle": "filesystem"
     },
     {

@@ -16,6 +16,7 @@ const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const ThankYouPage = lazy(() => import('./pages/ThankYouPage'));
 const AdminContentPage = lazy(() => import('./pages/AdminContentPage'));
 const AdminIssuesPage = lazy(() => import('./pages/AdminIssuesPage'));
+const AdminLabValuesPage = lazy(() => import('./pages/AdminLabValuesPage'));
 import AuthModalGuard from './components/Auth/AuthModalGuard';
 import AuthGuard from './components/Auth/AuthGuard';
 import AdminGuard from './components/Auth/AdminGuard';
@@ -164,6 +165,12 @@ export default function App() {
                   <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                   <Route path="/thank-you" element={<ThankYouPage />} />
 
+                  {/* Lab pages — independent of quiz manifest */}
+                  <Route element={<MainLayout />}>
+                    <Route path="/lab-values" element={<LabValuesPage />} />
+                    <Route path="/admin/lab-values" element={<AdminGuard><AdminLabValuesPage /></AdminGuard>} />
+                  </Route>
+
                   {/* Layout chính — duyệt tự do, không cần đăng nhập */}
                   <Route
                     element={
@@ -175,7 +182,6 @@ export default function App() {
                     {/* TRANG CÔNG KHAI — xem tự do */}
                     <Route path="/" element={<HomePage />} />
                     <Route path="/graph" element={<KnowledgeGraphPage />} />
-                    <Route path="/lab-values" element={<LabValuesPage />} />
 
                     {/* TRANG CẦN ĐĂNG NHẬP — hiện popup nếu chưa login */}
                     <Route path="/category/:id" element={<AuthModalGuard message="Đăng nhập để xem chuyên khoa và bắt đầu luyện đề."><CategoryPage /></AuthModalGuard>} />

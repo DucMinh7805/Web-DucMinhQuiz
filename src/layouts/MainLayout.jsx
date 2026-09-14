@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { 
   Home, User, LogOut, Bookmark, Activity, 
   Menu, X, PanelLeftClose, Sun, Moon,
-  Network, Search, BookOpen, ShieldCheck
+  Network, Search, BookOpen, ShieldCheck, FlaskConical
 } from 'lucide-react';
 import GlobalSearchModal from '../components/Search/GlobalSearchModal';
 import FloatingContactButton from '../components/Common/FloatingContactButton';
@@ -94,6 +94,11 @@ export default function MainLayout({ manifest }) {
       label: 'Hàng chờ lỗi',
       icon: Bookmark,
       isActive: location.pathname === '/admin/issues'
+    }, {
+      to: '/admin/lab-values',
+      label: 'Quản lý Trị số',
+      icon: FlaskConical,
+      isActive: location.pathname === '/admin/lab-values'
     }] : [])
   ];
 

@@ -1,8 +1,10 @@
 import { connectToDatabase } from '../_utils/db.js';
 import { Subject, Deck, Book } from '../_models/index.js';
 import { enforceGlobalApiRateLimit } from '../_utils/rateLimiter.js';
+import labValuesPublicHandler from '../_utils/labValuesPublicHandler.js';
 
 export default async function handler(req, res) {
+  if (req.query?.module === 'lab-values') return labValuesPublicHandler(req, res);
   if (!enforceGlobalApiRateLimit(req, res)) return;
   // Danh mục là dữ liệu công khai, giống nhau cho mọi người. Giữ trình duyệt
   // luôn kiểm tra lại. Chỉ giữ manifest 10 giây để đề vừa đồng bộ không bị
