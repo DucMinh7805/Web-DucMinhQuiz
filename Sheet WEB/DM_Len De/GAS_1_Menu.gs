@@ -1,4 +1,5 @@
 const DB_SHEET_NAME = 'Database_JSON';
+const QUICK_ACTION_BUTTON_URL_ = 'https://web-duc-minh-quiz.vercel.app/logo_DM.png';
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
@@ -19,11 +20,11 @@ function onOpen() {
       .addToUi();
 
   // Giữ nút nổi của từng tab ở vị trí dễ thấy và gắn đúng chức năng.
-  repairSheetActionButtons_();
+  repairSheetActionButtons();
   if (typeof hideQuestionOverrideSheet_ === 'function') hideQuestionOverrideSheet_();
 }
 
-function repairSheetActionButtons_() {
+function repairSheetActionButtons() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const configs = [
     { aliases: ['ChuyenKhoa', 'Chuyên Khoa', 'MonHoc', 'Môn Học', 'Subjects'], action: 'syncChuyenKhoa', column: 9 },
@@ -37,18 +38,29 @@ function repairSheetActionButtons_() {
     const sheet = findSheetByAliases(ss, config.aliases);
     if (!sheet) return;
     try {
+      // Bản vẽ cũ của Google Sheets có thể trở nên trong suốt và chặn chuột.
+      // Thu nhỏ nó ra cuối Sheet, sau đó dùng OverGridImage ổn định hơn.
       const drawings = sheet.getDrawings();
-      if (!drawings.length) return;
+      if (drawings.length) {
+        drawings[0]
+          .setWidth(1)
+          .setHeight(1)
+          .setPosition(1, sheet.getMaxColumns(), 0, 0)
+          .setZIndex(0);
+      }
 
-      // Mỗi tab chỉ dùng một nút thao tác nhanh. Nếu file cũ lỡ có nhiều bản
-      // vẽ, chỉ sửa nút đầu tiên để không thay đổi nội dung trang tính khác.
-      const drawing = drawings[0];
-      drawing
-        .setOnAction(config.action)
-        .setWidth(180)
-        .setHeight(44)
-        .setPosition(1, config.column, 4, 4)
-        .setZIndex(100);
+      const title = 'DiamondQuizActionButton';
+      const existingButtons = sheet.getImages().filter(image => image.getAltTextTitle() === title);
+      const button = existingButtons[0] || sheet.insertImage(QUICK_ACTION_BUTTON_URL_, config.column, 1, 4, 4);
+      button
+        .setAltTextTitle(title)
+        .setAltTextDescription('Chạy chức năng của tab ' + sheet.getName())
+        .setAnchorCell(sheet.getRange(1, config.column))
+        .setAnchorCellXOffset(4)
+        .setAnchorCellYOffset(4)
+        .setWidth(160)
+        .setHeight(80)
+        .assignScript(config.action);
     } catch (error) {
       console.warn('Không thể khôi phục nút nhanh của tab ' + sheet.getName() + ': ' + error.message);
     }
