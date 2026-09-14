@@ -1,32 +1,53 @@
 import { useState, useMemo } from 'react';
-import { LAB_CATEGORIES } from '../../data/labValuesData';
+import { LAB_CATEGORIES as FALLBACK_DATA, transformFallbackData } from '../../data/labValuesData';
+import { fetchLabValues } from '../../services/labValuesApi';
+import { useQuery } from '@tanstack/react-query';
 import { Search, X, Activity, BookOpen, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function LabValuesModal({ isOpen, onClose }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeTopic, setActiveTopic] = useState('all');
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['lab-values-public'],
+    queryFn: async () => {
+      const res = await fetchLabValues();
+      return res.data;
+    },
+    staleTime: 60_000,
+  });
+
+  const topics = useMemo(() => {
+    return data?.topics || transformFallbackData(FALLBACK_DATA);
+  }, [data]);
 
   const filteredTests = useMemo(() => {
     let list = [];
-    LAB_CATEGORIES.forEach(cat => {
-      if (activeCategory === 'all' || activeCategory === cat.id) {
-        cat.tests.forEach(test => {
-          list.push({ ...test, categoryName: cat.name });
+    topics.forEach(topic => {
+      if (activeTopic === 'all' || activeTopic === topic._id) {
+        topic.sections?.forEach(sec => {
+          sec.tests?.forEach(test => {
+            list.push({ ...test, topicName: topic.name });
+          });
         });
       }
     });
 
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
-      list = list.filter(t => 
-        t.name.toLowerCase().includes(term) || 
-        t.normal.toLowerCase().includes(term) ||
-        (t.notes && t.notes.toLowerCase().includes(term))
-      );
+      list = list.filter(t => {
+        const matchName = t.name.toLowerCase().includes(term);
+        const matchShort = t.shortName?.toLowerCase().includes(term);
+        const matchInterp = t.interpretations?.some(i =>
+          i.referenceText?.toLowerCase().includes(term) ||
+          i.meaning?.toLowerCase().includes(term)
+        );
+        return matchName || matchShort || matchInterp;
+      });
     }
     return list;
-  }, [activeCategory, searchTerm]);
+  }, [activeTopic, searchTerm, topics]);
 
   if (!isOpen) return null;
 
@@ -84,26 +105,26 @@ export default function LabValuesModal({ isOpen, onClose }) {
             {/* Category Filter Pills */}
             <div className="flex flex-wrap gap-2 pt-1">
               <button
-                onClick={() => setActiveCategory('all')}
+                onClick={() => setActiveTopic('all')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                  activeCategory === 'all'
+                  activeTopic === 'all'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
-                Tất cả ({LAB_CATEGORIES.reduce((sum, c) => sum + c.tests.length, 0)})
+                Tất cả ({topics.reduce((sum, topic) => sum + (topic.sections?.reduce((s, sec) => s + (sec.tests?.length || 0), 0) || 0), 0)})
               </button>
-              {LAB_CATEGORIES.map(cat => (
+              {topics.map(topic => (
                 <button
-                  key={cat.id}
-                  onClick={() => setActiveCategory(cat.id)}
+                  key={topic._id}
+                  onClick={() => setActiveTopic(topic._id)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                    activeCategory === cat.id
+                    activeTopic === topic._id
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
-                  {cat.name}
+                  {topic.name}
                 </button>
               ))}
             </div>
@@ -111,34 +132,47 @@ export default function LabValuesModal({ isOpen, onClose }) {
 
           {/* Test List Table */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 divide-y divide-slate-100">
-            {filteredTests.length > 0 ? (
+            {isLoading && topics.length === 0 ? (
+              <div className="flex justify-center p-12">
+                <div className="w-8 h-8 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
+              </div>
+            ) : filteredTests.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {filteredTests.map((test, index) => (
-                  <div
-                    key={index}
-                    className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <h4 className="font-bold text-slate-800 text-sm leading-snug">{test.name}</h4>
-                        {test.unit && (
-                          <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md shrink-0">
-                            {test.unit}
-                          </span>
+                {filteredTests.map((test, index) => {
+                  const refInterp = test.interpretations?.find(i => i.type === 'reference');
+                  const meaningInterp = test.interpretations?.find(i => i.type === 'interpretation');
+
+                  return (
+                    <div
+                      key={test._id || index}
+                      className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <h4 className="font-bold text-slate-800 text-sm leading-snug">
+                            {test.name} {test.shortName && `(${test.shortName})`}
+                          </h4>
+                          {test.unit && (
+                            <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md shrink-0">
+                              {test.unit}
+                            </span>
+                          )}
+                        </div>
+                        {refInterp && (
+                          <div className="text-sm font-semibold text-emerald-700 bg-emerald-50/70 border border-emerald-100 px-2.5 py-1.5 rounded-lg mb-2 whitespace-pre-line">
+                            {refInterp.referenceText}
+                          </div>
                         )}
                       </div>
-                      <div className="text-sm font-semibold text-emerald-700 bg-emerald-50/70 border border-emerald-100 px-2.5 py-1.5 rounded-lg mb-2">
-                        {test.normal}
-                      </div>
+                      {meaningInterp && (
+                        <div className="text-xs text-slate-500 flex items-start mt-1 pt-2 border-t border-slate-50">
+                          <Info className="w-3.5 h-3.5 text-slate-400 mr-1.5 shrink-0 mt-0.5" />
+                          <span className="whitespace-pre-line line-clamp-3 hover:line-clamp-none transition-all">{meaningInterp.meaning}</span>
+                        </div>
+                      )}
                     </div>
-                    {test.notes && (
-                      <div className="text-xs text-slate-500 flex items-start mt-1 pt-2 border-t border-slate-50">
-                        <Info className="w-3.5 h-3.5 text-slate-400 mr-1.5 shrink-0 mt-0.5" />
-                        <span>{test.notes}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="py-12 text-center text-slate-400">

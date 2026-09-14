@@ -7,6 +7,7 @@ import { compareQuestionDraft, validateQuestionDraft } from '../../shared/questi
 import { editorDraftToQuestionChanges, questionSnapshot } from '../_utils/questionWorkflow.js';
 import { enqueueN8nEvent, enqueueOutboxEvent } from '../_utils/outbox.js';
 import { importsRoute, issuesRoute, revisionsRoute } from '../_utils/adminQueueRoutes.js';
+import adminLabValuesHandler from '../_utils/adminLabValuesHandler.js';
 
 function escapeRegExp(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -208,6 +209,7 @@ async function handlePatch(req, res, admin) {
 }
 
 export default async function handler(req, res) {
+  if (req.query?.module === 'lab-values') return adminLabValuesHandler(req, res);
   if (!enforceGlobalApiRateLimit(req, res)) return;
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.setHeader('Vary', 'Cookie, Authorization');

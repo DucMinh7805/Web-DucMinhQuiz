@@ -9,12 +9,12 @@ const auditLogSchema = new mongoose.Schema({
   },
   action: { 
     type: String, 
-    enum: ['CREATE', 'UPDATE', 'DELETE', 'PUBLISH', 'UNPUBLISH', 'IMPORT'], 
+    enum: ['CREATE', 'UPDATE', 'DELETE', 'PUBLISH', 'UNPUBLISH', 'IMPORT', 'RESTORE', 'ARCHIVE'],
     required: true 
   },
   targetCollection: { 
     type: String, 
-    enum: ['Subject', 'Deck', 'Question', 'QuestionIssue', 'QuestionImport', 'User'],
+    enum: ['Subject', 'Deck', 'Question', 'QuestionIssue', 'QuestionImport', 'User', 'LabTopic', 'LabSection', 'LabTest', 'LabInterpretation', 'LabPublishSnapshot'],
     required: true 
   },
   targetId: { 

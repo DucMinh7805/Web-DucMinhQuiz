@@ -5,8 +5,11 @@ import {
   ArrowRight, X, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LAB_CATEGORIES } from '../../data/labValuesData';
+import { LAB_CATEGORIES as FALLBACK_DATA, transformFallbackData } from '../../data/labValuesData';
 import { useAuth } from '../../context/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { fetchLabValues } from '../../services/labValuesApi';
+import { normalizeSearchQuery, matchesSearch } from '@shared/labNormalize.js';
 
 export default function GlobalSearchModal({ isOpen, onClose, manifest }) {
   const [query, setQuery] = useState('');
@@ -14,6 +17,20 @@ export default function GlobalSearchModal({ isOpen, onClose, manifest }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const inputRef = useRef(null);
+
+  const { data: labData } = useQuery({
+    queryKey: ['lab-values-public'],
+    queryFn: async () => {
+      const res = await fetchLabValues();
+      return res.data;
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen
+  });
+
+  const labTopics = useMemo(() => {
+    return labData?.topics || transformFallbackData(FALLBACK_DATA);
+  }, [labData]);
 
   // Focus input on open
   useEffect(() => {
@@ -146,24 +163,20 @@ export default function GlobalSearchModal({ isOpen, onClose, manifest }) {
     }
 
     // 2. Tìm Trị số Xét nghiệm (Lab Values)
-    if (Array.isArray(LAB_CATEGORIES)) {
-      LAB_CATEGORIES.forEach(cat => {
-        if (Array.isArray(cat?.tests)) {
-          cat.tests.forEach(test => {
-            const testName = String(test?.name || '');
-            const testNormal = String(test?.normal || '');
-            const testNotes = String(test?.notes || '');
-            if (
-              testName.toLowerCase().includes(q) ||
-              testNormal.toLowerCase().includes(q) ||
-              testNotes.toLowerCase().includes(q)
-            ) {
+    if (Array.isArray(labTopics)) {
+      const normQ = normalizeSearchQuery(q);
+      labTopics.forEach(topic => {
+        topic.sections?.forEach(sec => {
+          sec.tests?.forEach(test => {
+            if (matchesSearch(test, normQ)) {
+              const refInterp = test.interpretations?.find(i => i.type === 'reference');
+              const testNormal = refInterp ? String(refInterp.referenceText || '') : '';
               list.push({
-                id: `lab-${testName}`,
+                id: `lab-${test._id || test.name}`,
                 type: 'lab',
-                title: testName,
-                subtitle: `${cat.name || 'Xét nghiệm'} • Chuẩn: ${testNormal}`,
-                badge: test.unit || 'Lab',
+                title: `${test.name}${test.shortName ? ` (${test.shortName})` : ''}`,
+                subtitle: `${topic.name || 'Xét nghiệm'} • Chuẩn: ${testNormal}`,
+                badge: test.unit || refInterp?.unit || 'Lab',
                 icon: Activity,
                 iconColor: 'text-emerald-500 bg-emerald-500/10',
                 action: () => {
@@ -173,7 +186,7 @@ export default function GlobalSearchModal({ isOpen, onClose, manifest }) {
               });
             }
           });
-        }
+        });
       });
     }
 
@@ -206,7 +219,7 @@ export default function GlobalSearchModal({ isOpen, onClose, manifest }) {
     }
 
     return list.slice(0, 15);
-  }, [query, manifest, user, navigate, onClose]);
+  }, [query, manifest, labTopics, user, navigate, onClose]);
 
   // Keyboard navigation inside modal
   useEffect(() => {
