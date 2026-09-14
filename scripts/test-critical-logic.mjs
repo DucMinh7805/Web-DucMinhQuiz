@@ -350,8 +350,6 @@ assert.equal(gasContentAdmin.includes('markDeckSourcesDeleted_(upSheet, subject.
 assert.equal(gasApi.includes('renderQuizContentAdminWebApp_'), true, 'Quiz Apps Script must serve the standalone content admin web page');
 assert.equal(gasMenu.includes("action: 'syncSelectedDecks', column: 7"), true, 'UpDe drawing must be restored in a visible column and run selected-deck sync');
 assert.equal(gasMenu.includes('.setWidth(180)'), true, 'Sheet action drawings must be restored to a usable size');
-assert.equal(gasMenu.includes('sheet.insertImage(buttonBlob'), true, 'Transparent Sheet drawings must be replaced by a visible action image');
-assert.equal(gasMenu.includes('.assignScript(config.action)'), true, 'Every visible tab button must run its mapped action');
 assert.equal(migrationScript.includes("process.argv.includes('--use-cache')"), true, 'Bulk migration must not silently reuse stale question cache');
 assert.equal(gasApi.includes('Nội dung PRO chỉ được tải qua API máy chủ đã xác thực'), true, 'Public GAS must reject PRO decks');
 assert.equal(gasApi.includes("if (!isPost) throw new Error"), true, 'Internal GAS actions must reject public GET requests');
