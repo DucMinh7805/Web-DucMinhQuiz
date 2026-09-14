@@ -31,6 +31,38 @@ function getModel(type) {
   return getModelByTargetType(TARGET_TYPE_MAP[type]);
 }
 
+async function attachTestCounts(type, data) {
+  if (!Array.isArray(data) || data.length === 0) return data;
+
+  if (type === 'section') {
+    const sectionIds = data.map(item => item._id);
+    const counts = await LabTest.aggregate([
+      { $match: { sectionId: { $in: sectionIds } } },
+      { $group: { _id: '$sectionId', testCount: { $sum: 1 } } }
+    ]);
+    const countBySection = new Map(counts.map(item => [String(item._id), item.testCount]));
+    return data.map(item => ({ ...item, testCount: countBySection.get(String(item._id)) || 0 }));
+  }
+
+  if (type === 'topic') {
+    const topicIds = data.map(item => item._id);
+    const sections = await LabSection.find({ topicId: { $in: topicIds } }).select('_id topicId').lean();
+    const topicBySection = new Map(sections.map(section => [String(section._id), String(section.topicId)]));
+    const counts = sections.length > 0 ? await LabTest.aggregate([
+      { $match: { sectionId: { $in: sections.map(section => section._id) } } },
+      { $group: { _id: '$sectionId', testCount: { $sum: 1 } } }
+    ]) : [];
+    const countByTopic = new Map();
+    for (const item of counts) {
+      const topicId = topicBySection.get(String(item._id));
+      if (topicId) countByTopic.set(topicId, (countByTopic.get(topicId) || 0) + item.testCount);
+    }
+    return data.map(item => ({ ...item, testCount: countByTopic.get(String(item._id)) || 0 }));
+  }
+
+  return data;
+}
+
 async function runInTransaction(work) {
   const session = await mongoose.startSession();
   try {
@@ -636,10 +668,11 @@ async function handleGet(req, res) {
     mQuery = mQuery.populate({ path: 'sectionId', select: 'name topicId', populate: { path: 'topicId', select: 'name' } });
   }
 
-  const [total, data] = await Promise.all([
+  const [total, rawData] = await Promise.all([
     Model.countDocuments(filter),
     mQuery.lean()
   ]);
+  const data = await attachTestCounts(type, rawData);
 
   return res.status(200).json({
     success: true,

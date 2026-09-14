@@ -52,6 +52,8 @@ assert.match(backendSource, /resource === 'save-test'/, 'Editor phải có API l
 assert.match(backendSource, /status: 'draft'/, 'Luồng xuất bản phải chỉ lấy dữ liệu nháp.');
 assert.match(backendSource, /acknowledgedWarnings/, 'Backend phải tự kiểm tra xác nhận cảnh báo.');
 assert.match(backendSource, /existingSignatures/, 'Nhập lại cùng file phải chống trùng diễn giải.');
+assert.match(backendSource, /attachTestCounts/, 'API Admin phải trả số trị số đúng cho chủ đề và nhóm.');
+assert.match(backendSource, /countByTopic/, 'Số trị số chủ đề phải được cộng từ mọi nhóm con.');
 
 console.log(`✓ Lab parser: ${entries.length} dòng nguồn → ${classified.newEntries.length} chỉ số + ${mergedRows} dòng diễn giải gộp`);
 console.log('✓ Phân loại theo ngữ cảnh, chống mất dòng, transaction và chặn publish đã được kiểm tra');
