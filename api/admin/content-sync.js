@@ -500,8 +500,12 @@ async function upsertDeck(manifest, deckPath, rawQuestions, { replaceFormSource 
     if (deckDoc.totalQuestions !== questions.length) {
       await Deck.updateOne({ _id: deckDoc._id }, { $set: { totalQuestions: questions.length } });
     }
+    const selectedComplete = replaceFormSource && counts.published + counts.unchanged === questions.length
+      && counts.conflict === 0 && counts.missing === 0;
     await Deck.updateOne(
-      { _id: deckDoc._id, sourceState: 'source_missing', archivedReason: 'Không còn trong nguồn nhập' },
+      selectedComplete
+        ? { _id: deckDoc._id, isPublished: false }
+        : { _id: deckDoc._id, sourceState: 'source_missing', archivedReason: 'Không còn trong nguồn nhập' },
       { $set: { sourceState: 'synced', archivedAt: null, archivedReason: '', isPublished: true } }
     );
   }
