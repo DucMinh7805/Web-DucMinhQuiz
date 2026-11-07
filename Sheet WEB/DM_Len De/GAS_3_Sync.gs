@@ -78,6 +78,14 @@ function compactSyncMessage_(value, maxLength) {
   return text.length > limit ? text.substring(0, limit - 1) + '…' : text;
 }
 
+function formatPendingDeckReviews_(result, count) {
+  const reviews = result.candidates;
+  const details = reviews
+    ? [reviews.conflict > 0 && `${reviews.conflict} xung đột`, reviews.missing > 0 && `${reviews.missing} thiếu liên kết nguồn`].filter(Boolean).join(', ')
+    : `${result.pendingReviews} mục`;
+  return `⚠️ Đã lên app ${Number(result.publishedQuestions) || 0}/${count} câu; chờ duyệt: ${details}`;
+}
+
 // Cập nhật các dòng đang bôi đen (1 dòng hoặc nhiều dòng cùng lúc)
 function syncSelectedDecks() {
   const ui = SpreadsheetApp.getUi();
@@ -146,7 +154,6 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
   const newAllDecksData = Object.assign({}, allDecksData);
   let fetched = 0, reused = 0;
   const changedDeckPaths = [];
-  const deckRowsByPath = {};
   const deckSyncResults = {};
   const deckReadErrors = {};
   const deckData = deckSheet.getDataRange().getValues();
@@ -201,7 +208,6 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
         const subjectId = newSubjectsMap[subKey].id;
         const deckId = generateSlug(deckName, `DE_${i}`);
         const deckPath = `${subjectId}/${deckId}`;
-        deckRowsByPath[deckPath] = i + 1;
         
         const tagsStr = String(row[5] || '').trim(); // Cột F là Tags
         const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(t => t) : [];
@@ -287,29 +293,22 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
 
   const webSyncWarnings = [];
   if (notifyWeb && typeof pushContentSyncToWeb_ === 'function') {
-    const manifestSync = pushContentSyncToWeb_({ operation: 'syncManifest', manifest: manifest });
+    const manifestSync = pushContentSyncToWeb_({
+      operation: targetUrls ? 'mergeManifest' : 'syncManifest',
+      manifest: manifest
+    });
     if (!manifestSync.success) webSyncWarnings.push(manifestSync.message);
     changedDeckPaths.forEach(path => {
       const deckSync = pushContentSyncToWeb_({
         operation: 'upsertDeck',
         manifest: manifest,
+        manifestAlreadySynced: manifestSync.success === true,
+        replaceFormSource: Boolean(targetUrls),
         deckPath: path,
         questions: parseDeckQuestions_(newAllDecksData[path])
       });
       deckSyncResults[path] = deckSync;
       if (!deckSync.success) webSyncWarnings.push(path + ': ' + deckSync.message);
-      if (targetUrls && deckRowsByPath[path]) {
-        const parsedQuestions = parseDeckQuestions_(newAllDecksData[path]);
-        const publishedQuestions = deckSync.result && Number(deckSync.result.publishedQuestions);
-        const pendingReviews = deckSync.result && Number(deckSync.result.pendingReviews);
-        const statusText = !deckSync.success
-          ? `❌ Web chưa nhận: ${compactSyncMessage_(deckSync.message, 90)}`
-          : pendingReviews > 0
-            ? `⚠️ Đã lên app ${publishedQuestions || 0}/${parsedQuestions.length} câu; ${pendingReviews} câu chờ duyệt xung đột`
-            : `✅ Đã lên app (${publishedQuestions || parsedQuestions.length} câu)`;
-        deckSheet.getRange(deckRowsByPath[path], 5).setValue(statusText);
-        SpreadsheetApp.flush();
-      }
     });
   }
 
@@ -354,11 +353,19 @@ function runUpDeSync(isSmartSync, targetUrls = null, showToast = true, notifyWeb
             if (Array.isArray(parsed)) {
               if (parsed.length > 0) {
                 const syncResult = deckSyncResults[deckPath] && deckSyncResults[deckPath].result;
+                if (!syncResult || !Number.isFinite(Number(syncResult.publishedQuestions))) {
+                  statusValues.push([selectedThisRun || changedDeckPaths.indexOf(deckPath) >= 0
+                    ? '⏳ Đã đọc Form, chưa xác nhận trên web'
+                    : existingStatus || '⏳ Chưa xác nhận trên web']);
+                  continue;
+                }
                 const pendingReviews = syncResult && Number(syncResult.pendingReviews);
                 const publishedQuestions = syncResult && Number(syncResult.publishedQuestions);
                 statusValues.push([pendingReviews > 0
-                  ? `⚠️ Đã lên app ${publishedQuestions || 0}/${parsed.length} câu; ${pendingReviews} câu chờ duyệt xung đột`
-                  : `✅ Đã lên app (${publishedQuestions || parsed.length} câu)`]);
+                  ? formatPendingDeckReviews_(syncResult, parsed.length)
+                  : publishedQuestions === parsed.length
+                    ? `✅ Đã lên app (${publishedQuestions} câu)`
+                    : `⚠️ Web xác nhận ${publishedQuestions}/${parsed.length} câu`]);
               } else {
                 statusValues.push([`⚠️ Form chưa có câu hỏi`]);
               }
@@ -468,6 +475,15 @@ function syncImagesOnly(showToast = true) {
 // -------------------------------------------------------------------------
 // TASK: XÓA ĐỀ THI LINH HOẠT (Chạy trên Sheet)
 // -------------------------------------------------------------------------
+function removeDeckOverrides_(ss, deckPath) {
+  const sheet = ss.getSheetByName('Question_Overrides');
+  if (!sheet || sheet.getLastRow() <= 1) return;
+  const paths = sheet.getRange(2, 4, sheet.getLastRow() - 1, 1).getValues();
+  for (let i = paths.length - 1; i >= 0; i--) {
+    if (String(paths[i][0] || '').trim().toLowerCase() === deckPath.toLowerCase()) sheet.deleteRow(i + 2);
+  }
+}
+
 function deleteSelectedDecks() {
   const ui = SpreadsheetApp.getUi();
   const sheet = SpreadsheetApp.getActiveSheet();
@@ -490,7 +506,6 @@ function deleteSelectedDecks() {
   const selectedValues = sheet.getRange(startRow, 1, numRows, Math.max(sheet.getLastColumn(), 6)).getValues();
   let deletedCount = 0;
   const statusUpdates = [];
-  const deletedPaths = [];
 
   
   for (let r = 0; r < numRows; r++) {
@@ -543,6 +558,17 @@ function deleteSelectedDecks() {
       continue;
     }
 
+    if (typeof pushContentSyncToWeb_ !== 'function') {
+      statusUpdates.push(['❌ Không kết nối được API xóa đề.']);
+      continue;
+    }
+    const webDelete = pushContentSyncToWeb_({ operation: 'deleteDeck', deckPath: deckPath });
+    if (!webDelete.success || !webDelete.result || typeof webDelete.result.deletedQuestions !== 'number') {
+      statusUpdates.push([`❌ Chưa xác nhận xóa vĩnh viễn: ${compactSyncMessage_(webDelete.message, 90)}`]);
+      continue;
+    }
+    removeDeckOverrides_(ss, deckPath);
+
     if (Object.prototype.hasOwnProperty.call(allDecksData, deckPath)) {
       delete allDecksData[deckPath];
     }
@@ -554,15 +580,11 @@ function deleteSelectedDecks() {
       return String(deck.id || '').trim() !== targetId;
     });
     deletedCount++;
-    deletedPaths.push(deckPath);
     statusUpdates.push(["🗑️ Đã xóa khỏi Database"]);
   }
 
   if (deletedCount > 0) {
     saveDB(dbSheet, manifest, allDecksData);
-    if (typeof pushContentSyncToWeb_ === 'function') {
-      deletedPaths.forEach(path => pushContentSyncToWeb_({ operation: 'deleteDeck', deckPath: path, manifest: manifest }));
-    }
   }
 
   sheet.getRange(startRow, 5, statusUpdates.length, 1).setValues(statusUpdates);

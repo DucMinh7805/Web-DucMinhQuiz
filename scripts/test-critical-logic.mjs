@@ -431,7 +431,12 @@ assert.equal(validateQuestionDraft(inspectedDraft).valid, true, 'A complete answ
 const majorChange = compareQuestionDraft({ question: 'Câu cũ?', options: [{ text: 'A', isCorrect: true }, { text: 'B', isCorrect: false }] }, inspectedDraft);
 assert.equal(majorChange.suggestedMode, 'replace', 'Large semantic changes must suggest Replace');
 const contentSyncSource = fs.readFileSync(new URL('../api/admin/content-sync.js', import.meta.url), 'utf8');
-assert.equal(contentSyncSource.includes('Question.deleteMany'), false, 'Source sync must never hard-delete questions');
+const manifestPruneSource = contentSyncSource.slice(
+  contentSyncSource.indexOf('async function pruneMissingManifestContent'),
+  contentSyncSource.indexOf('async function syncManifest')
+);
+assert.equal(/\.delete(?:One|Many)\(/.test(manifestPruneSource), false, 'Missing manifest entries must never trigger permanent deletion');
+assert.equal(contentSyncSource.includes('Question.deleteMany({ _id: { $in: questionIds } }, { session })'), true, 'Explicit deletion must be scoped to the selected question IDs');
 assert.equal(contentSyncSource.includes('Deck.deleteMany'), false, 'Source sync must never hard-delete decks');
 
 console.log('Critical logic tests passed.');

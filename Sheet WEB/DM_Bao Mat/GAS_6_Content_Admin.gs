@@ -154,11 +154,15 @@ function adminDeleteDeck(form) {
   if (!owner || !deck) throw new Error('Không tìm thấy đúng bộ đề.');
   var ss = db.ss;
   var upSheet = findSheetByAliases(ss, QUIZ_ADMIN_CONFIG.DECK_SHEETS);
+  var syncResult = pushContentSyncToWeb_({ operation: 'deleteDeck', deckPath: deckPath });
+  if (!syncResult.success || !syncResult.result || typeof syncResult.result.deletedQuestions !== 'number') {
+    throw new Error('Web chưa xác nhận xóa vĩnh viễn: ' + syncResult.message);
+  }
+  removeDeckOverrides_(ss, deckPath);
   delete db.allDecksData[deckPath];
   owner.decks = (owner.decks || []).filter(function(item) { return String(item.path) !== deckPath; });
   markDeckSourcesDeleted_(upSheet, owner.name, [deck]);
   saveDB(db.dbSheet, db.manifest, db.allDecksData);
-  var syncResult = pushContentSyncToWeb_({ operation: 'deleteDeck', deckPath: deckPath, manifest: db.manifest });
   return actionResult_('Đã xóa vĩnh viễn đề “' + String(deck.name || deck.title) + '”.', syncResult);
 }
 

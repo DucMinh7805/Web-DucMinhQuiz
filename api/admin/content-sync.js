@@ -1,12 +1,13 @@
 import crypto from 'node:crypto';
+import mongoose from 'mongoose';
 import { connectToDatabase } from '../_utils/db.js';
-import { Book, Deck, Question, QuestionImport, Subject } from '../_models/index.js';
+import { Book, Deck, Question, QuestionImport, QuestionRevision, Subject } from '../_models/index.js';
 import { enforceGlobalApiRateLimit } from '../_utils/rateLimiter.js';
 import { createPublicQuestionId, normalizeSourceQuestionId } from '../_utils/questionIdentity.js';
 import { getQuestionImageVariants } from '../_utils/imageUrl.js';
 import { questionSnapshot, stableHash } from '../_utils/questionWorkflow.js';
 
-const ALLOWED_OPERATIONS = new Set(['syncManifest', 'upsertDeck', 'deleteDeck', 'deleteSubject']);
+const ALLOWED_OPERATIONS = new Set(['syncManifest', 'mergeManifest', 'upsertDeck', 'deleteDeck', 'deleteSubject']);
 export const config = { maxDuration: 60 };
 
 export function isLocallyManagedQuestion(question) {
@@ -25,8 +26,22 @@ function applyIncomingLocation(question, incoming) {
     deckPath: incoming.deckPath,
     qId: incoming.qId,
     sourceQuestionId: incoming.sourceQuestionId || question.sourceQuestionId,
-    publicId: incoming.publicId || question.publicId,
+    publicId: question.publicId || incoming.publicId,
     orderIndex: incoming.orderIndex
+  });
+}
+
+function questionMatchKey(question) {
+  const item = questionSnapshot(question);
+  // A copied Form can also change image URLs and grading metadata. Require
+  // the visible prompt, choices and answer to agree before reusing identity.
+  return stableHash({
+    type: item.type,
+    question: item.question,
+    vignette: item.vignette,
+    options: item.options,
+    correctOptionIds: item.correctOptionIds,
+    acceptedShortAnswers: item.acceptedShortAnswers
   });
 }
 
@@ -255,7 +270,48 @@ async function syncManifest(manifest, { prune = false } = {}) {
   return { subjects: subjects.length, books: books.length, decks: deckOps.length, ...deleted };
 }
 
-async function upsertDeck(manifest, deckPath, rawQuestions) {
+async function removeQuestionData(questionIds, session) {
+  if (!questionIds.length) return;
+  await QuestionRevision.deleteMany({ questionId: { $in: questionIds } }, { session });
+  await QuestionImport.deleteMany({ questionId: { $in: questionIds } }, { session });
+  await Question.deleteMany({ _id: { $in: questionIds } }, { session });
+}
+
+async function replaceDeckSource(deck, questions) {
+  return mongoose.connection.transaction(async session => {
+    const current = await Question.find({ deckId: deck._id }).session(session);
+    const bySource = new Map(current.map(q => [q.sourceQuestionId, q]));
+    const retained = new Set(questions.map(q => bySource.get(q.sourceQuestionId)).filter(Boolean));
+    await removeQuestionData(current.filter(q => !retained.has(q)).map(q => q._id), session);
+    await QuestionImport.deleteMany({ deckId: deck._id }, { session });
+    await Question.bulkWrite(questions.map(question => {
+      const snapshot = questionSnapshot(question);
+      const existing = bySource.get(question.sourceQuestionId);
+      return { updateOne: {
+        filter: existing ? { _id: existing._id } : { deckId: deck._id, sourceQuestionId: question.sourceQuestionId },
+        update: { $set: {
+          ...question, publicId: existing?.publicId || question.publicId,
+          sourceHash: stableHash(snapshot), sourceSnapshot: snapshot, sourceState: 'synced',
+          lastImportedAt: new Date(), locallyEditedAt: null, archivedAt: null, archivedReason: '',
+          replacesQuestionId: null, replacedByQuestionId: null
+        } },
+        upsert: !existing
+      } };
+    }), { session });
+    await Deck.updateOne({ _id: deck._id }, { $set: {
+      totalQuestions: questions.length, sourceState: 'synced', archivedAt: null, archivedReason: '', isPublished: true
+    } }, { session });
+    return {
+      deckPath: deck.path, questions: questions.length, publishedQuestions: questions.filter(q => q.isPublished).length,
+      pendingReviews: 0, replacedSource: true, removedQuestions: current.length - retained.size
+    };
+  });
+}
+
+async function upsertDeck(manifest, deckPath, rawQuestions, { replaceFormSource = false } = {}) {
+  if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) {
+    throw new Error('Không nhận được câu hỏi từ Form. Hãy kiểm tra nguồn trước khi nạp lại.');
+  }
   const path = String(deckPath || '').trim();
   const subject = (manifest?.subjects || []).find(item => (item.decks || []).some(deck => String(deck.path) === path));
   if (!subject) throw new Error('Không tìm thấy môn sở hữu bộ đề trong manifest.');
@@ -273,7 +329,6 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
       path: path.toLowerCase(),
       stage: ['y1_y3', 'y4_y6', 'sau_dai_hoc', 'noi_tru'].includes(deck.stage) ? deck.stage : 'y1_y3',
       tags: Array.isArray(deck.tags) ? deck.tags : [],
-      totalQuestions: Array.isArray(rawQuestions) ? rawQuestions.length : Number(deck.questionCount) || 0,
       timeLimitMinutes: Math.max(1, Number(deck.timeLimitMinutes) || Math.ceil((Number(deck.questionCount) || 20) * 1.5)),
       orderIndex: Math.max(0, (subject.decks || []).indexOf(deck))
     } },
@@ -289,15 +344,72 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
       `(ví dụ ${invalidAnswerKeys[0].qId}).`
     );
   }
+  const formPrefix = id => String(id || '').split(':')[0];
+  const sourceIds = questions.map(q => q.sourceQuestionId).filter(Boolean);
+  if (new Set(sourceIds).size !== sourceIds.length || new Set(questions.map(q => q.qId)).size !== questions.length) {
+    throw new Error('Nguồn nhập có mã câu hỏi trùng. Cần kiểm tra lại Form.');
+  }
+  const knownQuestions = await Question.find({
+    $or: [{ deckId: deckDoc._id }, { sourceQuestionId: { $in: sourceIds } }]
+  });
+  const bySourceId = new Map(knownQuestions.filter(q => q.sourceQuestionId).map(q => [q.sourceQuestionId, q]));
+  const byQuestionId = new Map(knownQuestions.filter(q => String(q.deckId) === String(deckDoc._id)).map(q => [q.qId, q]));
+  const incomingForms = new Set(questions.map(q => q.sourceQuestionId).filter(Boolean).map(formPrefix));
+  const replacements = new Map();
+  if (incomingForms.size === 1) {
+    const existingQuestions = knownQuestions.filter(q => String(q.deckId) === String(deckDoc._id) && !q.archivedAt && q.sourceQuestionId);
+    const previousQuestions = existingQuestions.filter(q => !incomingForms.has(formPrefix(q.sourceQuestionId)));
+    if (previousQuestions.length) {
+      if (replaceFormSource) {
+        if (sourceIds.length !== questions.length || knownQuestions.some(q => String(q.deckId) !== String(deckDoc._id) && sourceIds.includes(q.sourceQuestionId))) {
+          throw new Error('Form mới thiếu mã câu hoặc đang được dùng ở bộ đề khác.');
+        }
+        if (questions.some(q => q.type === 'single' && !q.correctOptionIds.length)) {
+          throw new Error('Form mới có câu trắc nghiệm thiếu đáp án đúng. Bản hiện tại vẫn được giữ.');
+        }
+        return replaceDeckSource(deckDoc, questions);
+      }
+      if (previousQuestions.length !== existingQuestions.length || previousQuestions.length !== questions.length) {
+        throw new Error('Đề có nhiều bản nguồn hoặc số câu đã đổi. Cần đối chiếu bản cũ và Form mới trước khi nạp.');
+      }
+      const byContent = new Map();
+      for (const current of previousQuestions) {
+        const key = questionMatchKey(current.sourceSnapshot || current);
+        const matches = byContent.get(key) || [];
+        matches.push(current);
+        byContent.set(key, matches);
+      }
+      const used = new Set();
+      for (const incoming of questions) {
+        const matches = byContent.get(questionMatchKey(incoming)) || [];
+        const current = matches.length === 1 ? matches[0] : null;
+        if (!incoming.sourceQuestionId || !current || used.has(current) || bySourceId.has(incoming.sourceQuestionId)) {
+          throw new Error('Form mới có câu chưa khớp bản nguồn cũ. Cần đối chiếu trước khi nạp để tránh tạo câu trùng.');
+        }
+        used.add(current);
+        replacements.set(incoming.sourceQuestionId, current);
+      }
+    }
+  }
   const seen = new Set();
   const counts = { new: 0, changed: 0, conflict: 0, unchanged: 0, missing: 0, published: 0 };
   for (const incoming of questions) {
     const sourceId = incoming.sourceQuestionId || `${path.toLowerCase()}:${incoming.qId}`;
     seen.add(sourceId);
-    let current = await Question.findOne(incoming.sourceQuestionId
-      ? { $or: [{ sourceQuestionId: incoming.sourceQuestionId }, { deckId: deckDoc._id, qId: incoming.qId }] }
-      : { deckId: deckDoc._id, qId: incoming.qId });
+    const legacyMatch = byQuestionId.get(incoming.qId);
+    let current = replacements.get(sourceId) || bySourceId.get(incoming.sourceQuestionId)
+      || ((!incoming.sourceQuestionId || !legacyMatch?.sourceQuestionId) ? legacyMatch : null);
     if (current?.sourceState === 'replaced' && current.replacedByQuestionId) current = await Question.findById(current.replacedByQuestionId) || current;
+    // Count a matched question's old source ID as seen during a Form replacement.
+    if (current?.sourceQuestionId) {
+      seen.add(current.sourceQuestionId);
+      if (current.sourceQuestionId !== sourceId) {
+        await QuestionImport.updateMany(
+          { sourceQuestionId: current.sourceQuestionId, kind: 'missing', status: 'pending' },
+          { $set: { status: 'published', reviewedAt: new Date() } }
+        );
+      }
+    }
     const snapshot = questionSnapshot(incoming); const incomingHash = stableHash(snapshot);
     if (!current) {
       counts.new += 1;
@@ -319,10 +431,12 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
     }
     const currentSnapshot = questionSnapshot(current);
     const currentHash = stableHash(currentSnapshot);
+    const sameSourceContent = current.sourceSnapshot
+      && stableHash({ ...current.sourceSnapshot, qId: snapshot.qId }) === incomingHash;
 
     // Bản sửa trên web đã được sao lưu vào Question_Overrides và quay lại đúng
     // nội dung hiện tại thì chỉ cập nhật mốc nguồn, không tạo xung đột giả.
-    if (isLocallyManagedQuestion(current) && currentHash === incomingHash) {
+    if (isLocallyManagedQuestion(current) && (currentHash === incomingHash || replacements.has(sourceId))) {
       applyIncomingLocation(current, incoming);
       current.sourceHash = incomingHash;
       current.sourceSnapshot = snapshot;
@@ -332,10 +446,14 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
       continue;
     }
 
-    if (current.sourceHash === incomingHash && current.sourceState !== 'source_missing') {
+    if ((current.sourceHash === incomingHash || sameSourceContent) && current.sourceState !== 'source_missing') {
       applyIncomingLocation(current, incoming);
-      current.lastImportedAt = new Date();
-      await current.save();
+      current.sourceHash = incomingHash;
+      if (current.isModified()) {
+        current.sourceSnapshot = snapshot;
+        current.lastImportedAt = new Date();
+        await current.save();
+      }
       counts.unchanged += 1;
       continue;
     }
@@ -378,6 +496,15 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
     counts.missing += 1; current.sourceState = 'source_missing'; current.lastImportedAt = new Date(); await current.save();
     await QuestionImport.findOneAndUpdate({ candidateKey: `${current.sourceQuestionId}:missing` }, { $set: { questionId: current._id, deckId: deckDoc._id, deckPath: path.toLowerCase(), sourceQuestionId: current.sourceQuestionId, qId: current.qId, kind: 'missing', status: 'pending', currentSnapshot: questionSnapshot(current), detectedAt: new Date() } }, { upsert: true });
   }
+  if (counts.published + counts.unchanged > 0) {
+    if (deckDoc.totalQuestions !== questions.length) {
+      await Deck.updateOne({ _id: deckDoc._id }, { $set: { totalQuestions: questions.length } });
+    }
+    await Deck.updateOne(
+      { _id: deckDoc._id, sourceState: 'source_missing', archivedReason: 'Không còn trong nguồn nhập' },
+      { $set: { sourceState: 'synced', archivedAt: null, archivedReason: '', isPublished: true } }
+    );
+  }
   return {
     deckPath: path,
     questions: questions.length,
@@ -390,12 +517,17 @@ async function upsertDeck(manifest, deckPath, rawQuestions) {
 }
 
 async function deleteDeck(deckPath) {
-  const regex = new RegExp(`^${escapeRegex(String(deckPath || '').trim())}$`, 'i');
-  const deck = await Deck.findOne({ path: regex });
-  const now = new Date();
-  await Question.updateMany({ $or: [{ deckPath: regex }, ...(deck ? [{ deckId: deck._id }] : [])] }, { $set: { sourceState: 'source_missing' } });
-  const result = await Deck.updateMany({ path: regex }, { $set: { sourceState: 'source_missing', archivedAt: now, archivedReason: 'Đã xóa khỏi nguồn', isPublished: false } });
-  return { archivedDecks: result.modifiedCount };
+  const path = String(deckPath || '').trim().toLowerCase();
+  if (!/^[^/]+\/[^/]+$/.test(path)) throw new Error('Mã bộ đề không hợp lệ.');
+  return mongoose.connection.transaction(async session => {
+    const deck = await Deck.findOne({ path }).session(session);
+    const scope = deck ? { $or: [{ deckPath: path }, { deckId: deck._id }] } : { deckPath: path };
+    const questions = await Question.find(scope).select('_id').session(session).lean();
+    await removeQuestionData(questions.map(q => q._id), session);
+    await QuestionImport.deleteMany(deck ? { $or: [{ deckPath: path }, { deckId: deck._id }] } : { deckPath: path }, { session });
+    const result = await Deck.deleteOne({ path }, { session });
+    return { deletedDecks: result.deletedCount, deletedQuestions: questions.length };
+  });
 }
 
 async function deleteSubject(subjectId) {
@@ -422,13 +554,15 @@ export default async function handler(req, res) {
     await connectToDatabase();
     let result;
     if (operation === 'syncManifest') result = await syncManifest(req.body.manifest, { prune: true });
+    if (operation === 'mergeManifest') result = await syncManifest(req.body.manifest);
     if (operation === 'upsertDeck') {
-      await syncManifest(req.body.manifest);
-      result = await upsertDeck(req.body.manifest, req.body.deckPath, req.body.questions);
+      if (req.body.manifestAlreadySynced !== true) await syncManifest(req.body.manifest);
+      result = await upsertDeck(req.body.manifest, req.body.deckPath, req.body.questions, {
+        replaceFormSource: req.body.replaceFormSource === true
+      });
     }
     if (operation === 'deleteDeck') {
       result = await deleteDeck(req.body.deckPath);
-      if (req.body.manifest) await syncManifest(req.body.manifest);
     }
     if (operation === 'deleteSubject') result = await deleteSubject(req.body.subjectId);
     return res.status(200).json({ success: true, operation, result });
